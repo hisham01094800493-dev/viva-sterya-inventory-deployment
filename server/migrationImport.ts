@@ -80,7 +80,7 @@ export function registerMigrationImportRoutes(app: Express) {
       const snapshot = prepareSnapshotForBootstrapAdmin(parseJsonEntry<unknown>(zip, "snapshot.json"), bootstrapAdmin);
       const manifest = parseJsonEntry<MigrationManifest>(zip, "assets/manifest.json");
       const validation = validateBackupSnapshot(snapshot);
-      if (!validation.isValid || manifest.failures.length > 0 || manifest.expectedAssets !== manifest.downloadedAssets || manifest.files.length !== manifest.downloadedAssets) {
+      if (!validation.isValid || validation.missingRestorableTables.length > 0 || manifest.failures.length > 0 || manifest.expectedAssets !== manifest.downloadedAssets || manifest.files.length !== manifest.downloadedAssets) {
         return res.status(400).json({ error: "حزمة الترحيل غير مكتملة أو غير صالحة", validation });
       }
 
