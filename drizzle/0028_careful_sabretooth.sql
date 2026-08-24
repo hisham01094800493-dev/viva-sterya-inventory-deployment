@@ -1,0 +1,1 @@
+ALTER TABLE `user_preferences` ADD `onboarding_completed` boolean DEFAULT false NOT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE `notifications` ADD `help_status` enum('new','in_progress','completed') DEFAULT 'new' NOT NULL;

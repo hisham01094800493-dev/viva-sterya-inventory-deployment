@@ -1,0 +1,1 @@
+ALTER TABLE `notifications` ADD `read_at` timestamp;

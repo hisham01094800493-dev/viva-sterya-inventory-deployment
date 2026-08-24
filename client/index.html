@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="theme-color" content="#101b24" />
+    <meta name="description" content="منصة Smart Inventory الاحترافية لإدارة المخزون" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Smart Inventory" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/manus-storage/smart-inventory-icon-1_cafaec7c.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/manus-storage/smart-inventory-icon-3_b7226d5b.png" />
+    <style>
+      #pwa-word-splash { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #101b24; color: #d9e7ee; transition: opacity .22s ease, visibility .22s ease; }
+      #pwa-word-splash.is-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+      #pwa-word-splash .pwa-word-mark { display: inline-block; font-family: Manrope, sans-serif; font-size: clamp(2rem, 9vw, 4.5rem); font-weight: 800; letter-spacing: .08em; transform: translateX(115vw); opacity: 0; animation: pwa-word-enter .72s cubic-bezier(.23,1,.32,1) forwards; }
+      #pwa-word-splash .pwa-word-line { width: 3.5rem; height: .25rem; margin: .7rem auto 0; border-radius: 999px; background: linear-gradient(90deg, #8ca7b5, #72e5f2, #8ca7b5); box-shadow: 0 0 22px rgba(114,229,242,.58); transform-origin: right; animation: pwa-line-grow .55s .38s ease-out both; }
+      @keyframes pwa-word-enter { 0% { transform: translateX(115vw); opacity: 0; } 65% { opacity: 1; } 100% { transform: translateX(0); opacity: 1; } }
+      @keyframes pwa-line-grow { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
+      @media (prefers-color-scheme: light) { #pwa-word-splash { background: #eef6f7; color: #0d4f62; } #pwa-word-splash .pwa-word-line { background: linear-gradient(90deg, #8ca7b5, #40c7e5, #8ca7b5); box-shadow: 0 0 18px rgba(64,199,229,.42); } }
+      @media (prefers-reduced-motion: reduce) { #pwa-word-splash .pwa-word-mark, #pwa-word-splash .pwa-word-line { animation: none; transform: none; opacity: 1; } #pwa-word-splash { transition: none; } }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <title>Smart Inventory | إدارة المخزون</title>
+  </head>
+  <body>
+    <div id="pwa-word-splash" role="status" aria-label="Smart Inventory">
+      <div dir="ltr" aria-hidden="true"><div class="pwa-word-mark">Smart Inventory</div><div class="pwa-word-line"></div></div>
+    </div>
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem("theme") === "dark") document.documentElement.classList.add("dark");
+        } catch (_) {}
+      })();
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      (() => {
+        const splash = document.getElementById("pwa-word-splash");
+        if (!splash) return;
+        const startedAt = performance.now();
+        let loaded = false;
+        const hide = () => {
+          if (!loaded) return;
+          const wait = Math.max(0, 820 - (performance.now() - startedAt));
+          window.setTimeout(() => splash.classList.add("is-hidden"), wait);
+        };
+        window.addEventListener("load", () => { loaded = true; hide(); }, { once: true });
+        window.setTimeout(() => { loaded = true; hide(); }, 1500);
+      })();
+    </script>
+    <script defer src="%VITE_ANALYTICS_ENDPOINT%/umami" data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+  </body>
+</html>

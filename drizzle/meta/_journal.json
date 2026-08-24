@@ -1,0 +1,209 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1786782714725,
+      "tag": "0000_brave_cammi",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1786782921179,
+      "tag": "0001_clammy_stryfe",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786793835579,
+      "tag": "0002_bouncy_solo",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1786797699463,
+      "tag": "0003_powerful_lockjaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1786798111446,
+      "tag": "0004_bright_pestilence",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1786798626947,
+      "tag": "0005_public_hellion",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1786802083349,
+      "tag": "0006_colossal_thundra",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1786810366475,
+      "tag": "0007_white_raza",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1786860770377,
+      "tag": "0008_puzzling_the_hand",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1786869344428,
+      "tag": "0009_lame_thaddeus_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1786885476434,
+      "tag": "0010_quick_nightshade",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1786915689759,
+      "tag": "0011_white_paibok",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1787032652632,
+      "tag": "0012_vengeful_trauma",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1787033040947,
+      "tag": "0013_needy_xavin",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1787033582147,
+      "tag": "0014_bizarre_sister_grimm",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1787066604632,
+      "tag": "0015_chunky_sabra",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1787117074949,
+      "tag": "0016_worthless_bloodscream",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1787127929033,
+      "tag": "0017_lazy_shinobi_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1787128473351,
+      "tag": "0018_glamorous_spyke",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1787128948250,
+      "tag": "0019_big_harpoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1787140981654,
+      "tag": "0020_common_silvermane",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1787200984108,
+      "tag": "0021_bright_dragon_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1787201531346,
+      "tag": "0022_fair_medusa",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1787204024772,
+      "tag": "0023_demonic_calypso",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1787304900892,
+      "tag": "0024_sad_white_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1787306226609,
+      "tag": "0025_bored_black_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1787307979142,
+      "tag": "0026_illegal_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1787387009683,
+      "tag": "0027_unknown_solo",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1787413968925,
+      "tag": "0028_careful_sabretooth",
+      "breakpoints": true
+    }
+  ]
+}

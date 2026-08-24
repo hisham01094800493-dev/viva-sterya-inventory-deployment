@@ -1,0 +1,1 @@
+ALTER TABLE `backup_verification_runs` MODIFY COLUMN `run_type` enum('manual','scheduled','isolated_full') NOT NULL;

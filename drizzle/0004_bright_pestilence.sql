@@ -1,0 +1,1 @@
+ALTER TABLE `additions` ADD `supplier_id` int;
