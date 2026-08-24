@@ -18,7 +18,7 @@
 | Procfile | موجود بالفعل: `web: node server.js` |
 | Healthcheck Path | `/health` |
 
-أضف متغيرات البيئة في Railway. لا ترفع ملف `.env` الحقيقي إلى GitHub؛ استخدم القالب الموجود في `backend/.env.example` كمرجع للأسماء فقط.
+أضف متغيرات البيئة في Railway. لا ترفع ملف `.env` الحقيقي إلى GitHub؛ استخدم القالب الموجود في `backend/env.example.template` كمرجع للأسماء فقط. وللتشغيل المحلي انسخه باسم `backend/.env` وأدخل القيم الحقيقية.
 
 ```env
 PORT=3000
@@ -54,7 +54,7 @@ https://viva-sterya-inventory.vercel.app
 
 في [Vercel](https://vercel.com/new)، اختر المستودع نفسه، ثم اجعل **Root Directory** مساوية لـ `frontend`. يكتشف Vercel تطبيق React/Vite تلقائياً بسبب وجود `vercel.json` و`package.json` داخل المجلد.
 
-أضف متغير البيئة التالي في إعدادات مشروع Vercel، لقيم بيئات Production وPreview عند الحاجة:
+أضف متغير البيئة التالي في إعدادات مشروع Vercel، لقيم بيئات Production وPreview عند الحاجة. يوجد القالب المرجعي في `frontend/env.example.template`، ويمكن نسخه محلياً باسم `frontend/.env` عند الحاجة.
 
 ```env
 VITE_API_URL=https://viva-sterya-inventory-production.up.railway.app
@@ -101,11 +101,11 @@ npm run dev
 │   ├── src/
 │   ├── server.js
 │   ├── Procfile
-│   └── .env.example
+│   └── env.example.template
 ├── frontend/
 │   ├── src/
 │   ├── vercel.json
-│   └── .env.example
+│   └── env.example.template
 ├── README.md
 └── .gitignore
 ```
