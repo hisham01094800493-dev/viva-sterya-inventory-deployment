@@ -35,6 +35,10 @@ export async function storagePutAtKey(relKey: string, data: Buffer | Uint8Array 
   return { key, url: publicFilePath(key) };
 }
 export async function storageGet(relKey: string) { const key = normalizeKey(relKey); return { key, url: publicFilePath(key) }; }
+export async function storageGetObject(relKey: string, range?: string) {
+  const { bucket, s3 } = client();
+  return s3.send(new GetObjectCommand({ Bucket: bucket, Key: normalizeKey(relKey), ...(range ? { Range: range } : {}) }));
+}
 export async function storageGetSignedUrl(relKey: string, expiresIn = 300) {
   const { bucket, s3 } = client();
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: normalizeKey(relKey) }), { expiresIn });
