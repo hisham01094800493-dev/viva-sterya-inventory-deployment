@@ -151,6 +151,9 @@ importers:
       express:
         specifier: ^4.21.2
         version: 4.21.2
+      express-mysql-session:
+        specifier: ^3.0.3
+        version: 3.0.3
       express-session:
         specifier: ^1.19.0
         version: 1.19.0
@@ -254,6 +257,9 @@ importers:
       '@types/express':
         specifier: 4.17.21
         version: 4.17.21
+      '@types/express-mysql-session':
+        specifier: ^3.0.8
+        version: 3.0.8
       '@types/express-session':
         specifier: ^1.19.0
         version: 1.19.0
@@ -2395,6 +2401,9 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
+  '@types/express-mysql-session@3.0.8':
+    resolution: {integrity: sha512-ljtWFQZHQDIzr/FfQYa/twmdm871uJOMJz7a6hPRBaeBpw49pCBxUYfb56N3troI8i8uHsKjYJ1lpZhSlYl25w==}
+
   '@types/express-serve-static-core@4.19.6':
     resolution: {integrity: sha512-N4LZ2xG7DatVqhCZzOGb1Yi5lMbXSZcmdLDe9EzSndPV2HpWYWzRbaerl2n27irrm94EPpprqa8KpskPT085+A==}
 
@@ -3006,6 +3015,15 @@ packages:
       supports-color:
         optional: true
 
+  debug@4.3.4:
+    resolution: {integrity: sha512-PRWFHuSU3eDtQJPvnNY7Jcket1j0t5OuOsFzPPzsekD52Zl8qUfFIPEiswXqIvHWGVHOgX+7G/vCNNhehwxfkQ==}
+    engines: {node: '>=6.0'}
+    peerDependencies:
+      supports-color: '*'
+    peerDependenciesMeta:
+      supports-color:
+        optional: true
+
   debug@4.4.3:
     resolution: {integrity: sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==}
     engines: {node: '>=6.0'}
@@ -3285,6 +3303,9 @@ packages:
   expect-type@1.2.2:
     resolution: {integrity: sha512-JhFGDVJ7tmDJItKhYgJCGLOWjuK9vPxiXoUFLwLDc99NlmklilbiQJwoctZtt13+xMw91MCk/REan6MWHqDjyA==}
     engines: {node: '>=12.0.0'}
+
+  express-mysql-session@3.0.3:
+    resolution: {integrity: sha512-sEYrzFrOs3er+Ie/uk1dt93qz4AQ9SU1mpJJ0HPs0MJ4t4hE9AcDRNq0sZQUwy2F/SbXusBt1E5+FY6KzSqXNg==}
 
   express-session@1.19.0:
     resolution: {integrity: sha512-0csaMkGq+vaiZTmSMMGkfdCOabYv192VbytFypcvI0MANrp+4i/7yEkJ0sbAEhycQjntaKGzYfjfXQyVb7BHMA==}
@@ -3770,6 +3791,10 @@ packages:
     resolution: {integrity: sha512-jumlc0BIUrS3qJGgIkWZsyfAM7NCWiBcCDhnd+3NNM5KbBmLTgHVfWBcg6W+rLUsIpzpERPsvwUP7CckAQSOoA==}
     engines: {node: '>=12'}
 
+  lru-cache@8.0.5:
+    resolution: {integrity: sha512-MhWWlVnuab1RG5/zMRRcVGXZLCXrZTgfwMikgzCegsPnG62yDQo5JnqKkrK4jO5iKqDAZGItAqN5CtKBCBWRUA==}
+    engines: {node: '>=16.14'}
+
   lru.min@1.1.2:
     resolution: {integrity: sha512-Nv9KddBcQSlQopmBHXSsZVY5xsdlZkdH/Iey0BlcBYggMd4two7cZnKOK9vmy3nY0O5RGH99z1PCeTpPqszUYg==}
     engines: {bun: '>=1.0.0', deno: '>=1.30.0', node: '>=8.0.0'}
@@ -4001,11 +4026,22 @@ packages:
   ms@2.0.0:
     resolution: {integrity: sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A==}
 
+  ms@2.1.2:
+    resolution: {integrity: sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==}
+
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
 
+  mysql2@3.10.2:
+    resolution: {integrity: sha512-KCXPEvAkO0RcHPr362O5N8tFY2fXvbjfkPvRY/wGumh4EOemo9Hm5FjQZqv/pCmrnuxGu5OxnSENG0gTXqKMgQ==}
+    engines: {node: '>= 8.0'}
+
   mysql2@3.15.1:
     resolution: {integrity: sha512-WZMIRZstT2MFfouEaDz/AGFnGi1A2GwaDe7XvKTdRJEYiAHbOrh4S3d8KFmQeh11U85G+BFjIvS1Di5alusZsw==}
+    engines: {node: '>= 8.0'}
+
+  mysql2@3.9.8:
+    resolution: {integrity: sha512-+5JKNjPuks1FNMoy9TYpl77f+5frbTklz7eb3XDwbpsERRLEeXiW2PDEkakYF50UuKU2qwfGnyXpKYvukv8mGA==}
     engines: {node: '>= 8.0'}
 
   named-placeholders@1.1.3:
@@ -7269,6 +7305,11 @@ snapshots:
 
   '@types/estree@1.0.8': {}
 
+  '@types/express-mysql-session@3.0.8':
+    dependencies:
+      '@types/express-session': 1.19.0
+      mysql2: 3.9.8
+
   '@types/express-serve-static-core@4.19.6':
     dependencies:
       '@types/node': 24.7.0
@@ -7949,6 +7990,10 @@ snapshots:
     dependencies:
       ms: 2.0.0
 
+  debug@4.3.4:
+    dependencies:
+      ms: 2.1.2
+
   debug@4.4.3:
     dependencies:
       ms: 2.1.3
@@ -8188,6 +8233,13 @@ snapshots:
       uuid: 8.3.2
 
   expect-type@1.2.2: {}
+
+  express-mysql-session@3.0.3:
+    dependencies:
+      debug: 4.3.4
+      mysql2: 3.10.2
+    transitivePeerDependencies:
+      - supports-color
 
   express-session@1.19.0:
     dependencies:
@@ -8733,6 +8785,8 @@ snapshots:
 
   lru-cache@7.18.3: {}
 
+  lru-cache@8.0.5: {}
+
   lru.min@1.1.2: {}
 
   lucide-react@0.453.0(react@19.2.1):
@@ -9197,7 +9251,20 @@ snapshots:
 
   ms@2.0.0: {}
 
+  ms@2.1.2: {}
+
   ms@2.1.3: {}
+
+  mysql2@3.10.2:
+    dependencies:
+      denque: 2.1.0
+      generate-function: 2.3.1
+      iconv-lite: 0.6.3
+      long: 5.3.2
+      lru-cache: 8.0.5
+      named-placeholders: 1.1.3
+      seq-queue: 0.0.5
+      sqlstring: 2.3.3
 
   mysql2@3.15.1:
     dependencies:
@@ -9207,6 +9274,17 @@ snapshots:
       iconv-lite: 0.7.0
       long: 5.3.2
       lru.min: 1.1.2
+      named-placeholders: 1.1.3
+      seq-queue: 0.0.5
+      sqlstring: 2.3.3
+
+  mysql2@3.9.8:
+    dependencies:
+      denque: 2.1.0
+      generate-function: 2.3.1
+      iconv-lite: 0.6.3
+      long: 5.3.2
+      lru-cache: 8.0.5
       named-placeholders: 1.1.3
       seq-queue: 0.0.5
       sqlstring: 2.3.3

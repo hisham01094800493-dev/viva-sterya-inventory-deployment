@@ -1,6 +1,7 @@
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import type { Express, Request } from "express";
 import session from "express-session";
+import MySQLStoreFactory from "express-mysql-session";
 import passport from "passport";
 import { Strategy as GoogleStrategy, type Profile } from "passport-google-oauth20";
 import { randomUUID } from "node:crypto";
@@ -25,9 +26,38 @@ function googleConfigured() {
   return Boolean(ENV.googleClientId && ENV.googleClientSecret && ENV.appUrl);
 }
 
+export function buildMySqlSessionOptions(databaseUrl: string) {
+  const url = new URL(databaseUrl);
+  const database = url.pathname.replace(/^\//, "");
+  if (!database) throw new Error("DATABASE_URL must include a database name");
+  return {
+    host: url.hostname,
+    port: Number(url.port || 3306),
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database,
+    createDatabaseTable: true,
+    clearExpired: true,
+    checkExpirationInterval: 15 * 60 * 1000,
+    expiration: 10 * 60 * 1000,
+    schema: { tableName: "oauth_sessions", columnNames: { session_id: "session_id", expires: "expires", data: "data" } },
+  };
+}
+
+function createSessionStore() {
+  if (!ENV.databaseUrl) {
+    if (ENV.isProduction) throw new Error("DATABASE_URL is required for the production OAuth session store");
+    return undefined;
+  }
+  const MySQLStore = MySQLStoreFactory(session);
+  const store = new MySQLStore(buildMySqlSessionOptions(ENV.databaseUrl));
+  void store.onReady().then(() => console.log("[OAuth] MySQL session store ready")).catch(error => console.error("[OAuth] MySQL session store failed", error));
+  return store;
+}
+
 export function registerOAuthRoutes(app: Express) {
   app.set("trust proxy", 1);
-  app.use(session({ secret: ENV.cookieSecret || "development-session-secret", resave: false, saveUninitialized: false, cookie: { httpOnly: true, sameSite: "lax", secure: ENV.isProduction, maxAge: 10 * 60 * 1000 } }));
+  app.use(session({ secret: ENV.cookieSecret || "development-session-secret", store: createSessionStore(), resave: false, saveUninitialized: false, cookie: { httpOnly: true, sameSite: "lax", secure: ENV.isProduction, maxAge: 10 * 60 * 1000 } }));
   app.use(passport.initialize());
 
   if (googleConfigured()) {
