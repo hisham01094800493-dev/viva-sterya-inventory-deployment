@@ -244,6 +244,84 @@
     box-shadow: 0 24px 70px rgba(24, 67, 88, 0.08);
     backdrop-filter: blur(18px);
   }
+  .smart-sidebar-surface {
+    background: linear-gradient(180deg, rgba(245, 253, 255, 0.66), rgba(224, 247, 245, 0.52) 55%, rgba(255, 241, 217, 0.56)) !important;
+    border-color: rgba(255, 255, 255, 0.68) !important;
+    box-shadow: -18px 0 48px rgba(13, 79, 98, 0.11), inset 1px 0 rgba(255, 255, 255, 0.56);
+    backdrop-filter: blur(26px) saturate(145%);
+    color: #173f4c;
+  }
+  .smart-sidebar-header, .smart-sidebar-footer { border-color: rgba(111, 165, 176, 0.24) !important; }
+  .smart-sidebar-section-label { color: #52717d; text-shadow: 0 1px rgba(255, 255, 255, 0.62); }
+  .smart-sidebar-navigation [data-sidebar="menu-button"].smart-sidebar-nav-item {
+    color: #244c5a !important;
+    background: rgba(255, 255, 255, 0.23) !important;
+    border: 1px solid rgba(255, 255, 255, 0.20);
+    box-shadow: 0 5px 14px rgba(25, 83, 100, 0.035);
+  }
+  .smart-sidebar-navigation [data-sidebar="menu-button"].smart-sidebar-nav-item:hover {
+    color: #082f3c !important;
+    background: rgba(255, 255, 255, 0.58) !important;
+    border-color: rgba(96, 181, 188, 0.42);
+    box-shadow: 0 10px 22px rgba(13, 79, 98, 0.10);
+    transform: translateX(-2px);
+  }
+  .smart-sidebar-navigation [data-sidebar="menu-button"].smart-sidebar-nav-item-active,
+  .smart-sidebar-navigation [data-sidebar="menu-button"].smart-sidebar-nav-item-active:hover {
+    color: #ffffff !important;
+    background: linear-gradient(105deg, rgba(10, 73, 89, 0.96), rgba(19, 132, 139, 0.90)) !important;
+    border-color: rgba(183, 242, 239, 0.40);
+    box-shadow: 0 12px 24px rgba(10, 73, 89, 0.22), inset 0 1px rgba(255, 255, 255, 0.18);
+  }
+  .smart-sidebar-nav-icon {
+    background: linear-gradient(145deg, rgba(225, 249, 248, 0.94), rgba(174, 226, 227, 0.78));
+    border: 1px solid rgba(255, 255, 255, 0.74);
+    box-shadow: 0 5px 12px rgba(13, 105, 119, 0.14), inset 0 1px rgba(255, 255, 255, 0.72);
+    color: #05687a;
+  }
+  .smart-sidebar-nav-icon svg { filter: drop-shadow(0 1px 1px rgba(255, 255, 255, 0.6)); }
+  .smart-sidebar-nav-item-active .smart-sidebar-nav-icon {
+    background: rgba(255, 244, 214, 0.22);
+    border-color: rgba(255, 231, 169, 0.40);
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.14);
+    color: #ffe3a6;
+  }
+  .smart-sidebar-profile { color: #173f4c; }
+  .smart-sidebar-profile:hover { background: rgba(255, 255, 255, 0.46); }
+  .dark .smart-sidebar-surface {
+    background: linear-gradient(180deg, rgba(7, 31, 42, 0.74), rgba(10, 51, 61, 0.63) 58%, rgba(55, 42, 28, 0.58)) !important;
+    border-color: rgba(170, 229, 232, 0.18) !important;
+    box-shadow: -18px 0 52px rgba(0, 0, 0, 0.30), inset 1px 0 rgba(214, 249, 250, 0.08);
+    color: #effcff;
+  }
+  .dark .smart-sidebar-header, .dark .smart-sidebar-footer { border-color: rgba(182, 238, 240, 0.18) !important; }
+  .dark .smart-sidebar-section-label { color: #b7d9dc; text-shadow: none; }
+  .dark .smart-sidebar-navigation [data-sidebar="menu-button"].smart-sidebar-nav-item {
+    color: #e3f6f8 !important;
+    background: rgba(12, 54, 65, 0.26) !important;
+    border-color: rgba(185, 237, 239, 0.09);
+    box-shadow: 0 5px 16px rgba(0, 0, 0, 0.10);
+  }
+  .dark .smart-sidebar-navigation [data-sidebar="menu-button"].smart-sidebar-nav-item:hover {
+    color: #ffffff !important;
+    background: rgba(37, 105, 116, 0.48) !important;
+    border-color: rgba(151, 232, 230, 0.30);
+  }
+  .dark .smart-sidebar-navigation [data-sidebar="menu-button"].smart-sidebar-nav-item-active,
+  .dark .smart-sidebar-navigation [data-sidebar="menu-button"].smart-sidebar-nav-item-active:hover {
+    color: #ffffff !important;
+    background: linear-gradient(105deg, rgba(7, 93, 105, 0.96), rgba(19, 137, 141, 0.94)) !important;
+    border-color: rgba(188, 249, 244, 0.44);
+  }
+  .dark .smart-sidebar-nav-icon {
+    background: linear-gradient(145deg, rgba(41, 119, 130, 0.62), rgba(19, 77, 91, 0.70));
+    border-color: rgba(170, 239, 237, 0.18);
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.22), inset 0 1px rgba(214, 255, 253, 0.10);
+    color: #a8f4ee;
+  }
+  .dark .smart-sidebar-nav-item-active .smart-sidebar-nav-icon { color: #fff0c9; background: rgba(255, 232, 169, 0.15); }
+  .dark .smart-sidebar-profile { color: #f0fbfc; }
+  .dark .smart-sidebar-profile:hover { background: rgba(118, 203, 207, 0.16); }
   .modern-card {
     border: 1px solid rgba(255, 255, 255, 0.8);
     box-shadow: 0 14px 38px rgba(18, 58, 79, 0.075);

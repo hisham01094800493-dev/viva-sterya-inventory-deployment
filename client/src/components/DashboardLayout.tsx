@@ -78,6 +78,18 @@ type PreviewPermissions = { userId: number; userName?: string | null; userEmail?
 const MOVEMENT_FINANCIAL_PERMISSION = "warehouse-financial-details";
 const MOVEMENT_FINANCIAL_PREFERENCE_KEY = "movement-financial-columns-v1";
 
+export const SIDEBAR_VISUAL_CLASSES = {
+  surface: "smart-sidebar-surface",
+  header: "smart-sidebar-header",
+  footer: "smart-sidebar-footer",
+  sectionLabel: "smart-sidebar-section-label",
+  navigation: "smart-sidebar-navigation",
+  navigationItem: "smart-sidebar-nav-item",
+  activeNavigationItem: "smart-sidebar-nav-item-active",
+  icon: "smart-sidebar-nav-icon",
+  profile: "smart-sidebar-profile",
+} as const;
+
 export function buildGovernanceNavigationItems(role?: string | null): NavigationItem[] {
   if (role === "admin") {
     return [
@@ -90,7 +102,31 @@ export function buildGovernanceNavigationItems(role?: string | null): Navigation
   return role === "manager" ? [{ icon: ShieldCheck, label: "الحماية والنسخ الاحتياطي", path: "/governance" }] : [];
 }
 
-export function WarehouseNavigationList({ items, activePath, onNavigate, darkMode = false }: { items: NavigationItem[]; activePath?: string; onNavigate: (path: string) => void; darkMode?: boolean }) { return <SidebarMenu className="gap-2">{items.map(item => { const Icon = item.icon; const active = activePath === item.path; return <SidebarMenuItem key={item.path}><SidebarMenuButton isActive={active} onClick={() => onNavigate(item.path)} tooltip={item.label} className={`smart-interactive group h-12 rounded-2xl px-3 text-[13px] font-black transition-all duration-200 ${active ? "bg-gradient-to-l from-[#0d4f62] to-[#167c87] text-white shadow-lg shadow-[#0d4f62]/20" : `${darkMode ? "text-[#b9d4d9] hover:bg-[#1c5262] hover:text-white" : "text-[#536b78] hover:bg-gradient-to-l hover:from-[#fff4df] hover:to-[#e8f7f6] hover:text-[#0d4f62]"}`} ${darkMode && active ? "text-white" : ""}`}><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${active ? "bg-white/15" : darkMode ? "bg-white/5" : "bg-[#e8f1f2] group-hover:bg-white"}`}><Icon className={`h-5 w-5 ${active ? "text-[#ffe0a3]" : darkMode ? "text-[#8ed3d1]" : "text-[#0d7180]"}`} /></span><span>{item.label}</span></SidebarMenuButton></SidebarMenuItem>; })}</SidebarMenu>; }
+export function WarehouseNavigationList({ items, activePath, onNavigate, darkMode = false }: { items: NavigationItem[]; activePath?: string; onNavigate: (path: string) => void; darkMode?: boolean }) {
+  return (
+    <SidebarMenu className={`${SIDEBAR_VISUAL_CLASSES.navigation} gap-2`}>
+      {items.map(item => {
+        const Icon = item.icon;
+        const active = activePath === item.path;
+        return (
+          <SidebarMenuItem key={item.path}>
+            <SidebarMenuButton
+              isActive={active}
+              onClick={() => onNavigate(item.path)}
+              tooltip={item.label}
+              className={`smart-interactive group h-12 rounded-2xl px-3 text-[13px] font-black transition-all duration-200 ${SIDEBAR_VISUAL_CLASSES.navigationItem} ${active ? SIDEBAR_VISUAL_CLASSES.activeNavigationItem : ""}`}
+            >
+              <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${SIDEBAR_VISUAL_CLASSES.icon}`}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <span>{item.label}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      })}
+    </SidebarMenu>
+  );
+}
 
 const menuItems = [
   { icon: LayoutDashboard, label: "نظرة عامة", path: "/" },
@@ -347,8 +383,8 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
 
   return (
     <div className="modern-shell flex min-h-svh w-full min-w-0 flex-1 overflow-x-hidden" dir="rtl">
-        <Sidebar side="right" collapsible="icon" className="dark-surface border-l border-white/70 border-r-0 bg-gradient-to-b from-[#f4fdff] via-[#dff5f4] to-[#fff0d5] shadow-[-18px_0_48px_rgba(13,79,98,0.12)] backdrop-blur-xl">
-          <SidebarHeader className="h-24 justify-center border-b border-[#e7eef3] px-4">
+        <Sidebar side="right" collapsible="icon" className={`${SIDEBAR_VISUAL_CLASSES.surface} border-l border-r-0`}>
+          <SidebarHeader className={`${SIDEBAR_VISUAL_CLASSES.header} h-24 justify-center px-4`}>
             <div className="flex items-center gap-3">
               <button onClick={toggleSidebar} className="smart-interactive flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#0d4f62] to-[#167c87] text-white shadow-lg shadow-[#0d4f62]/20 transition-transform active:scale-95" aria-label="طي القائمة">
                 <PanelRight className="h-5 w-5" />
@@ -362,14 +398,14 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
             </div>
           </SidebarHeader>
           <SidebarContent className="px-3 py-5">
-            <div className={`mb-3 px-3 text-[10px] font-black tracking-[0.22em] text-slate-400 ${isCollapsed ? "sr-only" : ""}`}>مساحات العمل</div>
+            <div className={`${SIDEBAR_VISUAL_CLASSES.sectionLabel} mb-3 px-3 text-[10px] font-black tracking-[0.22em] ${isCollapsed ? "sr-only" : ""}`}>مساحات العمل</div>
             <WarehouseNavigationList items={navigationItems} activePath={activeMenuItem.path} onNavigate={(path) => path === "/migration-import" ? window.location.assign(path) : setLocation(path)} darkMode={darkMode} />
           </SidebarContent>
-          <SidebarFooter className="border-t border-[#e7eef3] p-3">
+          <SidebarFooter className={`${SIDEBAR_VISUAL_CLASSES.footer} p-3`}>
             <PwaVersionCard collapsed={isCollapsed} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex w-full items-center gap-3 rounded-xl p-2 text-right transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0d4f62]">
+                <button className={`${SIDEBAR_VISUAL_CLASSES.profile} flex w-full items-center gap-3 rounded-xl p-2 text-right transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0d4f62]`}>
                   <Avatar className="h-9 w-9 border border-[#d6e4e8] bg-[#e8f1f2]">
                     <AvatarFallback className="bg-[#e8f1f2] text-sm font-black text-[#0d4f62]">{user.name?.charAt(0) ?? "م"}</AvatarFallback>
                   </Avatar>
