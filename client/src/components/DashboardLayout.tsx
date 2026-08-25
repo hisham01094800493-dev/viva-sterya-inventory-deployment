@@ -20,6 +20,7 @@ import {
   Truck,
   Warehouse,
   RotateCcw,
+  Upload,
   UserRound,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -76,6 +77,18 @@ type NavigationItem = { icon: React.ComponentType<{ className?: string }>; label
 type PreviewPermissions = { userId: number; userName?: string | null; userEmail?: string | null; allowedScreens: string[]; allowedReports: string[]; readOnly: boolean };
 const MOVEMENT_FINANCIAL_PERMISSION = "warehouse-financial-details";
 const MOVEMENT_FINANCIAL_PREFERENCE_KEY = "movement-financial-columns-v1";
+
+export function buildGovernanceNavigationItems(role?: string | null): NavigationItem[] {
+  if (role === "admin") {
+    return [
+      { icon: ShieldCheck, label: "الحماية والنسخ الاحتياطي", path: "/governance" },
+      { icon: ShieldCheck, label: "النسخ الاحتياطية السابقة", path: "/governance?tab=backups" },
+      { icon: Upload, label: "استيراد حزمة الترحيل", path: "/migration-import" },
+      { icon: RotateCcw, label: "بدء استخدام جديد", path: "/governance?tab=reset" },
+    ];
+  }
+  return role === "manager" ? [{ icon: ShieldCheck, label: "الحماية والنسخ الاحتياطي", path: "/governance" }] : [];
+}
 
 export function WarehouseNavigationList({ items, activePath, onNavigate, darkMode = false }: { items: NavigationItem[]; activePath?: string; onNavigate: (path: string) => void; darkMode?: boolean }) { return <SidebarMenu className="gap-2">{items.map(item => { const Icon = item.icon; const active = activePath === item.path; return <SidebarMenuItem key={item.path}><SidebarMenuButton isActive={active} onClick={() => onNavigate(item.path)} tooltip={item.label} className={`smart-interactive group h-12 rounded-2xl px-3 text-[13px] font-black transition-all duration-200 ${active ? "bg-gradient-to-l from-[#0d4f62] to-[#167c87] text-white shadow-lg shadow-[#0d4f62]/20" : `${darkMode ? "text-[#b9d4d9] hover:bg-[#1c5262] hover:text-white" : "text-[#536b78] hover:bg-gradient-to-l hover:from-[#fff4df] hover:to-[#e8f7f6] hover:text-[#0d4f62]"}`} ${darkMode && active ? "text-white" : ""}`}><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${active ? "bg-white/15" : darkMode ? "bg-white/5" : "bg-[#e8f1f2] group-hover:bg-white"}`}><Icon className={`h-5 w-5 ${active ? "text-[#ffe0a3]" : darkMode ? "text-[#8ed3d1]" : "text-[#0d7180]"}`} /></span><span>{item.label}</span></SidebarMenuButton></SidebarMenuItem>; })}</SidebarMenu>; }
 
@@ -309,7 +322,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   const isCollapsed = state === "collapsed";
   const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
   const warehouseMenuItems = [{ icon: Warehouse, label: "المخازن", path: "/warehouses" }];
-  const governanceItem = user.role === "admin" ? [{ icon: ShieldCheck, label: "الحماية والنسخ الاحتياطي", path: "/governance" }, { icon: ShieldCheck, label: "النسخ الاحتياطية السابقة", path: "/governance?tab=backups" }, { icon: RotateCcw, label: "بدء استخدام جديد", path: "/governance?tab=reset" }] : user.role === "manager" ? [{ icon: ShieldCheck, label: "الحماية والنسخ الاحتياطي", path: "/governance" }] : [];
+  const governanceItem = buildGovernanceNavigationItems(user.role);
   const allNavigationItems = [...menuItems.slice(0, 2), ...warehouseMenuItems, { icon: Truck, label: "الموردون للإضافات", path: "/suppliers" }, { icon: UserRound, label: "العملاء/جهات الصرف", path: "/customers" }, ...menuItems.slice(2), ...governanceItem];
   const screenForPath = (path: string) => path.startsWith("/warehouses") ? "inventory" : path.replace(/^\//, "").split("?")[0] || "dashboard";
   const hasScreenPermission = (path: string) => path.startsWith("/governance") || !effectivePermissions || effectivePermissions.allowedScreens.includes(screenForPath(path));
@@ -350,7 +363,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
           </SidebarHeader>
           <SidebarContent className="px-3 py-5">
             <div className={`mb-3 px-3 text-[10px] font-black tracking-[0.22em] text-slate-400 ${isCollapsed ? "sr-only" : ""}`}>مساحات العمل</div>
-            <WarehouseNavigationList items={navigationItems} activePath={activeMenuItem.path} onNavigate={setLocation} darkMode={darkMode} />
+            <WarehouseNavigationList items={navigationItems} activePath={activeMenuItem.path} onNavigate={(path) => path === "/migration-import" ? window.location.assign(path) : setLocation(path)} darkMode={darkMode} />
           </SidebarContent>
           <SidebarFooter className="border-t border-[#e7eef3] p-3">
             <PwaVersionCard collapsed={isCollapsed} />
