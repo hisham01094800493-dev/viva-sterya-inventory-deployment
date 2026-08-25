@@ -72,6 +72,55 @@ function prepareSnapshotForBootstrapAdmin(snapshot: unknown, bootstrapAdmin: Use
 }
 
 export function registerMigrationImportRoutes(app: Express) {
+  app.get("/migration-import", async (req, res) => {
+    try {
+      await isAdminRequest(req);
+      res.type("html").send(`<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>استيراد بيانات Smart Inventory</title>
+    <style>
+      body { margin: 0; background: #f7f8fa; color: #172033; font-family: Tahoma, Arial, sans-serif; }
+      main { max-width: 680px; margin: 52px auto; padding: 32px; background: #fff; border: 1px solid #dde3eb; border-radius: 16px; }
+      h1 { margin-top: 0; color: #183e66; } p { line-height: 1.8; }
+      input { display: block; width: 100%; box-sizing: border-box; margin: 24px 0 16px; padding: 12px; border: 1px solid #b6c2d1; border-radius: 8px; }
+      button { background: #176b52; color: #fff; border: 0; border-radius: 8px; padding: 12px 20px; font-size: 16px; cursor: pointer; }
+      button:disabled { opacity: .6; cursor: wait; } #status { margin-top: 20px; white-space: pre-wrap; } .notice { color: #6a4c00; }
+    </style>
+  </head>
+  <body><main>
+    <h1>استيراد حزمة ترحيل النظام</h1>
+    <p>ارفع ملف <strong>smart-inventory-railway-migration.zip</strong> الذي تم تجهيزه للنقل. ستتحقق الخدمة من البيانات وبصمة كل ملف قبل الاستيراد.</p>
+    <p class="notice">نفّذ الاستيراد مرة واحدة فقط على قاعدة البيانات الجديدة الفارغة.</p>
+    <input id="archive" type="file" accept="application/zip,.zip" />
+    <button id="submit" type="button">بدء الاستيراد</button>
+    <div id="status" role="status"></div>
+    <script>
+      const archive = document.getElementById('archive');
+      const submit = document.getElementById('submit');
+      const status = document.getElementById('status');
+      submit.addEventListener('click', async () => {
+        const file = archive.files && archive.files[0];
+        if (!file) { status.textContent = 'اختر ملف حزمة الترحيل أولًا.'; return; }
+        submit.disabled = true; status.textContent = 'جارٍ التحقق ورفع الملفات... لا تغلق هذه الصفحة.';
+        try {
+          const response = await fetch('/api/migration/import', { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: file });
+          const body = await response.json();
+          if (!response.ok) throw new Error(body.error || 'فشل الاستيراد');
+          status.textContent = 'تم الاستيراد بنجاح. الملفات المرفوعة: ' + body.uploadedFiles + '\\nيمكنك الآن العودة إلى الصفحة الرئيسية ومراجعة الأرصدة.';
+        } catch (error) { status.textContent = 'تعذر الاستيراد: ' + (error instanceof Error ? error.message : 'خطأ غير معروف'); }
+        finally { submit.disabled = false; }
+      });
+    </script>
+  </main></body>
+</html>`);
+    } catch {
+      res.redirect("/?login=required");
+    }
+  });
+
   app.post("/api/migration/import", express.raw({ type: "application/zip", limit: "80mb" }), async (req, res) => {
     try {
       const bootstrapAdmin = await isAdminRequest(req);
