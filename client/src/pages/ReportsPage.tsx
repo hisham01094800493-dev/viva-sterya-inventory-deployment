@@ -9,6 +9,7 @@ import type { InventoryExportItem } from "@/lib/inventoryExport";
 import { buildInventoryPdf, buildMovementPdf, configureArabicPdf, drawReportHeader, getArabicPdfFont, shapeArabic, downloadInventoryExcel as downloadInventoryExcelFile, downloadInventoryPdf as downloadInventoryPdfFile, downloadMovementExcel, downloadMovementPdf, loadPdfTools, inventoryExportColumns, movementExportColumns, movementPdfExportColumns, type ExportColumnKey, type MovementExportItem } from "@/lib/inventoryExportFiles";
 import { downloadBlobFile, getExportImageExtension, savePdfFile } from "@/lib/inventoryExportRuntime";
 import { trpc } from "@/lib/trpc";
+import { resolveCompanyLogoUrl } from "@/lib/brandAssets";
 import { VoiceInputButton, normalizeVoiceSearchText } from "@/components/VoiceInputButton";
 import { inventoryQueryOptions, dashboardQueryOptions } from "@/lib/queryOptions";
 import { BarChart3, ChevronLeft, ChevronRight, Download, Eye, FileText, GripVertical, Image as ImageIcon, Loader2, Minus, PackageCheck, Plus, Printer, RefreshCcw, Search, TrendingDown, Upload, ZoomIn, ZoomOut } from "lucide-react";
@@ -335,7 +336,7 @@ export default function ReportsPage() {
   const [selectedColumns, setSelectedColumns] = useState<ExportColumnKey[]>([...inventoryExportColumns]);
   const reportColumnPreferenceKey = `reports:${reportType}:${exportFormat}`;
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
-  const companyLogoUrl = settings.data?.find(item => item.key === "company_logo_url")?.value ?? null;
+  const companyLogoUrl = resolveCompanyLogoUrl(settings.data?.find(item => item.key === "company_logo_url")?.value);
   const watermarkEnabled = settings.data?.find(item => item.key === "report_watermark_enabled")?.value !== "false";
   const watermarkOpacity = Number(settings.data?.find(item => item.key === "report_watermark_opacity")?.value ?? "0.08");
   const watermarkScale = Number(settings.data?.find(item => item.key === "report_watermark_scale")?.value ?? "0.42");

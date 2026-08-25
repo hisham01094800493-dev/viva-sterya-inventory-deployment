@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
+import { resolveCompanyLogoUrl } from "@/lib/brandAssets";
 import { createReportMailtoUrl, sharePdfFile } from "@/lib/reportSharing";
 import { buildAccountStatementPdf, buildMainWarehousePdf, downloadAccountStatementExcel, downloadAccountStatementPdf, type ExportColumnKey } from "@/lib/inventoryExportFiles";
 import { ArrowRight, ArrowUpDown, Building2, Check, Download, Edit3, Eye, FileText, GripVertical, Loader2, Mail, MapPin, Package, Phone, Plus, Printer, Save, Search, Share2, Truck, UserRound, Warehouse } from "lucide-react";
@@ -86,7 +87,7 @@ export function WarehousesPage() {
   const reportIframeRef = useRef<HTMLIFrameElement>(null);
   const reportCards = trpc.items.warehouseCards.useQuery({ warehouseId: selected?.id ?? 1 }, { enabled: reportOpen && Boolean(selected) });
   const reportSettings = trpc.settings.list.useQuery(undefined, { enabled: reportOpen });
-  const reportLogo = reportSettings.data?.find(item => item.key === "company_logo_url")?.value ?? null;
+  const reportLogo = resolveCompanyLogoUrl(reportSettings.data?.find(item => item.key === "company_logo_url")?.value);
   const reportWatermarkEnabled = reportSettings.data?.find(item => item.key === "report_watermark_enabled")?.value !== "false";
   const reportWatermarkOpacity = Number(reportSettings.data?.find(item => item.key === "report_watermark_opacity")?.value ?? "0.08");
   const reportWatermarkScale = Number(reportSettings.data?.find(item => item.key === "report_watermark_scale")?.value ?? "0.42");
@@ -250,7 +251,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     unitPrice: row.unitPrice,
     totalValue: row.total,
   }));
-  const companyLogo = settings.data?.find(item => item.key === "company_logo")?.value ?? null;
+  const companyLogo = resolveCompanyLogoUrl(settings.data?.find(item => item.key === "company_logo")?.value ?? settings.data?.find(item => item.key === "company_logo_url")?.value);
   const reportSummary = [
     `الجهة: ${entity?.name ?? "—"}`,
     `إجمالي الكمية: ${totalQuantity.toLocaleString("en-US")}`,

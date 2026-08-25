@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buildCompanyInventoryAuditPdf } from "@/lib/inventoryExportFiles";
+import { resolveCompanyLogoUrl } from "@/lib/brandAssets";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, Download, FileText, Loader2, PackageCheck, Printer, RefreshCcw, Warehouse } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -20,7 +21,7 @@ export default function InventoryAuditPage() {
   const [building, setBuilding] = useState(false);
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const companyLogo = settings.data?.find(item => item.key === "company_logo_url")?.value ?? null;
+  const companyLogo = resolveCompanyLogoUrl(settings.data?.find(item => item.key === "company_logo_url")?.value);
   const watermarkEnabled = settings.data?.find(item => item.key === "report_watermark_enabled")?.value !== "false";
   const watermarkOpacity = Number(settings.data?.find(item => item.key === "report_watermark_opacity")?.value ?? "0.08");
   const watermarkScale = Number(settings.data?.find(item => item.key === "report_watermark_scale")?.value ?? "0.42");

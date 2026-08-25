@@ -15,9 +15,9 @@ describe("Smart Inventory PWA shell", () => {
     expect(manifest.dir).toBe("rtl");
     expect(manifest.start_url).toBe("/");
     expect(manifest.icons).toEqual(expect.arrayContaining([
-      expect.objectContaining({ src: "/manus-storage/smart-inventory-icon-1_cafaec7c.png", sizes: "192x192", purpose: "any" }),
-      expect.objectContaining({ src: "/manus-storage/smart-inventory-icon-2_2c5913fb.png", sizes: "512x512", purpose: "any maskable" }),
-      expect.objectContaining({ src: "/manus-storage/smart-inventory-icon-3_b7226d5b.png", sizes: "180x180", purpose: "any" }),
+      expect.objectContaining({ src: "/icons/smart-inventory-192.png", sizes: "192x192", purpose: "any" }),
+      expect.objectContaining({ src: "/icons/smart-inventory-512.png", sizes: "512x512", purpose: "any maskable" }),
+      expect.objectContaining({ src: "/icons/smart-inventory-180.png", sizes: "180x180", purpose: "any" }),
     ]));
   });
 
@@ -31,7 +31,7 @@ describe("Smart Inventory PWA shell", () => {
 
   it("waits for user confirmation before activating a new cache version", () => {
     const serviceWorker = readFileSync(resolve(publicDir, "sw.js"), "utf8");
-    expect(serviceWorker).toContain('const CACHE_NAME = "smart-inventory-shell-v4"');
+    expect(serviceWorker).toContain('const CACHE_NAME = "smart-inventory-shell-v5"');
     expect(serviceWorker).toContain('event.data?.type === "SKIP_WAITING"');
     expect(serviceWorker).toContain('const APP_SHELL = ["/", "/index.html"');
     expect(serviceWorker).toContain('request.destination === "document"');
@@ -62,5 +62,12 @@ describe("Smart Inventory PWA shell", () => {
     expect(card).toContain("version.json?ts=");
     expect(card).toContain('cache: "no-store"');
     expect(card).not.toContain("smart-inventory:app-version-update");
+  });
+
+  it("ships local Railway brand assets instead of relying on unavailable Manus storage paths", () => {
+    const assets = readFileSync(resolve(process.cwd(), "client/src/lib/brandAssets.ts"), "utf8");
+    expect(assets).toContain('DEFAULT_COMPANY_LOGO_URL = "/icons/smart-inventory-app-512.png"');
+    expect(assets).toContain('url: "/icons/smart-inventory-gold-512.png"');
+    expect(assets).toContain('url.startsWith("/manus-storage/")');
   });
 });
