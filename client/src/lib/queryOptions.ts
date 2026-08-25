@@ -1,14 +1,16 @@
 export const inventoryQueryOptions = {
-  staleTime: 30_000,
+  staleTime: 15_000,
   gcTime: 5 * 60_000,
-  refetchOnWindowFocus: false,
-  refetchOnReconnect: false,
+  refetchOnWindowFocus: true,
+  refetchOnReconnect: true,
   networkMode: "offlineFirst",
 } as const;
 
 export const dashboardQueryOptions = {
   ...inventoryQueryOptions,
-  staleTime: 45_000,
+  staleTime: 10_000,
+  refetchInterval: 15_000,
+  refetchIntervalInBackground: false,
 } as const;
 
 export const detailQueryOptions = {
@@ -28,4 +30,3 @@ export function limitRows<T>(rows: T[] | undefined, limit: number): T[] {
 export function normalizeSearchTerm(value: string | undefined | null): string {
   return String(value ?? "").trim().toLocaleLowerCase("ar-EG");
 }
-
