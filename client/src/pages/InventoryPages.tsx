@@ -280,6 +280,8 @@ export function ItemsPage() {
   useEffect(() => {
     const itemId = Number(new URLSearchParams(location.split("?")[1] ?? "").get("card"));
     if (Number.isInteger(itemId) && itemId > 0) { setCardItemId(itemId); setCardOpen(true); }
+    const globalSearch = new URLSearchParams(location.split("?")[1] ?? "").get("search")?.trim();
+    if (globalSearch) { setSearchInput(globalSearch); setSearch(normalizeItemSearch(globalSearch)); }
   }, [location]);
   useEffect(() => {
     const timer = window.setTimeout(() => setSearch(normalizeItemSearch(searchInput)), ITEM_SEARCH_DEBOUNCE_MS);
@@ -520,6 +522,7 @@ export function getNextPinnedMovementColumn(currentColumn: number | null, select
 export function getNextPinnedMovementColumns(currentColumns: number[], selectedColumn: number) { return currentColumns.includes(selectedColumn) ? currentColumns.filter(column => column !== selectedColumn) : [...currentColumns, selectedColumn].slice(-2); }
 export function getPinnedMovementColumnOffsets(columns: number[], widths: Map<number, number>) { const offsets = new Map<number, number>(); let nextOffset = 0; [...columns].sort((left, right) => left - right).forEach(column => { offsets.set(column, nextOffset); nextOffset += Math.max(0, widths.get(column) ?? 0); }); return offsets; }
 function MovementPage({ kind }: { kind: MovementKind }) {
+  const [location] = useLocation();
   const meta = movementMeta(kind); const Icon = meta.icon;
   const [movementTableZoom, setMovementTableZoom] = useState(1);
   const [movementFinancialPreferenceVisible, setMovementFinancialPreferenceVisible] = useState(false);
@@ -540,6 +543,7 @@ function MovementPage({ kind }: { kind: MovementKind }) {
   const [movementPdfZoom, setMovementPdfZoom] = useState(1);
   const movementPdfIframeRef = useRef<HTMLIFrameElement>(null);
   const [supplierFilter, setSupplierFilter] = useState("all"); const [customerFilter, setCustomerFilter] = useState("all"); const [itemFilter, setItemFilter] = useState(""); const [permitFilter, setPermitFilter] = useState(""); const [purposeFilter, setPurposeFilter] = useState(""); const [fromDate, setFromDate] = useState(""); const [toDate, setToDate] = useState(""); const [appliedFilters, setAppliedFilters] = useState({ supplier: "all", customer: "all", item: "", permit: "", purpose: "", from: "", to: "" }); const [page, setPage] = useState(1);
+  useEffect(() => { const globalSearch = new URLSearchParams(location.split("?")[1] ?? "").get("search")?.trim(); if (globalSearch) { setItemFilter(globalSearch); setAppliedFilters(current => ({ ...current, item: globalSearch })); setPage(1); } }, [location]);
   const commonPageInput = useMemo(() => ({ page, pageSize: 50, itemSearch: appliedFilters.item || undefined, permitSearch: appliedFilters.permit || undefined, purposeSearch: appliedFilters.purpose || undefined, fromDate: appliedFilters.from || undefined, toDate: appliedFilters.to || undefined }), [page, appliedFilters]);
   const additionsPageInput = useMemo(() => ({ ...commonPageInput, supplierId: appliedFilters.supplier === "all" ? undefined : Number(appliedFilters.supplier) }), [commonPageInput, appliedFilters.supplier]);
   const disbursementsPageInput = useMemo(() => ({ ...commonPageInput, customerId: appliedFilters.customer === "all" ? undefined : Number(appliedFilters.customer) }), [commonPageInput, appliedFilters.customer]);

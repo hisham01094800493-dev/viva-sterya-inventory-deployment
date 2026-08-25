@@ -52,6 +52,7 @@ import { inventoryQueryOptions } from "@/lib/queryOptions";
 import { findNewUnreadNotification, formatIncomingNotification, getNotificationTone, getSeenNotificationIds, rememberUnreadNotificationIds } from "@/lib/notificationCenter";
 import { enableNotificationAudioPreference, playNotificationTone, unlockNotificationAudio } from "@/lib/notificationAudio";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
+import { GlobalVoiceSearch } from "./GlobalVoiceSearch";
 import PwaVersionCard from "./PwaVersionCard";
 import ChatFloatingBubble from "./ChatFloatingBubble";
 import { OnboardingTour } from "./OnboardingTour";
@@ -440,6 +441,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <GlobalVoiceSearch />
             <NotificationBell chatEnabled={chatEnabled} />
             {isMovementPage && canViewMovementFinancialDetails ? <Button type="button" variant="outline" size="sm" onClick={() => void toggleMovementFinancialDetails()} disabled={updatePreferences.isPending || onboardingPreferences.isLoading} aria-pressed={showMovementFinancialDetails} className="movement-financial-toggle inline-flex rounded-xl px-2 text-[10px] font-black sm:px-3 sm:text-xs">{showMovementFinancialDetails ? "إخفاء التفاصيل المالية" : "إظهار التفاصيل المالية"}</Button> : null}
             <div className="hidden rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500 sm:block" style={{color: '#05524d'}}>نظام Smart Inventory • البيانات محفوظة</div>
