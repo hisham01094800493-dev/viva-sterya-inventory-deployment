@@ -4,8 +4,19 @@ export type InstallPromptEvent = Event & {
 };
 
 export const PWA_UPDATE_EVENT = "smart-inventory:pwa-update";
+export const PWA_INSTALL_HELP_EVENT = "smart-inventory:pwa-install-help";
 
 type PwaUpdateDetail = { registration: ServiceWorkerRegistration };
+
+export function getPwaInstallInstructions(userAgent: string) {
+  if (/iphone|ipad|ipod/i.test(userAgent)) return "في Safari اضغط مشاركة ثم «إضافة إلى الشاشة الرئيسية».";
+  if (/android/i.test(userAgent)) return "في Chrome اضغط قائمة ⋮ ثم «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».";
+  return "افتح الرابط في Chrome أو Edge، ثم استخدم خيار تثبيت التطبيق من قائمة المتصفح.";
+}
+
+export function openPwaInstallHelp() {
+  window.dispatchEvent(new Event(PWA_INSTALL_HELP_EVENT));
+}
 
 function announcePwaUpdate(registration: ServiceWorkerRegistration) {
   window.dispatchEvent(new CustomEvent<PwaUpdateDetail>(PWA_UPDATE_EVENT, {

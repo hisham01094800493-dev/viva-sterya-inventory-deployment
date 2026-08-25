@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { MessageCircle, RefreshCw, Tag } from "lucide-react";
+import { Download, MessageCircle, RefreshCw, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PWA_UPDATE_EVENT } from "@/lib/pwa";
+import { openPwaInstallHelp, PWA_UPDATE_EVENT } from "@/lib/pwa";
 
 type UpdateDetail = { registration?: ServiceWorkerRegistration };
 type VersionFile = { version?: string };
@@ -65,6 +65,7 @@ export default function PwaVersionCard({ collapsed = false }: { collapsed?: bool
         <p className="truncate text-[10px] font-black text-[#102a43]">النسخة الحالية</p>
         <p className="truncate text-[10px] font-bold text-slate-500" dir="ltr">{version}</p>
       </div>
+      <Button type="button" size="sm" onClick={openPwaInstallHelp} variant="outline" className="h-7 rounded-lg border-[#b9d4d9] px-2 text-[10px] text-[#0d4f62] hover:bg-[#e8f7f6]" title="عرض طريقة تثبيت التطبيق على الهاتف"><Download className="ml-1 h-3 w-3" />تثبيت</Button>
       <Button type="button" size="sm" onClick={shareOnWhatsApp} variant="outline" className="h-7 rounded-lg border-[#b7dfc8] px-2 text-[10px] text-[#16834b] hover:bg-[#eaf8ef]" title="مشاركة الرابط عبر واتساب"><MessageCircle className="ml-1 h-3 w-3" />واتساب</Button>
       {registration?.waiting && <Button type="button" size="sm" onClick={() => void updateNow()} disabled={updating} loading={updating} className="h-7 rounded-lg bg-[#0d4f62] px-2 text-[10px] text-white hover:bg-[#0a4150]"><RefreshCw className={`ml-1 h-3 w-3 ${updating ? "animate-spin" : ""}`} />تحديث</Button>}
     </div>

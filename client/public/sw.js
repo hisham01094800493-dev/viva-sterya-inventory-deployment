@@ -1,5 +1,5 @@
-const CACHE_NAME = "smart-inventory-shell-v4";
-const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/manus-storage/logo_53a99136.png"];
+const CACHE_NAME = "smart-inventory-shell-v5";
+const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icons/smart-inventory-192.png", "/icons/smart-inventory-512.png"];
 const CACHEABLE_DESTINATIONS = new Set(["document", "script", "style", "image", "font"]);
 
 self.addEventListener("install", event => {
