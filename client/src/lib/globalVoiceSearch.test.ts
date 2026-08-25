@@ -17,4 +17,22 @@ describe("global voice search commands", () => {
     expect(getGlobalSearchRoute("item-card", "أسمنت", 7)).toBe("/items?card=7");
     expect(getGlobalSearchRoute("customer-statement", "شركة النور", 4)).toBe("/customers/4/statement");
   });
+
+  it.each([
+    ["إذن إضافة رقم 120", "additions", "120"],
+    ["أذون إضافة برقم 121", "additions", "121"],
+    ["إذن صرف رقم 122", "disbursements", "122"],
+    ["صرف رقم 123", "disbursements", "123"],
+    ["إذن صرف برقم 124", "disbursements", "124"],
+    ["إذن ارتجاع برقم ١٢٥", "transfers", "125"],
+    ["مرتجع رقم 126", "transfers", "126"],
+  ])("understands permit command %s", (spoken, intent, permitNumber) => {
+    const command = parseGlobalVoiceSearch(spoken);
+    expect(command.intent).toBe(intent);
+    expect(command.permitNumber).toBe(permitNumber);
+  });
+
+  it("routes a permit number to the permit filter", () => {
+    expect(getGlobalSearchRoute("disbursements", "124", undefined, "124")).toBe("/disbursements?permit=124");
+  });
 });
