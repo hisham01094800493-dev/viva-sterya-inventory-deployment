@@ -15,6 +15,7 @@ import { inventoryQueryOptions, dashboardQueryOptions } from "@/lib/queryOptions
 import { BarChart3, ChevronLeft, ChevronRight, Download, Eye, FileText, GripVertical, Image as ImageIcon, Loader2, Minus, PackageCheck, Plus, Printer, RefreshCcw, Search, TrendingDown, Upload, ZoomIn, ZoomOut } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { buildOutboundReturnRows } from "@/lib/reportMovements";
 import { formatInventoryDate, inventoryDateKey } from "@/lib/inventoryDate";
@@ -285,6 +286,7 @@ function PageHeader({ from, to, onRefresh, refreshing }: { from: string; to: str
 }
 
 export default function ReportsPage() {
+  const [location] = useLocation();
   const [reportType, setReportType] = useState<ReportType>("overview");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState(today());
@@ -299,6 +301,20 @@ export default function ReportsPage() {
   const [varianceFilter, setVarianceFilter] = useState<VarianceFilter>("all");
   const [appliedReportFilters, setAppliedReportFilters] = useState({ from: "", to: today(), movement: "all" as MovementFilter, variance: "all" as VarianceFilter, unlinked: "", permit: "", incomingFrom: "", outgoingTo: "", additionPurpose: "", disbursementPurpose: "", returnPurpose: "" });
   const [selectedVarianceCode, setSelectedVarianceCode] = useState<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(location.split("?")[1] ?? "");
+    const incomingFrom = params.get("incomingFrom")?.trim();
+    const fromDate = params.get("from")?.trim();
+    const toDate = params.get("to")?.trim();
+    const movement = params.get("movement") as MovementFilter | null;
+    if (!incomingFrom && !fromDate && !toDate) return;
+    const nextFrom = fromDate || "";
+    const nextTo = toDate || today();
+    const nextMovement = movement === "إضافة" || movement === "صرف" || movement === "مرتجع" ? movement : "all";
+    setFrom(nextFrom); setTo(nextTo); setIncomingFromSearch(incomingFrom || ""); setMovementFilter(nextMovement);
+    setAppliedReportFilters(current => ({ ...current, from: nextFrom, to: nextTo, incomingFrom: incomingFrom || "", movement: nextMovement }));
+    setReportType("movements"); setSearchResultView(true);
+  }, [location]);
   const reportRowsRequired = reportType === "movements" || reportType === "returns" || reportType === "unlinked" || (reportType === "variance" && Boolean(selectedVarianceCode));
   const reportDatasetInput = useMemo(() => ({ includeRows: reportRowsRequired, fromDate: appliedReportFilters.from || undefined, toDate: appliedReportFilters.to || undefined, permitSearch: appliedReportFilters.permit || undefined, incomingFromSearch: appliedReportFilters.incomingFrom || undefined, outgoingToSearch: appliedReportFilters.outgoingTo || undefined, additionPurposeSearch: appliedReportFilters.additionPurpose || undefined, disbursementPurposeSearch: appliedReportFilters.disbursementPurpose || undefined, returnPurposeSearch: appliedReportFilters.returnPurpose || undefined }), [reportRowsRequired, appliedReportFilters.from, appliedReportFilters.to, appliedReportFilters.permit, appliedReportFilters.incomingFrom, appliedReportFilters.outgoingTo, appliedReportFilters.additionPurpose, appliedReportFilters.disbursementPurpose, appliedReportFilters.returnPurpose]);
   const items = trpc.items.list.useQuery(undefined, inventoryQueryOptions);

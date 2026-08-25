@@ -35,4 +35,12 @@ describe("global voice search commands", () => {
   it("routes a permit number to the permit filter", () => {
     expect(getGlobalSearchRoute("disbursements", "124", undefined, "124")).toBe("/disbursements?permit=124");
   });
+
+  it("understands a supplier sales report for a named month", () => {
+    const command = parseGlobalVoiceSearch("اعرض تقرير مبيعات المورد النور لشهر مارس");
+    expect(command.intent).toBe("supplier-report");
+    expect(command.terms).toBe("النور");
+    expect(command.period).toMatchObject({ from: "2026-03-01", to: "2026-03-31" });
+    expect(getGlobalSearchRoute(command.intent, command.terms, undefined, undefined, command.period)).toContain("incomingFrom=%D8%A7%D9%84%D9%86%D9%88%D8%B1");
+  });
 });
