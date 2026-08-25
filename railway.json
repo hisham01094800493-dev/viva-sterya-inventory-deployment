@@ -5,8 +5,7 @@
     "buildCommand": "pnpm build"
   },
   "deploy": {
-    "preDeployCommand": "pnpm db:migrate",
-    "startCommand": "pnpm start",
+    "startCommand": "pnpm db:migrate && pnpm start",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",
