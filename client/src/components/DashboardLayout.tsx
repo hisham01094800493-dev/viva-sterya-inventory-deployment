@@ -90,8 +90,12 @@ export const SIDEBAR_VISUAL_CLASSES = {
   profile: "smart-sidebar-profile",
 } as const;
 
+export function canAccessMigrationImport(role?: string | null) {
+  return role === "admin";
+}
+
 export function buildGovernanceNavigationItems(role?: string | null): NavigationItem[] {
-  if (role === "admin") {
+  if (canAccessMigrationImport(role)) {
     return [
       { icon: ShieldCheck, label: "الحماية والنسخ الاحتياطي", path: "/governance" },
       { icon: ShieldCheck, label: "النسخ الاحتياطية السابقة", path: "/governance?tab=backups" },
@@ -449,6 +453,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
       {!readOnlyRole && <FloatingQuickActions onNavigate={(path) => { setShowMobileNavigation(true); window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} />}
       {!previewPermissions && chatEnabled && <ChatFloatingBubble />}
       <MobileBottomNavigation items={mobileNavigationItems} activePath={activeMenuItem.path} onNavigate={(path) => { setShowMobileNavigation(true); window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} darkMode={darkMode} visible={showMobileNavigation} />
+      {location.startsWith("/settings") && canAccessMigrationImport(user.role) && <Button type="button" onClick={() => window.location.assign("/migration-import")} className="fixed bottom-40 left-4 z-[52] gap-2 rounded-xl bg-[#0d4f62] text-xs font-black text-white shadow-lg shadow-[#0d4f62]/25 hover:bg-[#0a4150] md:bottom-24 md:left-8"><Upload className="h-4 w-4" />استيراد حزمة الترحيل</Button>}
       {location.startsWith("/settings") && <Button type="button" variant="outline" onClick={() => void launchOnboardingFromSettings()} disabled={saveOnboardingCompleted.isPending} className="fixed bottom-24 left-4 z-[52] gap-2 rounded-xl border-[#8fd1d0] bg-white/95 text-xs font-black text-[#0d4f62] shadow-lg backdrop-blur hover:bg-[#e8f7f6] md:bottom-8 md:left-8"><RotateCcw className="h-4 w-4" />{saveOnboardingCompleted.isPending ? "جارٍ التشغيل..." : "إعادة الجولة التعريفية"}</Button>}
       <OnboardingTour show={showOnboarding} onComplete={completeOnboarding} />
     </div>
