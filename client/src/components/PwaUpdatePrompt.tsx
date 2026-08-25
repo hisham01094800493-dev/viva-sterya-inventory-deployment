@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PWA_UPDATE_EVENT } from "@/lib/pwa";
+import { PWA_UPDATE_EVENT, PWA_VERSION_PATH } from "@/lib/pwa";
 
 interface UpdateDetail {
   registration?: ServiceWorkerRegistration;
@@ -30,7 +30,7 @@ export default function PwaUpdatePrompt() {
   useEffect(() => {
     let active = true;
     const checkVersion = () => {
-      void fetch(`/__manus__/version.json?ts=${Date.now()}`, { cache: "no-store" })
+      void fetch(`${PWA_VERSION_PATH}?ts=${Date.now()}`, { cache: "no-store" })
         .then(response => response.ok ? response.json() as Promise<VersionFile> : null)
         .then(payload => {
           if (!active || !payload?.version) return;

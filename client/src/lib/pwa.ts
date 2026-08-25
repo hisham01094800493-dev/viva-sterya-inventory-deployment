@@ -5,6 +5,7 @@ export type InstallPromptEvent = Event & {
 
 export const PWA_UPDATE_EVENT = "smart-inventory:pwa-update";
 export const PWA_INSTALL_HELP_EVENT = "smart-inventory:pwa-install-help";
+export const PWA_VERSION_PATH = "/app-version.json";
 
 type PwaUpdateDetail = { registration: ServiceWorkerRegistration };
 

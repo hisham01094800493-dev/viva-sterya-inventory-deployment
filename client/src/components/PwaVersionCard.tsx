@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, MessageCircle, RefreshCw, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { openPwaInstallHelp, PWA_UPDATE_EVENT } from "@/lib/pwa";
+import { openPwaInstallHelp, PWA_UPDATE_EVENT, PWA_VERSION_PATH } from "@/lib/pwa";
 
 type UpdateDetail = { registration?: ServiceWorkerRegistration };
 type VersionFile = { version?: string };
@@ -14,7 +14,7 @@ export default function PwaVersionCard({ collapsed = false }: { collapsed?: bool
   useEffect(() => {
     let active = true;
     const readVersion = () => {
-      void fetch(`/__manus__/version.json?ts=${Date.now()}`, { cache: "no-store" })
+      void fetch(`${PWA_VERSION_PATH}?ts=${Date.now()}`, { cache: "no-store" })
         .then(response => response.ok ? response.json() as Promise<VersionFile> : null)
         .then(payload => { if (active && payload?.version) setVersion(payload.version); })
         .catch(() => undefined);

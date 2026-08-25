@@ -41,7 +41,8 @@ describe("Smart Inventory PWA shell", () => {
 
   it("checks the deployment version independently and only advances the installed marker after confirmation", () => {
     const prompt = readFileSync(resolve(process.cwd(), "client/src/components/PwaUpdatePrompt.tsx"), "utf8");
-    expect(prompt).toContain("version.json?ts=");
+    expect(prompt).toContain("PWA_VERSION_PATH");
+    expect(prompt).not.toContain("__manus__/version.json");
     expect(prompt).toContain('cache: "no-store"');
     expect(prompt).toContain('const INSTALLED_VERSION_KEY = "smart-inventory-installed-version"');
     expect(prompt).toContain("if (latestVersion) setInstalledVersion(latestVersion);");
@@ -59,7 +60,8 @@ describe("Smart Inventory PWA shell", () => {
 
   it("keeps the sidebar version card as a display and service-worker control", () => {
     const card = readFileSync(resolve(process.cwd(), "client/src/components/PwaVersionCard.tsx"), "utf8");
-    expect(card).toContain("version.json?ts=");
+    expect(card).toContain("PWA_VERSION_PATH");
+    expect(card).not.toContain("__manus__/version.json");
     expect(card).toContain('cache: "no-store"');
     expect(card).not.toContain("smart-inventory:app-version-update");
   });
@@ -69,5 +71,12 @@ describe("Smart Inventory PWA shell", () => {
     expect(assets).toContain('DEFAULT_COMPANY_LOGO_URL = "/icons/smart-inventory-app-512.png"');
     expect(assets).toContain('url: "/icons/smart-inventory-gold-512.png"');
     expect(assets).toContain('url.startsWith("/manus-storage/")');
+  });
+
+  it("generates a Railway deployment version instead of relying on Manus metadata", () => {
+    const writer = readFileSync(resolve(process.cwd(), "scripts/write-app-version.mjs"), "utf8");
+    expect(writer).toContain('client/public/app-version.json');
+    expect(writer).toContain("RAILWAY_GIT_COMMIT_SHA");
+    expect(writer).toContain("Date.now().toString(36)");
   });
 });
