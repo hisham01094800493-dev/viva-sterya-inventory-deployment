@@ -304,15 +304,16 @@ export default function ReportsPage() {
   useEffect(() => {
     const params = new URLSearchParams(location.split("?")[1] ?? "");
     const incomingFrom = params.get("incomingFrom")?.trim();
+    const outgoingTo = params.get("outgoingTo")?.trim();
     const fromDate = params.get("from")?.trim();
     const toDate = params.get("to")?.trim();
     const movement = params.get("movement") as MovementFilter | null;
-    if (!incomingFrom && !fromDate && !toDate) return;
+    if (!incomingFrom && !outgoingTo && !fromDate && !toDate) return;
     const nextFrom = fromDate || "";
     const nextTo = toDate || today();
     const nextMovement = movement === "إضافة" || movement === "صرف" || movement === "مرتجع" ? movement : "all";
-    setFrom(nextFrom); setTo(nextTo); setIncomingFromSearch(incomingFrom || ""); setMovementFilter(nextMovement);
-    setAppliedReportFilters(current => ({ ...current, from: nextFrom, to: nextTo, incomingFrom: incomingFrom || "", movement: nextMovement }));
+    setFrom(nextFrom); setTo(nextTo); setIncomingFromSearch(incomingFrom || ""); setOutgoingToSearch(outgoingTo || ""); setMovementFilter(nextMovement);
+    setAppliedReportFilters(current => ({ ...current, from: nextFrom, to: nextTo, incomingFrom: incomingFrom || "", outgoingTo: outgoingTo || "", movement: nextMovement }));
     setReportType("movements"); setSearchResultView(true);
   }, [location]);
   const reportRowsRequired = reportType === "movements" || reportType === "returns" || reportType === "unlinked" || (reportType === "variance" && Boolean(selectedVarianceCode));

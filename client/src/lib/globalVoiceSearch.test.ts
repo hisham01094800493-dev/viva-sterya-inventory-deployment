@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getGlobalSearchRoute, parseGlobalVoiceSearch } from "./globalVoiceSearch";
+import { extractReportPeriod, getGlobalSearchRoute, parseGlobalVoiceSearch } from "./globalVoiceSearch";
 
 describe("global voice search commands", () => {
   it("recognizes supplier account statement commands", () => {
@@ -37,10 +37,31 @@ describe("global voice search commands", () => {
   });
 
   it("understands a supplier sales report for a named month", () => {
-    const command = parseGlobalVoiceSearch("اعرض تقرير مبيعات المورد النور لشهر مارس");
+    const command = parseGlobalVoiceSearch("اعرض تقرير مبيعات المورد النور لشهر مارس", new Date("2026-08-25T00:00:00Z"));
     expect(command.intent).toBe("supplier-report");
     expect(command.terms).toBe("النور");
     expect(command.period).toMatchObject({ from: "2026-03-01", to: "2026-03-31" });
     expect(getGlobalSearchRoute(command.intent, command.terms, undefined, undefined, command.period)).toContain("incomingFrom=%D8%A7%D9%84%D9%86%D9%88%D8%B1");
+  });
+
+  it("understands a customer sales report separately from supplier inbound movements", () => {
+    const command = parseGlobalVoiceSearch("اعرض تقرير مبيعات العميل النور لشهر مارس", new Date("2026-08-25T00:00:00Z"));
+    expect(command.intent).toBe("customer-report");
+    expect(command.terms).toBe("النور");
+    expect(getGlobalSearchRoute(command.intent, command.terms, undefined, undefined, command.period)).toContain("outgoingTo=%D8%A7%D9%84%D9%86%D9%88%D8%B1&movement=صرف");
+  });
+
+  it("understands this month and the previous month", () => {
+    const reference = new Date("2026-08-25T00:00:00Z");
+    expect(extractReportPeriod("تقرير المورد النور هذا الشهر", reference)).toMatchObject({ from: "2026-08-01", to: "2026-08-31" });
+    expect(extractReportPeriod("تقرير المورد النور الشهر الماضي", reference)).toMatchObject({ from: "2026-07-01", to: "2026-07-31" });
+  });
+
+  it("understands Arabic and numeric date ranges for supplier reports", () => {
+    const reference = new Date("2026-08-25T00:00:00Z");
+    const arabicRange = parseGlobalVoiceSearch("اعرض تقرير المورد النور من 1 مارس إلى 15 مارس 2026", reference);
+    expect(arabicRange.period).toMatchObject({ from: "2026-03-01", to: "2026-03-15" });
+    expect(arabicRange.terms).toBe("النور");
+    expect(extractReportPeriod("من ٠١/٠٣/٢٠٢٦ إلى ١٥/٠٣/٢٠٢٦", reference)).toMatchObject({ from: "2026-03-01", to: "2026-03-15" });
   });
 });
