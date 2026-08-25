@@ -239,23 +239,30 @@ export function buildGoogleOpenId(googleId: string) {
   return `google:${normalized}`;
 }
 
+export function resolveGoogleUserRole(email: string | null, existingRole?: User["role"], configuredAdminEmail = ENV.ownerEmail): User["role"] {
+  const normalizedEmail = email?.trim().toLowerCase();
+  const normalizedAdminEmail = configuredAdminEmail.trim().toLowerCase();
+  if (normalizedEmail && normalizedAdminEmail && normalizedEmail === normalizedAdminEmail) return "admin";
+  return existingRole ?? "user";
+}
+
 export async function upsertGoogleUser(input: { googleId: string; name: string; email: string | null }): Promise<User> {
   const db = await requireDb();
   const openId = buildGoogleOpenId(input.googleId);
   const email = input.email?.trim().toLowerCase() || null;
   const existingByOpenId = (await db.select().from(users).where(eq(users.openId, openId)).limit(1))[0];
   if (existingByOpenId) {
-    await db.update(users).set({ name: input.name || existingByOpenId.name, email: email ?? existingByOpenId.email, loginMethod: "google", lastSignedIn: new Date() }).where(eq(users.id, existingByOpenId.id));
+    await db.update(users).set({ name: input.name || existingByOpenId.name, email: email ?? existingByOpenId.email, loginMethod: "google", role: resolveGoogleUserRole(email ?? existingByOpenId.email, existingByOpenId.role), lastSignedIn: new Date() }).where(eq(users.id, existingByOpenId.id));
     return (await db.select().from(users).where(eq(users.id, existingByOpenId.id)).limit(1))[0]!;
   }
 
   const existingByEmail = email ? (await db.select().from(users).where(eq(users.email, email)).limit(1))[0] : undefined;
   if (existingByEmail) {
-    await db.update(users).set({ openId, name: input.name || existingByEmail.name, email, loginMethod: "google", lastSignedIn: new Date() }).where(eq(users.id, existingByEmail.id));
+    await db.update(users).set({ openId, name: input.name || existingByEmail.name, email, loginMethod: "google", role: resolveGoogleUserRole(email, existingByEmail.role), lastSignedIn: new Date() }).where(eq(users.id, existingByEmail.id));
     return (await db.select().from(users).where(eq(users.id, existingByEmail.id)).limit(1))[0]!;
   }
 
-  const role = email && ENV.ownerEmail && email === ENV.ownerEmail ? "admin" : "user";
+  const role = resolveGoogleUserRole(email);
   const result = await db.insert(users).values({ openId, name: input.name || "مستخدم Google", email, loginMethod: "google", role, lastSignedIn: new Date() });
   const id = resultInsertId(result);
   return (await db.select().from(users).where(eq(users.id, id)).limit(1))[0]!;
