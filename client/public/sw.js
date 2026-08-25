@@ -1,4 +1,4 @@
-const CACHE_NAME = "smart-inventory-shell-v6";
+const CACHE_NAME = "smart-inventory-shell-v7";
 const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icons/smart-inventory-192.png", "/icons/smart-inventory-512.png"];
 const CACHEABLE_DESTINATIONS = new Set(["document", "script", "style", "image", "font"]);
 
