@@ -1,6 +1,7 @@
 import { defineConfig } from "drizzle-kit";
+import { normalizeDatabaseUrl } from "./server/_core/env";
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = normalizeDatabaseUrl(process.env.DATABASE_URL);
 if (!connectionString) {
   throw new Error("DATABASE_URL is required to run drizzle commands");
 }

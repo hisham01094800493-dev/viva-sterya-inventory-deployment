@@ -1,7 +1,11 @@
+export function normalizeDatabaseUrl(value: string | undefined) {
+  return (value ?? "").trim().replace(/^DATABASE_URL\s*=\s*/i, "");
+}
+
 export const ENV = {
   appId: process.env.APP_ID ?? "smart-inventory-railway",
   cookieSecret: process.env.SESSION_SECRET ?? process.env.JWT_SECRET ?? "",
-  databaseUrl: process.env.DATABASE_URL ?? "",
+  databaseUrl: normalizeDatabaseUrl(process.env.DATABASE_URL),
   appUrl: process.env.APP_URL ?? "",
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
