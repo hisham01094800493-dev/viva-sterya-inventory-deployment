@@ -11,6 +11,7 @@ import { downloadBlobFile, getExportImageExtension, savePdfFile } from "@/lib/in
 import { trpc } from "@/lib/trpc";
 import { resolveCompanyLogoUrl } from "@/lib/brandAssets";
 import { VoiceInputButton, normalizeVoiceSearchText } from "@/components/VoiceInputButton";
+import OfflineDataNotice from "@/components/OfflineDataNotice";
 import { inventoryQueryOptions, dashboardQueryOptions } from "@/lib/queryOptions";
 import { BarChart3, ChevronLeft, ChevronRight, Download, Eye, FileText, GripVertical, Image as ImageIcon, Loader2, Minus, PackageCheck, Plus, Printer, RefreshCcw, Search, TrendingDown, Upload, ZoomIn, ZoomOut } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -478,6 +479,7 @@ export default function ReportsPage() {
   ] as const;
 
   return <DashboardLayout><div className="mx-auto w-full min-w-0 max-w-[1500px] space-y-7">
+    <OfflineDataNotice resource="التقارير" hasCachedData={Boolean(reportDataset.data || items.data || summary.data)} />
     <PageHeader from={from} to={to} onRefresh={() => { void Promise.all([utils.items.list.invalidate(), utils.reports.dataset.invalidate(), utils.dashboard.summary.invalidate()]); }} refreshing={refreshing} />
     <Card className="rounded-[1.75rem] border-[#dce7ee] bg-white shadow-[0_18px_50px_rgba(18,44,84,0.06)]"><CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-end lg:justify-between">
       <div><p className="text-sm font-black text-[#102a43]">نطاق التقرير</p><p className="mt-1 text-xs text-slate-400">اختر فترة محددة لتصفية الحركات والأرصدة المعروضة.</p></div>

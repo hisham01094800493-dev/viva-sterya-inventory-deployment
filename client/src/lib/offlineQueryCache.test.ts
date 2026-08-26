@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { isOfflineCacheableQuery } from "./offlineQueryCache";
+import "fake-indexeddb/auto";
+import { QueryClient } from "@tanstack/react-query";
+import { afterEach, describe, expect, it } from "vitest";
+import { isOfflineCacheableQuery, persistOfflineQuery, restoreOfflineQueryCache } from "./offlineQueryCache";
 
 describe("تخزين بيانات القوائم دون اتصال", () => {
   const queryKey = (namespace: string, procedure: string) => [[namespace, procedure], { type: "query" }] as const;
@@ -19,5 +21,14 @@ describe("تخزين بيانات القوائم دون اتصال", () => {
 
   it("does not persist unrelated procedures", () => {
     expect(isOfflineCacheableQuery(queryKey("chat", "messages"))).toBe(false);
+  });
+
+  it("restores a previously visited report into a new client for offline rendering", async () => {
+    const reportKey = [["reports", "dataset"], { input: { json: { from: "2026-03-01", to: "2026-03-31" } }, type: "query" }] as const;
+    const savedReport = { additions: [{ id: 14, eznNum: "120" }], disbursements: [], transfers: [] };
+    await persistOfflineQuery(reportKey, savedReport, Date.now());
+    const offlineClient = new QueryClient();
+    await restoreOfflineQueryCache(offlineClient);
+    expect(offlineClient.getQueryData(reportKey)).toEqual(savedReport);
   });
 });
