@@ -143,7 +143,7 @@ function ItemsDialog({ open, onOpenChange, editing, onSaved }: { open: boolean; 
   const create = trpc.items.create.useMutation();
   const update = trpc.items.update.useMutation();
   const uploadImage = trpc.items.uploadImage.useMutation();
-  const warehouses = trpc.warehouses.listByUsage.useQuery(undefined, inventoryQueryOptions);
+  const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
   const nextCodeInput = useMemo(() => ({ warehouseId: form.warehouseId ? Number(form.warehouseId) : null }), [form.warehouseId]);
   const nextCode = trpc.items.nextCode.useQuery(nextCodeInput, { ...detailQueryOptions, enabled: open && !editing && !form.code.trim() });
   const busy = create.isPending || update.isPending || uploadImage.isPending;
@@ -153,6 +153,10 @@ function ItemsDialog({ open, onOpenChange, editing, onSaved }: { open: boolean; 
     setForm(editing ? { code: editing.code, name: editing.name, initialStock: String(editing.initialStock ?? "0"), reorderLevel: String(editing.reorderLevel ?? "0"), category: editing.category ?? "", unit: editing.unit ?? "", unitPrice: String(editing.unitPrice ?? "0"), warehouseId: String(editing.warehouseId ?? "") } : { code: "", name: "", initialStock: "0", reorderLevel: "0", category: "", unit: "", unitPrice: "0", warehouseId: "" });
     setImagePreview(editing?.imageUrl ?? "");
   }, [editing, open]);
+  useEffect(() => {
+    if (!open || editing || form.warehouseId || !warehouses.data?.length) return;
+    setForm(current => ({ ...current, warehouseId: String(warehouses.data[0].id) }));
+  }, [editing, form.warehouseId, open, warehouses.data]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();

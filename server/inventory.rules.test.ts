@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateStockDelta, fromScaled, getCustomerReturnStockDelta, InventoryError, toScaled } from "./db";
+import { calculateStockDelta, formatWarehouseItemCode, fromScaled, getCustomerReturnStockDelta, InventoryError, selectNextAutoItemCode, toScaled } from "./db";
 
 describe("inventory quantity rules", () => {
   it("keeps decimal quantities deterministic at three decimal places", () => {
@@ -44,5 +44,11 @@ describe("inventory quantity rules", () => {
         { incoming: 0, outgoing: -1001, current: 1001 },
       ),
     ).toThrow("لا يمكن أن تصبح حركة المخزون سالبة");
+  });
+
+  it("starts automatic warehouse codes at 10001 and fills skipped unused codes", () => {
+    const formatter = (sequence: number) => formatWarehouseItemCode(1, sequence);
+    expect(selectNextAutoItemCode(1, ["10003"], formatter)).toEqual({ code: "10001", nextSequence: 2 });
+    expect(selectNextAutoItemCode(1, ["10001", "10003"], formatter)).toEqual({ code: "10002", nextSequence: 3 });
   });
 });

@@ -300,6 +300,16 @@ export async function listWarehousesByUsage() {
   return rankWarehousesByUsage(warehouseRows, [...additionsUsage, ...disbursementsUsage, ...transferSourcesUsage, ...transferDestinationsUsage]);
 }
 
+export async function listWarehouseBalanceSummaries() {
+  const db = await requireDb();
+  const [warehouseRows, balanceRows] = await Promise.all([
+    db.select({ id: warehouses.id, slot: warehouses.slot, name: warehouses.name }).from(warehouses).orderBy(warehouses.slot),
+    db.select({ warehouseId: itemWarehouseBalances.warehouseId, itemCount: count(itemWarehouseBalances.itemId), balance: sum(itemWarehouseBalances.currentStock) }).from(itemWarehouseBalances).groupBy(itemWarehouseBalances.warehouseId),
+  ]);
+  const balancesByWarehouse = new Map(balanceRows.map(row => [row.warehouseId, { itemCount: Number(row.itemCount ?? 0), balance: Number(row.balance ?? 0) }]));
+  return warehouseRows.map(warehouse => ({ ...warehouse, ...(balancesByWarehouse.get(warehouse.id) ?? { itemCount: 0, balance: 0 }) }));
+}
+
 export async function updateWarehouse(input: { id: number; name: string }) {
   const db = await requireDb();
   const name = input.name.trim();
@@ -417,14 +427,13 @@ export async function suggestNextItemCode(_warehouseId?: number | null) {
   const db = await requireDb();
   const rows = await db.select().from(settings).where(eq(settings.key, MAIN_WAREHOUSE_CODE_KEY)).limit(1);
   const existingRows = await db.select({ code: items.code }).from(items);
-  return selectNextAutoItemCode(Number(rows[0]?.value ?? 1), existingRows.map(row => row.code), value => formatWarehouseItemCode(MAIN_WAREHOUSE_SLOT, value)).code;
+  return selectNextAutoItemCode(1, existingRows.map(row => row.code), value => formatWarehouseItemCode(MAIN_WAREHOUSE_SLOT, value)).code;
 }
 
 async function nextItemCode(tx: any, _warehouseId?: number | null) {
   const rows = await tx.select().from(settings).where(eq(settings.key, MAIN_WAREHOUSE_CODE_KEY)).limit(1).for("update");
-  const current = Math.max(1, Number(rows[0]?.value ?? 1));
   const existingRows = await tx.select({ code: items.code }).from(items);
-  const selected = selectNextAutoItemCode(current, existingRows.map((row: { code: string }) => row.code), value => formatWarehouseItemCode(MAIN_WAREHOUSE_SLOT, value));
+  const selected = selectNextAutoItemCode(1, existingRows.map((row: { code: string }) => row.code), value => formatWarehouseItemCode(MAIN_WAREHOUSE_SLOT, value));
   if (rows[0]) await tx.update(settings).set({ value: String(selected.nextSequence) }).where(eq(settings.id, rows[0].id));
   else await tx.insert(settings).values({ key: MAIN_WAREHOUSE_CODE_KEY, value: String(selected.nextSequence), description: "عداد التكويد التلقائي للمخزن الرئيسي" });
   return selected.code;
@@ -625,10 +634,11 @@ export async function createItem(input: {
   try {
     return await db.transaction(async (tx: any) => {
       const code = input.code?.trim() || await nextItemCode(tx, input.warehouseId);
+      const warehouse = await resolveWarehouseId(tx, input.warehouseId);
       normalizeItemCode(code);
       const result = await tx.insert(items).values({
       code,
-      warehouseId: 1,
+      warehouseId: warehouse.id,
       name,
       initialStock: fromScaled(initial),
       incomingStock: "0.000",
@@ -641,7 +651,10 @@ export async function createItem(input: {
       imageKey: input.imageKey?.trim() || null,
       imageUrl: input.imageUrl?.trim() || null,
       });
-      const rows = await tx.select().from(items).where(eq(items.id, resultInsertId(result))).limit(1);
+      const itemId = resultInsertId(result);
+      if (initial) await applyWarehouseBalanceDelta(tx, itemId, warehouse.id, initial);
+      else await tx.insert(itemWarehouseBalances).values({ itemId, warehouseId: warehouse.id, currentStock: "0.000" });
+      const rows = await tx.select().from(items).where(eq(items.id, itemId)).limit(1);
       return rows[0];
     });
   } catch (error: any) {
@@ -736,7 +749,10 @@ export async function updateItem(input: {
 
     if (input.code !== undefined) updates.code = normalizeItemCode(input.code);
     if (input.name !== undefined) updates.name = normalizeName(input.name);
-    if (input.warehouseId !== undefined) updates.warehouseId = 1;
+    if (input.warehouseId !== undefined) {
+      const nextWarehouse = await resolveWarehouseId(tx, input.warehouseId);
+      updates.warehouseId = nextWarehouse.id;
+    }
     if (input.reorderLevel !== undefined) {
       const reorder = toScaled(input.reorderLevel);
       if (reorder < 0) throw new InventoryError("BAD_REQUEST", "حد الطلب لا يمكن أن يكون سالباً");

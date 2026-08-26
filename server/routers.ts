@@ -18,6 +18,7 @@ import {
   getItemCard,
   getMainWarehouseItemCards,
   getWarehouseItemCards,
+  listWarehouseBalanceSummaries,
   suggestNextItemCode,
   getItemById,
   getLatestPermitSummaries,
@@ -274,6 +275,7 @@ export const appRouter = router({
         return canViewFinancialDetails ? rows : rows.map(({ unitPrice: _unitPrice, ...row }) => row);
       }),
     warehouseLowStock: permissionProcedure("inventory").query(() => safe(() => listWarehouseLowStockItems())),
+    warehouseBalanceSummaries: permissionProcedure("inventory").query(() => safe(() => listWarehouseBalanceSummaries())),
     listPaged: permissionProcedure("inventory")
       .input(z.object({ search: z.string().optional(), warehouseId: z.number().int().positive().optional(), category: z.string().optional(), stockFilter: z.enum(["all", "low", "healthy"]).default("all"), sortBy: z.enum(["name", "code", "stock"]).default("name"), page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(24) }))
       .query(async ({ ctx, input }) => {

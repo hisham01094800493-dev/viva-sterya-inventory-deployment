@@ -182,6 +182,7 @@ export default function Home() {
   const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
   const inventory = trpc.items.list.useQuery(undefined, inventoryQueryOptions);
   const warehouseLowStock = trpc.items.warehouseLowStock.useQuery(undefined, inventoryQueryOptions);
+  const warehouseBalanceSummary = trpc.items.warehouseBalanceSummaries.useQuery(undefined, inventoryQueryOptions);
   const totalItems = Number(summary.data?.stats.totalItems ?? 0);
   const lowStockCount = Number(summary.data?.stats.lowStockCount ?? 0);
   const healthPercent = totalItems ? Math.max(0, Math.round(((totalItems - lowStockCount) / totalItems) * 100)) : 0;
@@ -201,11 +202,11 @@ export default function Home() {
     [analytics?.status],
   );
   const hasStatusData = statusData.some(item => item.value > 0);
-  const warehouseBalances = useMemo(() => summarizeWarehouseBalances(warehouses.data ?? [], inventory.data ?? []), [warehouses.data, inventory.data]);
+  const warehouseBalances = warehouseBalanceSummary.data ?? summarizeWarehouseBalances(warehouses.data ?? [], inventory.data ?? []);
   const lowStockByWarehouse = useMemo(() => new Map((warehouseLowStock.data ?? []).map(entry => [entry.warehouseId, entry.lowItems])), [warehouseLowStock.data]);
   const mainWarehouse = warehouseBalances.find(warehouse => warehouse.slot === 1) ?? warehouseBalances[0];
   const branchWarehouses = warehouseBalances.filter(warehouse => warehouse.id !== mainWarehouse?.id);
-  const [branchesOpen, setBranchesOpen] = useState(false);
+  const [branchesOpen, setBranchesOpen] = useState(true);
   const [cardFilter, setCardFilter] = useState<"all" | "attention" | "balance">("all");
   const [cardSort, setCardSort] = useState<"default" | "high" | "low">("default");
   const balanceCard = useMemo(() => getCurrentBalanceCardDetails(inventory.data ?? []), [inventory.data]);
