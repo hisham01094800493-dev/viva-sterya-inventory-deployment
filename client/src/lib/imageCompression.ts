@@ -1,4 +1,5 @@
-export type CompressedImage = { dataBase64: string; contentType: "image/jpeg"; fileName: string; originalSize: number; compressedSize: number };
+export type ImageContentType = "image/jpeg" | "image/png" | "image/webp";
+export type CompressedImage = { dataBase64: string; contentType: ImageContentType; fileName: string; originalSize: number; compressedSize: number };
 
 export function getCompressionDimensions(width: number, height: number, maxDimension = 1600) {
   const scale = Math.min(1, maxDimension / Math.max(width, height));
@@ -12,6 +13,15 @@ function blobToDataUrl(blob: Blob) {
     reader.onerror = () => reject(new Error("تعذر قراءة الصورة المضغوطة"));
     reader.readAsDataURL(blob);
   });
+}
+
+export function resolveImageContentType(file: Pick<File, "type" | "name">): ImageContentType | null {
+  if (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp") return file.type;
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  if (extension === "png") return "image/png";
+  if (extension === "webp") return "image/webp";
+  return null;
 }
 
 async function decodeImage(file: File): Promise<{ source: CanvasImageSource; width: number; height: number; close?: () => void }> {
@@ -36,10 +46,15 @@ async function decodeImage(file: File): Promise<{ source: CanvasImageSource; wid
 }
 
 export async function compressImageFile(file: File, options: { maxDimension?: number; quality?: number } = {}): Promise<CompressedImage> {
-  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
-  const isImage = file.type.startsWith("image/") || ["jpg", "jpeg", "png", "webp"].includes(extension);
-  if (!isImage) throw new Error("الملف ليس صورة مدعومة. استخدم JPG أو PNG أو WEBP.");
-  const decoded = await decodeImage(file);
+  const originalContentType = resolveImageContentType(file);
+  if (!originalContentType) throw new Error("الملف ليس صورة مدعومة. استخدم JPG أو PNG أو WEBP.");
+  let decoded: Awaited<ReturnType<typeof decodeImage>>;
+  try {
+    decoded = await decodeImage(file);
+  } catch (decodeError) {
+    if (file.size > 5 * 1024 * 1024) throw decodeError;
+    return { dataBase64: await blobToDataUrl(file), contentType: originalContentType, fileName: file.name || "permit-image", originalSize: file.size, compressedSize: file.size };
+  }
   try {
     const dimensions = getCompressionDimensions(decoded.width, decoded.height, options.maxDimension ?? 1600);
     const canvas = document.createElement("canvas");
