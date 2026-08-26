@@ -12,6 +12,9 @@ describe("تخزين بيانات القوائم دون اتصال", () => {
     expect(isOfflineCacheableQuery(queryKey("disbursements", "listPaged"))).toBe(true);
     expect(isOfflineCacheableQuery(queryKey("transfers", "listPaged"))).toBe(true);
     expect(isOfflineCacheableQuery(queryKey("reports", "inventoryAudit"))).toBe(true);
+    expect(isOfflineCacheableQuery(queryKey("reports", "dataset"))).toBe(true);
+    expect(isOfflineCacheableQuery(queryKey("items", "warehouseLowStock"))).toBe(true);
+    expect(isOfflineCacheableQuery(queryKey("warehouses", "listByUsage"))).toBe(true);
   });
 
   it("does not persist unrelated procedures", () => {

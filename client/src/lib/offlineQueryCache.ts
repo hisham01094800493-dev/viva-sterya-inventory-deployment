@@ -13,6 +13,7 @@ const CACHEABLE_PROCEDURES = new Set([
   "items.mainWarehouseCards",
   "items.warehouseStocks",
   "items.warehouseCards",
+  "items.warehouseLowStock",
   "additions.list",
   "additions.listPaged",
   "additions.account",
@@ -25,10 +26,12 @@ const CACHEABLE_PROCEDURES = new Set([
   "customers.list",
   "suppliers.list",
   "warehouses.list",
+  "warehouses.listByUsage",
   "settings.list",
   "preferences.get",
   "permissions.mine",
   "reports.inventoryAudit",
+  "reports.dataset",
 ]);
 
 type Snapshot = {

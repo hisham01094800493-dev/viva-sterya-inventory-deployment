@@ -148,8 +148,8 @@ export default function NetworkStatusIndicator() {
           <DialogHeader>
             <DialogTitle>تفاصيل طابور المزامنة</DialogTitle>
             <DialogDescription>
-              {isOnline ? "الاتصال متاح ويمكنك بدء المزامنة يدوياً." : "أنت تعمل دون اتصال؛ ستتم المزامنة عند عودة الإنترنت."}
-              {latestOfflineSnapshot ? ` آخر حفظ محلي للبيانات: ${formatQueueDate(latestOfflineSnapshot)}` : " لم يتم حفظ نسخة محلية بعد."}
+              {isOnline ? "الاتصال متاح ويمكنك بدء المزامنة يدوياً." : "أنت تعمل دون اتصال؛ تعرض القوائم الأساسية آخر نسخة بيانات محفوظة على هذا الجهاز، وستتم مزامنة الحركات المعلقة عند عودة الإنترنت."}
+              {latestOfflineSnapshot ? ` آخر حفظ محلي للبيانات: ${formatQueueDate(latestOfflineSnapshot)}` : " لم يتم حفظ نسخة محلية بعد؛ افتح القوائم المطلوبة مرة واحدة أثناء الاتصال ليتم حفظها للاستخدام دون إنترنت."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
