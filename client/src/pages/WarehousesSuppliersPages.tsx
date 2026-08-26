@@ -369,8 +369,8 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     }
   }
 
-  if (accountLoading) return <DashboardLayout><div className="p-12 text-center text-slate-500">جارٍ تحميل كشف الحساب...</div></DashboardLayout>;
-  if (accountError) return <DashboardLayout><div className="p-12 text-center text-red-500">تعذر تحميل كشف الحساب.</div></DashboardLayout>;
+  if (accountLoading) return <DashboardLayout><div className="space-y-4 p-12 text-center text-slate-500"><OfflineDataNotice resource={kind === "supplier" ? "كشف حساب المورد" : "كشف حساب العميل"} hasCachedData={accountDataAvailable} /><p>جارٍ تحميل كشف الحساب...</p></div></DashboardLayout>;
+  if (accountError) return <DashboardLayout><div className="space-y-4 p-12 text-center text-red-500"><OfflineDataNotice resource={kind === "supplier" ? "كشف حساب المورد" : "كشف حساب العميل"} hasCachedData={accountDataAvailable} /><p>تعذر تحميل كشف الحساب.</p></div></DashboardLayout>;
   if (!entity) return <DashboardLayout><div className="p-12 text-center text-slate-500">الجهة المطلوبة غير موجودة.</div></DashboardLayout>;
 
   return <DashboardLayout>
