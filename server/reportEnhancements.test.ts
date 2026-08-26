@@ -121,6 +121,13 @@ describe("تحسينات تقارير المخزون", () => {
     expect(options.styles?.overflow).toBe("linebreak");
   });
 
+  it("يحجز عرض اسم الصنف حتى عند إظهار كل أعمدة PDF الحركات", async () => {
+    await buildMovementPdf([{ id: 1, type: "إضافة", date: "2026-08-26", eznNum: "A-1855", itemCode: "10001", name: "وصلة مجلفنة مقاومة للصدأ مقاس كبير للاستخدام الصناعي طويل المدى", quantity: 5, detail: "وارد من: مخازن الشركة", additionPurpose: "توريد موقع رئيسي", unitPrice: 12.5, totalValue: 62.5 }], { columns: ["name", "date", "quantity", "eznNum", "itemCode", "type", "additionPurpose", "unitPrice", "totalValue", "documentImage"] });
+    const options = vi.mocked(autoTable).mock.calls.at(-1)?.[1] as { columnStyles?: Record<string, { cellWidth?: number; overflow?: string }> };
+    expect(options.columnStyles?.["9"]?.cellWidth).toBeGreaterThanOrEqual(156);
+    expect(options.columnStyles?.["9"]?.overflow).toBeUndefined();
+  });
+
   it("يجعل جدول PDF القصير بعرض محتواه بدل تمديده إلى كامل الصفحة", async () => {
     await buildMovementPdf([{ id: 1, type: "صرف", date: "2026-08-01", eznNum: "D-1", itemCode: "A", name: "صنف", quantity: 2, detail: "—", unitPrice: 1, totalValue: 2 }], { columns: ["date", "quantity"] });
     const options = vi.mocked(autoTable).mock.calls.at(-1)?.[1] as { tableWidth?: number; columnStyles?: Record<string, { cellWidth?: number }> };
