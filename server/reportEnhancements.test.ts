@@ -4,7 +4,7 @@ import { uploadCompanyLogo } from "./companyLogoUpload";
 import { buildOutboundReturnRows } from "../client/src/lib/reportMovements";
 import { buildAccountSummary } from "../client/src/lib/accountSummary";
 import { buildUnlinkedCustomerParties } from "../client/src/lib/unlinkedCustomerParties";
-import { ARABIC_PDF_FONT_URL, buildAccountStatementExcel, buildAccountStatementPdf, buildInventoryPdf, buildItemCardExcel, buildItemCardPdf, buildItemCardMovementRows, formatItemCardPdfDate, formatItemCardMovementDetail, buildMainWarehousePdf, buildMovementExcel, buildMovementPdf, configureArabicPdf, formatPdfMovementDate, getMovementPdfColumnWidth, drawReportHeader, getPdfImageFormat, getReportHeaderDate, movementExportColumns, selectExportColumns, shapeArabic } from "../client/src/lib/inventoryExportFiles";
+import { ARABIC_PDF_FONT_URL, buildAccountStatementExcel, buildAccountStatementPdf, buildInventoryPdf, buildItemCardExcel, buildItemCardPdf, buildItemCardMovementRows, buildStockVariancePdf, formatItemCardPdfDate, formatItemCardMovementDetail, buildMainWarehousePdf, buildMovementExcel, buildMovementPdf, configureArabicPdf, formatPdfMovementDate, getMovementPdfColumnWidth, drawReportHeader, getPdfImageFormat, getReportHeaderDate, movementExportColumns, selectExportColumns, shapeArabic } from "../client/src/lib/inventoryExportFiles";
 import { countMovementRows, createReportExportRequest, estimatePdfRemainingSeconds, filterMovementRows, filterMovementRowsByPurpose, filterMovementRowsBySearch, formatReportPartySummary } from "../client/src/pages/ReportsPage";
 import { createReportMailtoUrl, sharePdfFile } from "../client/src/lib/reportSharing";
 import { formatInventoryDate } from "../client/src/lib/inventoryDate";
@@ -126,6 +126,14 @@ describe("تحسينات تقارير المخزون", () => {
     const options = vi.mocked(autoTable).mock.calls.at(-1)?.[1] as { columnStyles?: Record<string, { cellWidth?: number; overflow?: string }> };
     expect(options.columnStyles?.["9"]?.cellWidth).toBeGreaterThanOrEqual(156);
     expect(options.columnStyles?.["9"]?.overflow).toBeUndefined();
+  });
+
+  it("يلف اسم الصنف الطويل في تقرير فروق المخزون", async () => {
+    await buildStockVariancePdf([{ code: "10001", name: "وصلة مجلفنة مقاومة للصدأ مقاس كبير للاستخدام الصناعي طويل المدى", initialStock: 1, additions: 2, disbursements: 0, returns: 0, net: 2, recordedStock: 3, expectedStock: 3, variance: 0, status: "متطابق" }]);
+    const options = vi.mocked(autoTable).mock.calls.at(-1)?.[1] as { columnStyles?: Record<string, { cellWidth?: number; overflow?: string }>; styles?: { overflow?: string } };
+    expect(options.columnStyles?.["1"]?.cellWidth).toBeGreaterThanOrEqual(176);
+    expect(options.columnStyles?.["1"]?.overflow).toBe("linebreak");
+    expect(options.styles?.overflow).toBe("linebreak");
   });
 
   it("يجعل جدول PDF القصير بعرض محتواه بدل تمديده إلى كامل الصفحة", async () => {
