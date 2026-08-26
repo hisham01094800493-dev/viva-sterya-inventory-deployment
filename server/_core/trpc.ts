@@ -52,4 +52,8 @@ export const reportPermissionProcedure = (report: string) => protectedProcedure.
 export const adminProcedure = roleProcedure("admin");
 export const managementProcedure = roleProcedure("admin", "manager");
 export const entryProcedure = roleProcedure("admin", "manager", "operator", "user");
+export const itemCreateProcedure = permissionProcedure("inventory").use(async opts => {
+  if (opts.ctx.permissions.readOnly || opts.ctx.permissions.allowedReports.includes("item-create-disabled")) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية إضافة أصناف جديدة" });
+  return opts.next({ ctx: opts.ctx });
+});
 export const reviewProcedure = roleProcedure("admin", "manager", "reviewer", "reports");

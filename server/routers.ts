@@ -113,7 +113,7 @@ import {
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { whatsappRouter } from "./whatsappRouter";
-import { adminProcedure, managementProcedure, entryProcedure, reviewProcedure, permissionProcedure, reportPermissionProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, managementProcedure, entryProcedure, itemCreateProcedure, reviewProcedure, permissionProcedure, reportPermissionProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { COOKIE_NAME } from "@shared/const";
 import { uploadItemImage } from "./itemImageUpload";
 import { uploadCompanyLogo } from "./companyLogoUpload";
@@ -307,8 +307,8 @@ export const appRouter = router({
         dataBase64: z.string().min(20).max(7_000_000),
       }))
       .mutation(({ input }) => safe(() => uploadItemImage(input))),
-    create: entryProcedure.input(itemInput).mutation(async ({ input, ctx }) => { const result = await safe(() => createItem(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "item", entityId: result?.id, details: { code: result?.code, name: result?.name } }); return result; }),
-    importBulk: protectedProcedure
+    create: itemCreateProcedure.input(itemInput).mutation(async ({ input, ctx }) => { const result = await safe(() => createItem(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "item", entityId: result?.id, details: { code: result?.code, name: result?.name } }); return result; }),
+    importBulk: itemCreateProcedure
       .input(z.object({ rows: z.array(importItemInput).min(1).max(5000) }))
       .mutation(({ input }) => safe(() => importItems(input.rows))),
     importMovements: protectedProcedure
@@ -523,7 +523,7 @@ export const appRouter = router({
   permissions: router({
     mine: protectedProcedure.query(({ ctx }) => safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role))),
     list: adminProcedure.query(() => safe(() => listManagedUserPermissions())),
-    update: adminProcedure.input(z.object({ userId: z.number().int().positive(), allowedScreens: z.array(z.enum(["dashboard", "inventory", "additions", "disbursements", "transfers", "suppliers", "customers", "reports", "alerts", "chat", "stock-adjustments", "settings"])).max(30), allowedReports: z.array(z.enum(["inventory-summary", "movement-reports", "item-card", "supplier-account", "customer-account", "adjustments", "warehouse-financial-details"])).max(30), readOnly: z.boolean() })).mutation(({ input }) => safe(() => upsertUserPermissionSettings(input))),
+    update: adminProcedure.input(z.object({ userId: z.number().int().positive(), allowedScreens: z.array(z.enum(["dashboard", "inventory", "additions", "disbursements", "transfers", "suppliers", "customers", "reports", "alerts", "chat", "stock-adjustments", "settings"])).max(30), allowedReports: z.array(z.enum(["inventory-summary", "movement-reports", "item-card", "supplier-account", "customer-account", "adjustments", "warehouse-financial-details", "item-create", "item-create-disabled"])).max(30), readOnly: z.boolean() })).mutation(({ input }) => safe(() => upsertUserPermissionSettings(input))),
   }),
 
   preferences: router({

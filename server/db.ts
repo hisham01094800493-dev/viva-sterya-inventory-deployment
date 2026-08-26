@@ -2248,7 +2248,7 @@ export async function runIsolatedFullBackupRestore() {
 }
 
 export const PERMISSION_SCREENS = ["dashboard", "inventory", "additions", "disbursements", "transfers", "suppliers", "customers", "reports", "alerts", "chat", "stock-adjustments", "settings"] as const;
-export const PERMISSION_REPORTS = ["inventory-summary", "movement-reports", "item-card", "supplier-account", "customer-account", "adjustments", "warehouse-financial-details"] as const;
+export const PERMISSION_REPORTS = ["inventory-summary", "movement-reports", "item-card", "supplier-account", "customer-account", "adjustments", "warehouse-financial-details", "item-create", "item-create-disabled"] as const;
 const OPERATIONAL_REPORTS = PERMISSION_REPORTS.filter(report => report !== "warehouse-financial-details");
 const READ_ONLY_DEFAULT_SCREENS = ["dashboard", "inventory", "reports", "alerts", "chat"];
 const READ_ONLY_DEFAULT_REPORTS = ["inventory-summary", "movement-reports", "item-card", "supplier-account", "customer-account"];

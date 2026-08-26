@@ -9,7 +9,7 @@ export const permissionTemplates = {
     label: "كاشير",
     readOnly: false,
     screens: ["dashboard", "inventory", "additions", "disbursements", "customers", "alerts"],
-    reports: ["inventory-summary", "movement-reports", "item-card"],
+    reports: ["inventory-summary", "movement-reports", "item-card", "item-create"],
   },
   viewer: {
     label: "مشاهد",

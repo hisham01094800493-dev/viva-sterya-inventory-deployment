@@ -68,6 +68,7 @@ import { VoiceInputButton, normalizeVoiceSearchText } from "@/components/VoiceIn
 import { inventoryQueryOptions, dashboardQueryOptions, detailQueryOptions } from "@/lib/queryOptions";
 import { HelpRequestCard, HelpRequestsAdminCard } from "@/components/HelpRequestCards";
 import { ITEM_CARD_MOVEMENT_FILTER_KEY, ITEM_CARD_PERMIT_COLUMN_KEY, ITEM_CARD_TOTAL_VALUE_KEY, ITEM_CARD_UNIT_PRICE_KEY, readItemCardColumnPreference, readItemCardMovementFilter, writeItemCardColumnPreference, writeItemCardMovementFilter } from "@/lib/itemCardPreferences";
+import { canCreateInventoryItems } from "@/lib/itemCreatePermission";
 
 const formatQuantity = (value: number | string | null | undefined) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 }).format(Number(value ?? 0));
 const movementPdfColumnLabels: Record<string, string> = { type: "نوع الحركة", date: "التاريخ", eznNum: "رقم الإذن", itemCode: "كود الصنف", name: "اسم الصنف", quantity: "الكمية", additionPurpose: "لِزوم الإضافة", disbursementPurpose: "لِزوم الصرف", returnPurpose: "لِزوم الارتجاع", detail: "التفاصيل", unitPrice: "سعر الوحدة", totalValue: "الإجمالي", documentImage: "صورة الإذن" };
@@ -303,11 +304,16 @@ export function ItemsPage() {
   const remove = trpc.items.delete.useMutation();
   const permissions = trpc.permissions.mine.useQuery();
   const preferences = trpc.preferences.get.useQuery();
+  const canCreateItems = canCreateInventoryItems(permissions.data);
   const updatePreferences = trpc.preferences.update.useMutation();
   const [inventoryFinancialPreferenceVisible, setInventoryFinancialPreferenceVisible] = useState(false);
   const canViewInventoryFinancialDetails = permissions.data?.allowedReports.includes("warehouse-financial-details") ?? false;
   const showInventoryFinancialDetails = canViewInventoryFinancialDetails && inventoryFinancialPreferenceVisible;
   useEffect(() => { const saved = preferences.data?.reportColumnOrder?.["inventory-financial-details-v1"] ?? []; setInventoryFinancialPreferenceVisible(canViewInventoryFinancialDetails && saved.includes("visible")); }, [canViewInventoryFinancialDetails, preferences.data?.reportColumnOrder]);
+  useEffect(() => {
+    if (canCreateItems && new URLSearchParams(location.split("?")[1] ?? "").get("create") === "1") { setEditing(undefined); setDialogOpen(true); }
+    if (!canCreateItems && dialogOpen) setDialogOpen(false);
+  }, [canCreateItems, dialogOpen, location]);
   async function toggleInventoryFinancialDetails() { const next = !inventoryFinancialPreferenceVisible; setInventoryFinancialPreferenceVisible(next); try { await updatePreferences.mutateAsync({ quickActions: preferences.data?.quickActions ?? ["/additions", "/disbursements", "/transfers"], hapticEnabled: preferences.data?.hapticEnabled ?? true, reportColumnOrder: { ...(preferences.data?.reportColumnOrder ?? {}), ["inventory-financial-details-v1"]: next ? ["visible"] : [] } }); } catch (error: any) { setInventoryFinancialPreferenceVisible(!next); toast.error(error?.message || "تعذر حفظ اختيار التفاصيل المالية"); } }
 
   async function deleteItem(item: any) {
