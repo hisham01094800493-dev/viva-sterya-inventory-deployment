@@ -2407,17 +2407,14 @@ function movementDateKey(value: string) {
   return Number.isNaN(parsed.getTime()) ? raw : parsed.toISOString().slice(0, 10);
 }
 
-export async function getMovementAnalytics(
-  inventoryRows: Array<{ currentStock: string | number | null; reorderLevel: string | number | null }>,
+type MovementAnalyticsRow = { date: string; quantity: string | number | null };
+type MovementAnalyticsInventoryRow = { currentStock: string | number | null; reorderLevel: string | number | null };
+
+export function buildMovementAnalytics(
+  movements: { additions: MovementAnalyticsRow[]; disbursements: MovementAnalyticsRow[]; transfers: MovementAnalyticsRow[] },
+  inventoryRows: MovementAnalyticsInventoryRow[],
   thresholdPercentage: number,
 ) {
-  const db = await requireDb();
-  const [additionRows, disbursementRows, transferRows] = await Promise.all([
-    db.select({ date: additions.date, quantity: additions.quantity }).from(additions),
-    db.select({ date: disbursements.date, quantity: disbursements.quantity }).from(disbursements),
-    db.select({ date: transfers.date, quantity: transfers.quantity }).from(transfers),
-  ]);
-
   const buckets = new Map<string, { date: string; additions: number; disbursements: number; transfers: number }>();
   const ensureBucket = (date: string) => {
     const key = movementDateKey(date);
@@ -2428,9 +2425,9 @@ export async function getMovementAnalytics(
     return created;
   };
 
-  additionRows.forEach(row => { ensureBucket(row.date).additions += Number(row.quantity ?? 0); });
-  disbursementRows.forEach(row => { ensureBucket(row.date).disbursements += Number(row.quantity ?? 0); });
-  transferRows.forEach(row => { ensureBucket(row.date).transfers += Number(row.quantity ?? 0); });
+  movements.additions.forEach(row => { ensureBucket(row.date).additions += Number(row.quantity ?? 0); });
+  movements.disbursements.forEach(row => { ensureBucket(row.date).disbursements += Number(row.quantity ?? 0); });
+  movements.transfers.forEach(row => { ensureBucket(row.date).transfers += Number(row.quantity ?? 0); });
 
   const status = { safe: 0, watch: 0, low: 0, empty: 0 };
   inventoryRows.forEach(row => {
@@ -2446,11 +2443,25 @@ export async function getMovementAnalytics(
     series: Array.from(buckets.values()).sort((a, b) => a.date.localeCompare(b.date)).slice(-90),
     status,
     totals: {
-      additions: additionRows.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0),
-      disbursements: disbursementRows.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0),
-      transfers: transferRows.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0),
+      additions: movements.additions.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0),
+      disbursements: movements.disbursements.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0),
+      transfers: movements.transfers.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0),
     },
   };
+}
+
+export async function getMovementAnalytics(
+  inventoryRows: Array<{ currentStock: string | number | null; reorderLevel: string | number | null }>,
+  thresholdPercentage: number,
+) {
+  const db = await requireDb();
+  const [additionRows, disbursementRows, transferRows] = await Promise.all([
+    db.select({ date: additions.date, quantity: additions.quantity }).from(additions),
+    db.select({ date: disbursements.date, quantity: disbursements.quantity }).from(disbursements),
+    db.select({ date: transfers.date, quantity: transfers.quantity }).from(transfers),
+  ]);
+
+  return buildMovementAnalytics({ additions: additionRows, disbursements: disbursementRows, transfers: transferRows }, inventoryRows, thresholdPercentage);
 }
 
 // Kept exported for future CSV/Excel import services.

@@ -66,6 +66,19 @@ type CurrentBalanceCardItem = { id?: number; code: string; name: string };
 type WarehouseItemCountInput = { warehouseId?: number | null; count?: number | string | null };
 type WarehouseItemCountDetail = { id?: number; name: string; count: number };
 type LatestPermit = { eznNum?: string | null; date?: string | null } | null | undefined;
+export type MovementSeriesPoint = { additions?: number | string | null; disbursements?: number | string | null; transfers?: number | string | null };
+
+export function getMovementSeriesTotals(series: MovementSeriesPoint[]): { additions: number; disbursements: number; transfers: number } {
+  return series.reduce<{ additions: number; disbursements: number; transfers: number }>(
+    (totals, point) => ({
+      additions: totals.additions + Number(point.additions ?? 0),
+      disbursements: totals.disbursements + Number(point.disbursements ?? 0),
+      transfers: totals.transfers + Number(point.transfers ?? 0),
+    }),
+    { additions: 0, disbursements: 0, transfers: 0 },
+  );
+}
+
 export function summarizeWarehouseBalances(warehouses: WarehouseSummaryInput[], inventory: InventoryBalanceInput[]) {
   return warehouses.map(warehouse => { const rows = inventory.filter(item => item.warehouseId === warehouse.id); return { ...warehouse, itemCount: rows.length, balance: rows.reduce((total, item) => total + Number(item.currentStock ?? 0), 0), lowCount: rows.filter(item => Number(item.currentStock ?? 0) <= Number(item.reorderLevel ?? 0)).length }; });
 }
@@ -190,6 +203,7 @@ export default function Home() {
     () => (analytics?.series ?? []).slice(-movementRange),
     [analytics?.series, movementRange],
   );
+  const movementTotals = useMemo(() => getMovementSeriesTotals(movementSeries), [movementSeries]);
   const statusData = useMemo(
     () => [
       { key: "safe", label: "آمن", value: Number(analytics?.status.safe ?? 0), color: "#0d806c" },
@@ -266,7 +280,7 @@ export default function Home() {
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.2em] text-[#0d806c]">MOVEMENT PULSE</p>
                       <h3 className="mt-2 text-xl font-black text-[#102a43]">حركة المخزون عبر الزمن</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-400">قارن الوارد والمنصرف والتحويلات لاكتشاف الارتفاعات غير المعتادة بسرعة.</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-400">قارن الوارد والمنصرف والتحويلات في النقاط الظاهرة لاكتشاف الارتفاعات غير المعتادة بسرعة.</p>
                     </div>
                     <div className="flex rounded-xl bg-[#f5f8f9] p-1" dir="rtl">
                       {[7, 30, 90].map(days => (
@@ -282,9 +296,9 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs font-bold">
-                    <div className="rounded-xl bg-[#e7f3f1] px-3 py-2 text-[#0d806c]">الوارد <strong className="mr-1">{formatNumber(analytics?.totals.additions)}</strong></div>
-                    <div className="rounded-xl bg-[#fff0ed] px-3 py-2 text-[#bd5147]">المنصرف <strong className="mr-1">{formatNumber(analytics?.totals.disbursements)}</strong></div>
-                    <div className="rounded-xl bg-[#fff4df] px-3 py-2 text-[#a96821]">التحويلات <strong className="mr-1">{formatNumber(analytics?.totals.transfers)}</strong></div>
+                    <div className="rounded-xl bg-[#e7f3f1] px-3 py-2 text-[#0d806c]">وارد الرسم <strong className="mr-1">{formatNumber(movementTotals.additions)}</strong></div>
+                    <div className="rounded-xl bg-[#fff0ed] px-3 py-2 text-[#bd5147]">منصرف الرسم <strong className="mr-1">{formatNumber(movementTotals.disbursements)}</strong></div>
+                    <div className="rounded-xl bg-[#fff4df] px-3 py-2 text-[#a96821]">تحويلات الرسم <strong className="mr-1">{formatNumber(movementTotals.transfers)}</strong></div>
                   </div>
                   {movementSeries.length ? (
                     <ChartContainer config={movementChartConfig} className="mt-4 h-[270px] min-h-[270px] w-full aspect-auto">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getCurrentBalanceCardDetails, getDashboardLatestPermitDetails, getLatestPermitCardDetail, getWarehouseItemCountDetails } from "../client/src/pages/Home";
+import { getCurrentBalanceCardDetails, getDashboardLatestPermitDetails, getLatestPermitCardDetail, getMovementSeriesTotals, getWarehouseItemCountDetails } from "../client/src/pages/Home";
 
 describe("تفاصيل بطاقة الرصيد الحالي", () => {
   it("يعرض الكمية والوحدة واسم الصنف ذي الرصيد", () => {
@@ -31,5 +31,12 @@ describe("تفاصيل بطاقة الرصيد الحالي", () => {
 
   it("لا يتعطل عند وجود ملخص لوحة تحكم قديم بلا بيانات آخر الأذونات", () => {
     expect(getDashboardLatestPermitDetails()).toEqual({ incoming: "لا يوجد إذن الوارد مسجل", outgoing: "لا يوجد إذن الصرف مسجل" });
+  });
+
+  it("يجمع وارد الرسم من نقاط المدة المعروضة فقط دون إدخال الحركات الأقدم", () => {
+    expect(getMovementSeriesTotals([
+      { additions: "2.500", disbursements: 1, transfers: 0 },
+      { additions: 4, disbursements: "0.750", transfers: 3 },
+    ])).toEqual({ additions: 6.5, disbursements: 1.75, transfers: 3 });
   });
 });
