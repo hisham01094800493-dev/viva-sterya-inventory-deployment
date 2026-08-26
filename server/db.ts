@@ -2453,12 +2453,19 @@ export function buildMovementAnalytics(
 export async function getMovementAnalytics(
   inventoryRows: Array<{ currentStock: string | number | null; reorderLevel: string | number | null }>,
   thresholdPercentage: number,
+  warehouseId: number | null = null,
 ) {
   const db = await requireDb();
   const [additionRows, disbursementRows, transferRows] = await Promise.all([
-    db.select({ date: additions.date, quantity: additions.quantity }).from(additions),
-    db.select({ date: disbursements.date, quantity: disbursements.quantity }).from(disbursements),
-    db.select({ date: transfers.date, quantity: transfers.quantity }).from(transfers),
+    warehouseId === null
+      ? db.select({ date: additions.date, quantity: additions.quantity }).from(additions)
+      : db.select({ date: additions.date, quantity: additions.quantity }).from(additions).where(eq(additions.warehouseId, warehouseId)),
+    warehouseId === null
+      ? db.select({ date: disbursements.date, quantity: disbursements.quantity }).from(disbursements)
+      : db.select({ date: disbursements.date, quantity: disbursements.quantity }).from(disbursements).where(eq(disbursements.warehouseId, warehouseId)),
+    warehouseId === null
+      ? db.select({ date: transfers.date, quantity: transfers.quantity }).from(transfers)
+      : db.select({ date: transfers.date, quantity: transfers.quantity }).from(transfers).where(or(eq(transfers.fromWarehouseId, warehouseId), eq(transfers.toWarehouseId, warehouseId))),
   ]);
 
   return buildMovementAnalytics({ additions: additionRows, disbursements: disbursementRows, transfers: transferRows }, inventoryRows, thresholdPercentage);

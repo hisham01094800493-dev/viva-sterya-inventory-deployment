@@ -37,4 +37,21 @@ describe("حركة المخزون عبر الزمن", () => {
     );
     expect(getMovementSeriesTotals(analytics.series.slice(-2))).toEqual({ additions: 6, disbursements: 0, transfers: 0 });
   });
+
+  it("يحسب سلسلة مخزن محدد من حركاته الممررة فقط دون خلط مخزن آخر", () => {
+    const analytics = buildMovementAnalytics(
+      {
+        additions: [{ date: "2026-08-20", quantity: 5 }],
+        disbursements: [{ date: "2026-08-20", quantity: 2 }],
+        transfers: [{ date: "2026-08-21", quantity: 1 }],
+      },
+      [],
+      20,
+    );
+    expect(analytics.totals).toEqual({ additions: 5, disbursements: 2, transfers: 1 });
+    expect(analytics.series).toEqual([
+      { date: "2026-08-20", additions: 5, disbursements: 2, transfers: 0 },
+      { date: "2026-08-21", additions: 0, disbursements: 0, transfers: 1 },
+    ]);
+  });
 });

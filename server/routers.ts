@@ -395,6 +395,18 @@ export const appRouter = router({
   }),
 
   dashboard: router({
+    movementAnalytics: permissionProcedure("dashboard")
+      .input(z.object({ warehouseId: z.number().int().positive().nullable().default(null) }))
+      .query(({ input }) =>
+        safe(async () => {
+          const [rows, configuredThreshold] = await Promise.all([
+            getInventoryRows(),
+            getSettingValue("threshold_percentage", "20"),
+          ]);
+          const thresholdPercentage = Math.min(100, Math.max(0, Number(configuredThreshold) || 20));
+          return getMovementAnalytics(rows, thresholdPercentage, input.warehouseId);
+        }),
+      ),
     summary: permissionProcedure("dashboard").query(async () =>
       safe(async () => {
         const [rows, movements, latestPermits, configuredThreshold] = await Promise.all([

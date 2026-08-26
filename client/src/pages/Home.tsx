@@ -16,6 +16,7 @@ import {
   CalendarDays,
   Clock3,
   ChevronLeft,
+  ChevronDown,
   ArrowDownAZ,
   ListFilter,
   CircleCheck,
@@ -198,10 +199,16 @@ export default function Home() {
   const lowStockCount = Number(summary.data?.stats.lowStockCount ?? 0);
   const healthPercent = totalItems ? Math.max(0, Math.round(((totalItems - lowStockCount) / totalItems) * 100)) : 0;
   const [movementRange, setMovementRange] = useState<7 | 30 | 90>(30);
+  const [timelineWarehouseId, setTimelineWarehouseId] = useState<number | "all">("all");
+  const [warehouseCardsExpanded, setWarehouseCardsExpanded] = useState(false);
   const analytics = summary.data?.analytics;
+  const timelineAnalyticsInput = useMemo(() => ({ warehouseId: timelineWarehouseId === "all" ? null : timelineWarehouseId }), [timelineWarehouseId]);
+  const timelineAnalytics = trpc.dashboard.movementAnalytics.useQuery(timelineAnalyticsInput, dashboardQueryOptions);
+  const selectedTimelineWarehouse = timelineWarehouseId === "all" ? null : warehouses.data?.find(warehouse => warehouse.id === timelineWarehouseId) ?? null;
+  const timelineLabel = selectedTimelineWarehouse?.name ?? "كل المخازن";
   const movementSeries = useMemo(
-    () => (analytics?.series ?? []).slice(-movementRange),
-    [analytics?.series, movementRange],
+    () => (timelineAnalytics.data?.series ?? analytics?.series ?? []).slice(-movementRange),
+    [analytics?.series, movementRange, timelineAnalytics.data?.series],
   );
   const movementTotals = useMemo(() => getMovementSeriesTotals(movementSeries), [movementSeries]);
   const statusData = useMemo(
@@ -256,8 +263,8 @@ export default function Home() {
         ) : (
           <>
             <section className="home-surface rounded-2xl border border-[#dce7ee] bg-white/90 p-4 shadow-[0_10px_28px_rgba(18,44,84,0.05)] backdrop-blur-sm">
-              <div className="mb-3 flex items-center gap-2.5 text-right"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e8f1f2] text-[#0d4f62]"><Warehouse className="h-4 w-4" /></div><div><p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#d08a3b]">WAREHOUSE BALANCES</p><h3 className="text-sm font-black text-[#102a43]">رصيد ووارد كل مخزن</h3></div></div>
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{warehouseBalances.map(warehouse => <WarehouseBranchCard key={`summary-${warehouse.id}`} warehouse={warehouse} lowItems={lowStockByWarehouse.get(warehouse.id) ?? []} onOpen={() => setLocation(`/warehouses/${warehouse.slot}`)} />)}</div>
+              <div className="flex items-center justify-between gap-3 text-right"><div className="flex items-center gap-2.5"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e8f1f2] text-[#0d4f62]"><Warehouse className="h-4 w-4" /></div><div><p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#d08a3b]">WAREHOUSE BALANCES</p><h3 className="text-sm font-black text-[#102a43]">ملخص المخازن والفروع</h3><p className="mt-0.5 text-[11px] font-semibold text-slate-400">{warehouseBalances.length} مخزن متاح للعرض</p></div></div><Button type="button" variant="outline" size="sm" onClick={() => setWarehouseCardsExpanded(value => !value)} aria-expanded={warehouseCardsExpanded} className="rounded-xl border-[#b9d4d9] text-xs font-black text-[#0d4f62]"><ChevronDown className={`ml-1 h-4 w-4 transition-transform ${warehouseCardsExpanded ? "rotate-180" : ""}`} />{warehouseCardsExpanded ? "إخفاء الفروع" : "عرض الفروع"}</Button></div>
+              {warehouseCardsExpanded ? <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{warehouseBalances.map(warehouse => <WarehouseBranchCard key={`summary-${warehouse.id}`} warehouse={warehouse} lowItems={lowStockByWarehouse.get(warehouse.id) ?? []} onOpen={() => setLocation(`/warehouses/${warehouse.slot}`)} />)}</div> : <p className="mt-3 rounded-xl bg-[#f7fbfc] px-3 py-2 text-xs font-semibold leading-6 text-slate-500">استخدم زر «عرض الفروع» لمراجعة رصيد ووارد كل مخزن عند الحاجة، أو اختر مخزنًا من الخط الزمني بالأسفل لمتابعة حركته فقط.</p>}
             </section>
             <section className="home-card-toolbar flex flex-col gap-3 rounded-2xl border border-[#b5dce9]/70 bg-white/75 p-3 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-sm font-bold text-[#246d96]"><ListFilter className="h-4 w-4" /> <span>تخصيص عرض البطاقات</span></div>
@@ -280,8 +287,10 @@ export default function Home() {
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.2em] text-[#0d806c]">MOVEMENT PULSE</p>
                       <h3 className="mt-2 text-xl font-black text-[#102a43]">حركة المخزون عبر الزمن</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-400">قارن الوارد والمنصرف والتحويلات في النقاط الظاهرة لاكتشاف الارتفاعات غير المعتادة بسرعة.</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-400">يعرض الآن حركة {timelineLabel} فقط عند الاختيار، مع تبديل الوارد والمنصرف والتحويلات فورًا.</p>
                     </div>
+                    <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-600"><Warehouse className="h-4 w-4 text-[#0d806c]" /><span>المخزن</span><select value={timelineWarehouseId} onChange={event => setTimelineWarehouseId(event.target.value === "all" ? "all" : Number(event.target.value))} className="h-9 rounded-lg border border-[#b9d4d9] bg-white px-2 text-xs font-black text-[#102a43] outline-none"><option value="all">كل المخازن</option>{warehouses.data?.map(warehouse => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select></label>
                     <div className="flex rounded-xl bg-[#f5f8f9] p-1" dir="rtl">
                       {[7, 30, 90].map(days => (
                         <button
@@ -293,14 +302,14 @@ export default function Home() {
                           {days} يوم
                         </button>
                       ))}
-                    </div>
+                    </div></div>
                   </div>
                   <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs font-bold">
                     <div className="rounded-xl bg-[#e7f3f1] px-3 py-2 text-[#0d806c]">وارد الرسم <strong className="mr-1">{formatNumber(movementTotals.additions)}</strong></div>
                     <div className="rounded-xl bg-[#fff0ed] px-3 py-2 text-[#bd5147]">منصرف الرسم <strong className="mr-1">{formatNumber(movementTotals.disbursements)}</strong></div>
                     <div className="rounded-xl bg-[#fff4df] px-3 py-2 text-[#a96821]">تحويلات الرسم <strong className="mr-1">{formatNumber(movementTotals.transfers)}</strong></div>
                   </div>
-                  {movementSeries.length ? (
+                  {timelineAnalytics.isLoading && timelineWarehouseId !== "all" ? <div className="mt-4 flex h-[270px] items-center justify-center text-sm font-bold text-slate-400">جارٍ تحميل حركة {timelineLabel}...</div> : movementSeries.length ? (
                     <ChartContainer config={movementChartConfig} className="mt-4 h-[270px] min-h-[270px] w-full aspect-auto">
                       <LineChart accessibilityLayer data={movementSeries} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
                         <CartesianGrid vertical={false} stroke="#edf2f5" />

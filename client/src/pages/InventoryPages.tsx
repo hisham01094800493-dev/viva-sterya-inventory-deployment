@@ -167,8 +167,14 @@ function ItemsDialog({ open, onOpenChange, editing, onSaved }: { open: boolean; 
         const compressed = await compressImageFile(imageFile);
         await uploadImage.mutateAsync({ itemId: saved.id, fileName: createDescriptiveImageFileName(form.name, compressed.fileName, `item-${saved.id}`), contentType: compressed.contentType, dataBase64: compressed.dataBase64 });
       }
-      await utils.items.list.invalidate();
-      await utils.dashboard.summary.invalidate();
+      await Promise.all([
+        utils.items.list.invalidate(),
+        utils.items.categories.invalidate(),
+        utils.items.card.invalidate({ id: saved.id }),
+        utils.items.warehouseCards.invalidate(),
+        utils.items.mainWarehouseCards.invalidate(),
+        utils.dashboard.summary.invalidate(),
+      ]);
       toast.success(editing ? `تم تحديث بيانات الصنف ${saved.code}` : `تمت إضافة الصنف ${saved.code} بنجاح`);
       onSaved();
       onOpenChange(false);
