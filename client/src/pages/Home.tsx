@@ -23,8 +23,6 @@ import {
   Plus,
   RefreshCcw,
   Share2,
-  TrendingDown,
-  TrendingUp,
   Warehouse,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -209,17 +207,11 @@ export default function Home() {
   const [branchesOpen, setBranchesOpen] = useState(true);
   const [cardFilter, setCardFilter] = useState<"all" | "attention" | "balance">("all");
   const [cardSort, setCardSort] = useState<"default" | "high" | "low">("default");
-  const balanceCard = useMemo(() => getCurrentBalanceCardDetails(inventory.data ?? []), [inventory.data]);
   const warehouseItemCounts = useMemo(() => getWarehouseItemCountDetails(warehouses.data ?? [], summary.data?.stats.itemCountsByWarehouse ?? []), [warehouses.data, summary.data?.stats.itemCountsByWarehouse]);
-  const latestPermits = summary.data?.latestPermits;
-  const latestPermitDetails = useMemo(() => getDashboardLatestPermitDetails(latestPermits), [latestPermits]);
   const cardDefinitions = useMemo(() => [
-    { key: "items", label: "إجمالي الأصناف", value: formatNumber(summary.data?.stats.totalItems), numeric: Number(summary.data?.stats.totalItems ?? 0), detail: "صنف مسجل", warehouseItems: warehouseItemCounts, itemsWithBalance: undefined, extraItemsCount: 0, icon: Boxes, tone: "teal" as const },
-    { key: "attention", label: "أصناف تحتاج متابعة", value: formatNumber(summary.data?.stats.lowStockCount), numeric: Number(summary.data?.stats.lowStockCount ?? 0), detail: `تحت ${summary.data?.thresholdPercentage ?? 20}%`, itemsWithBalance: undefined, extraItemsCount: 0, icon: AlertTriangle, tone: "rose" as const },
-    { key: "balance", label: "الرصيد الحالي", value: balanceCard.value, numeric: Number(summary.data?.stats.totalCurrentStock ?? 0), detail: balanceCard.detail, itemsWithBalance: balanceCard.itemsWithBalance, extraItemsCount: balanceCard.extraItemsCount, icon: Package, tone: "blue" as const },
-    { key: "incoming", label: "إجمالي الوارد", value: formatNumber(summary.data?.stats.totalIncoming), numeric: Number(summary.data?.stats.totalIncoming ?? 0), detail: "تراكمي", secondaryDetail: latestPermitDetails.incoming, itemsWithBalance: undefined, extraItemsCount: 0, icon: TrendingUp, tone: "gold" as const },
-    { key: "outgoing", label: "إجمالي المنصرف", value: formatNumber(summary.data?.stats.totalOutgoing), numeric: Number(summary.data?.stats.totalOutgoing ?? 0), detail: "تراكمي", secondaryDetail: latestPermitDetails.outgoing, itemsWithBalance: undefined, extraItemsCount: 0, icon: TrendingDown, tone: "rose" as const },
-  ], [balanceCard, latestPermitDetails, summary.data, warehouseItemCounts]);
+    { key: "items", label: "إجمالي الأصناف", value: formatNumber(summary.data?.stats.totalItems), numeric: Number(summary.data?.stats.totalItems ?? 0), detail: "صنف مسجل", secondaryDetail: undefined, warehouseItems: warehouseItemCounts, itemsWithBalance: undefined, extraItemsCount: 0, icon: Boxes, tone: "teal" as const },
+    { key: "attention", label: "أصناف تحتاج متابعة", value: formatNumber(summary.data?.stats.lowStockCount), numeric: Number(summary.data?.stats.lowStockCount ?? 0), detail: `تحت ${summary.data?.thresholdPercentage ?? 20}%`, secondaryDetail: undefined, itemsWithBalance: undefined, extraItemsCount: 0, icon: AlertTriangle, tone: "rose" as const },
+  ], [summary.data, warehouseItemCounts]);
   const visibleCards = useMemo(() => {
     const filtered = cardDefinitions.filter(card => cardFilter === "all" || (cardFilter === "attention" ? card.key === "attention" : card.key === "balance"));
     return cardSort === "default" ? filtered : [...filtered].sort((a, b) => cardSort === "high" ? b.numeric - a.numeric : a.numeric - b.numeric);
