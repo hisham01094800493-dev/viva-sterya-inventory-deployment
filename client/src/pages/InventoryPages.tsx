@@ -314,6 +314,13 @@ export function ItemsPage() {
     if (canCreateItems && new URLSearchParams(location.split("?")[1] ?? "").get("create") === "1") { setEditing(undefined); setDialogOpen(true); }
     if (!canCreateItems && dialogOpen) setDialogOpen(false);
   }, [canCreateItems, dialogOpen, location]);
+  useEffect(() => {
+    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("button"));
+    const createButton = buttons.find(button => button.textContent?.trim() === "إضافة صنف");
+    if (!createButton) return;
+    createButton.hidden = !canCreateItems;
+    return () => { createButton.hidden = false; };
+  }, [canCreateItems]);
   async function toggleInventoryFinancialDetails() { const next = !inventoryFinancialPreferenceVisible; setInventoryFinancialPreferenceVisible(next); try { await updatePreferences.mutateAsync({ quickActions: preferences.data?.quickActions ?? ["/additions", "/disbursements", "/transfers"], hapticEnabled: preferences.data?.hapticEnabled ?? true, reportColumnOrder: { ...(preferences.data?.reportColumnOrder ?? {}), ["inventory-financial-details-v1"]: next ? ["visible"] : [] } }); } catch (error: any) { setInventoryFinancialPreferenceVisible(!next); toast.error(error?.message || "تعذر حفظ اختيار التفاصيل المالية"); } }
 
   async function deleteItem(item: any) {
