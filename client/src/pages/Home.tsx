@@ -7,8 +7,6 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { dashboardQueryOptions, inventoryQueryOptions } from "@/lib/queryOptions";
 import {
   AlertTriangle,
-  Bookmark,
-  Check,
   ArrowDownToLine,
   ArrowLeftRight,
   ArrowUpFromLine,
@@ -17,13 +15,8 @@ import {
   Clock3,
   ChevronLeft,
   ChevronDown,
-  ArrowDownAZ,
-  ListFilter,
-  CircleCheck,
-  Package,
   Plus,
   RefreshCcw,
-  Share2,
   Warehouse,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -130,17 +123,15 @@ export function getCurrentBalanceCardDetails(items: CurrentBalanceItem[]) {
   return { value: unit ? `${formatNumber(total)} ${unit}` : formatNumber(total), detail: unit ? `${unit} متاحة` : inStock.length ? "رصيد بوحدات متعددة" : "لا رصيد متاح", itemsWithBalance, extraItemsCount: Math.max(0, inStock.length - itemsWithBalance.length) };
 }
 
-function StatCard({ label, value, detail, secondaryDetail, itemsWithBalance, warehouseItems, extraItemsCount = 0, onOpenItem, icon: Icon, tone }: { label: string; value: string; detail: string; secondaryDetail?: string; itemsWithBalance?: CurrentBalanceCardItem[]; warehouseItems?: WarehouseItemCountDetail[]; extraItemsCount?: number; onOpenItem?: (item: CurrentBalanceCardItem) => void; icon: typeof Boxes; tone: "teal" | "gold" | "rose" | "blue" }) {
+function StatCard({ label, value, detail, icon: Icon, tone }: { label: string; value: string; detail: string; icon: typeof Boxes; tone: "teal" | "gold" | "rose" | "blue" }) {
   const tones = {
     teal: "bg-[#e7f3f1] text-[#0d4f62]",
     gold: "bg-[#fff4df] text-[#a96821]",
     rose: "bg-[#fff0ed] text-[#bd5147]",
     blue: "bg-[#eaf1fb] text-[#3c6395]",
   };
-  const [saved, setSaved] = useState(false);
-  const share = () => { const text = `${label}: ${value}`; if (navigator.share) { void navigator.share({ title: "Smart Inventory", text }).catch(() => undefined); } else { void navigator.clipboard?.writeText(text); } };
   return (
-    <Card className="home-scroll-card home-stat-card modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm">
+    <Card className="home-stat-card border border-[#dce7ee] bg-white shadow-[0_8px_22px_rgba(18,44,84,0.045)]">
       <CardContent className="p-3.5 sm:p-4">
         <div className="flex items-start justify-between gap-3">
           <div className={`home-stat-icon flex h-10 w-10 items-center justify-center rounded-xl ${tones[tone]}`}><Icon className="h-5 w-5" strokeWidth={2.4} /></div>
@@ -148,13 +139,6 @@ function StatCard({ label, value, detail, secondaryDetail, itemsWithBalance, war
         </div>
         <p className="mt-3 text-sm font-bold text-slate-600">{label}</p>
         <p className="mt-0.5 text-2xl font-black tracking-tight text-[#102a43] sm:text-[1.7rem]">{value}</p>
-        {secondaryDetail ? <p className="mt-1 truncate text-[10px] font-bold text-[#246d96]" title={secondaryDetail}>{secondaryDetail}</p> : null}
-        {warehouseItems?.length ? <div className="mt-2 space-y-1 border-t border-[#dbeaf0] pt-2">{warehouseItems.map(item => <div key={item.id ?? item.name} className="flex items-center justify-between gap-2 px-1 text-[10px]"><span className="min-w-0 truncate font-black text-[#0d7180]">{item.name}</span><span className="shrink-0 font-bold text-slate-500">{formatNumber(item.count)} صنف</span></div>)}</div> : null}
-        {itemsWithBalance?.length ? <div className="mt-2 space-y-1 border-t border-[#dbeaf0] pt-2">{itemsWithBalance.map(item => <button key={`${item.id ?? item.code}-${item.name}`} type="button" onClick={() => onOpenItem?.(item)} className="flex w-full items-center justify-between gap-2 rounded-md px-1 py-0.5 text-right transition hover:bg-[#edf7f9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3a9fc9]"><span className="min-w-0 truncate text-[10px] font-black text-[#0d7180]">{item.name}</span><span className="shrink-0 font-mono text-[9px] text-slate-400">{item.code}</span></button>)}{extraItemsCount > 0 ? <p className="px-1 text-[9px] font-bold text-slate-400">و{extraItemsCount} أصناف أخرى</p> : null}</div> : null}
-        <div className="home-card-actions mt-2 flex items-center gap-1">
-          <button type="button" aria-label={saved ? "إلغاء حفظ البطاقة" : "حفظ البطاقة"} title={saved ? "محفوظ" : "حفظ"} data-tooltip={saved ? "إلغاء الحفظ" : "حفظ البطاقة"} onClick={() => setSaved(value => !value)} className="home-card-action rounded-lg p-1.5 text-[#246d96] transition"><>{saved ? <Check className="h-3.5 w-3.5" /> : <Bookmark className="h-3.5 w-3.5" />}</></button>
-          <button type="button" aria-label="مشاركة البطاقة" title="مشاركة" data-tooltip="مشاركة البطاقة" onClick={share} className="home-card-action rounded-lg p-1.5 text-[#246d96] transition"><Share2 className="h-3.5 w-3.5" /></button>
-        </div>
       </CardContent>
     </Card>
   );
@@ -223,17 +207,10 @@ export default function Home() {
   const hasStatusData = statusData.some(item => item.value > 0);
   const warehouseBalances = warehouseBalanceSummary.data ?? summarizeWarehouseBalances(warehouses.data ?? [], inventory.data ?? []);
   const lowStockByWarehouse = useMemo(() => new Map((warehouseLowStock.data ?? []).map(entry => [entry.warehouseId, entry.lowItems])), [warehouseLowStock.data]);
-  const [cardFilter, setCardFilter] = useState<"all" | "attention" | "balance">("all");
-  const [cardSort, setCardSort] = useState<"default" | "high" | "low">("default");
-  const warehouseItemCounts = useMemo(() => getWarehouseItemCountDetails(warehouses.data ?? [], summary.data?.stats.itemCountsByWarehouse ?? []), [warehouses.data, summary.data?.stats.itemCountsByWarehouse]);
   const cardDefinitions = useMemo(() => [
-    { key: "items", label: "إجمالي الأصناف", value: formatNumber(summary.data?.stats.totalItems), numeric: Number(summary.data?.stats.totalItems ?? 0), detail: "صنف مسجل", secondaryDetail: undefined, warehouseItems: warehouseItemCounts, itemsWithBalance: undefined, extraItemsCount: 0, icon: Boxes, tone: "teal" as const },
-    { key: "attention", label: "أصناف تحتاج متابعة", value: formatNumber(summary.data?.stats.lowStockCount), numeric: Number(summary.data?.stats.lowStockCount ?? 0), detail: `تحت ${summary.data?.thresholdPercentage ?? 20}%`, secondaryDetail: undefined, itemsWithBalance: undefined, extraItemsCount: 0, icon: AlertTriangle, tone: "rose" as const },
-  ], [summary.data, warehouseItemCounts]);
-  const visibleCards = useMemo(() => {
-    const filtered = cardDefinitions.filter(card => cardFilter === "all" || (cardFilter === "attention" ? card.key === "attention" : card.key === "balance"));
-    return cardSort === "default" ? filtered : [...filtered].sort((a, b) => cardSort === "high" ? b.numeric - a.numeric : a.numeric - b.numeric);
-  }, [cardDefinitions, cardFilter, cardSort]);
+    { key: "items", label: "إجمالي الأصناف", value: formatNumber(summary.data?.stats.totalItems), detail: "صنف مسجل", icon: Boxes, tone: "teal" as const },
+    { key: "attention", label: "أصناف تحتاج متابعة", value: formatNumber(summary.data?.stats.lowStockCount), detail: `تحت ${summary.data?.thresholdPercentage ?? 20}%`, icon: AlertTriangle, tone: "rose" as const },
+  ], [summary.data]);
 
   return (
     <DashboardLayout>
@@ -242,17 +219,19 @@ export default function Home() {
         <section className="home-hero relative overflow-hidden rounded-[1.6rem] bg-[#0d4f62] px-5 py-6 text-white shadow-[0_20px_50px_rgba(13,79,98,0.2)] md:px-7 md:py-7">
           <div className="absolute -left-16 -top-20 h-64 w-64 rounded-full border-[28px] border-white/5" />
           <div className="absolute -bottom-28 right-24 h-72 w-72 rounded-full border-[36px] border-[#d08a3b]/10" />
-          <div className="relative z-10 flex flex-col justify-between gap-7 lg:flex-row lg:items-end">
-            <div className="max-w-2xl">
-              <HomeHeroDateTime />
-              <p className="mb-2 text-xs font-black uppercase tracking-[0.3em] text-[#f5c27b]">SMART INVENTORY CONTROL ROOM</p>
-              <h2 className="text-3xl font-black leading-tight tracking-tight md:text-4xl">المخزون تحت السيطرة،<br /><span className="text-[#f5c27b]">والقرار أسرع.</span></h2>
-              <p className="home-intro-text mt-4 max-w-lg text-sm leading-7 text-white/70">تابع حركة الأصناف، راقب حد الطلب، ونفّذ الإضافات والصرف من مساحة عمل واحدة مصممة لفريق التشغيل.</p>
+          <div className="relative z-10 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-[#f5c27b]">SMART INVENTORY</p>
+              <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">لوحة تشغيل المخزون</h2>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-white/70">ملخص اليوم، حركة المخازن، والتنبيهات المهمة في مكان واحد.</p>
             </div>
-            {!isReadOnly && <div className="flex flex-wrap gap-3">
-              <Button onClick={() => setLocation("/additions")} className="h-11 rounded-xl bg-white px-4 font-bold text-[#0d4f62] hover:bg-[#f5f7f8]"><Plus className="ml-2 h-4 w-4" />إضافة مخزون</Button>
-              <Button onClick={() => setLocation("/disbursements")} variant="outline" className="h-11 rounded-xl border-white/25 bg-white/10 px-4 font-bold text-white hover:bg-white/15 hover:text-white"><ArrowUpFromLine className="ml-2 h-4 w-4" />إنشاء إذن صرف</Button>
-            </div>}
+            <div className="flex flex-col items-start gap-3 md:items-end">
+              <HomeHeroDateTime />
+              {!isReadOnly && <div className="flex flex-wrap gap-2">
+                <Button onClick={() => setLocation("/additions")} className="h-10 rounded-xl bg-white px-3.5 text-sm font-bold text-[#0d4f62] hover:bg-[#f5f7f8]"><Plus className="ml-1.5 h-4 w-4" />إضافة وارد</Button>
+                <Button onClick={() => setLocation("/disbursements")} variant="outline" className="h-10 rounded-xl border-white/25 bg-white/10 px-3.5 text-sm font-bold text-white hover:bg-white/15 hover:text-white"><ArrowUpFromLine className="ml-1.5 h-4 w-4" />إذن صرف</Button>
+              </div>}
+            </div>
           </div>
         </section>
 
@@ -262,22 +241,9 @@ export default function Home() {
           <Card className="border-red-100 bg-red-50"><CardContent className="flex items-center gap-3 p-5 text-sm font-bold text-red-700"><AlertTriangle className="h-5 w-5" />تعذر تحميل ملخص المخزون حالياً. اتصل بالإنترنت مرة واحدة لحفظ بيانات لوحة التحكم محلياً.</CardContent></Card>
         ) : (
           <>
-            <section className="home-surface rounded-2xl border border-[#dce7ee] bg-white/90 p-4 shadow-[0_10px_28px_rgba(18,44,84,0.05)] backdrop-blur-sm">
-              <div className="flex items-center justify-between gap-3 text-right"><div className="flex items-center gap-2.5"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e8f1f2] text-[#0d4f62]"><Warehouse className="h-4 w-4" /></div><div><p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#d08a3b]">WAREHOUSE BALANCES</p><h3 className="text-sm font-black text-[#102a43]">ملخص المخازن والفروع</h3><p className="mt-0.5 text-[11px] font-semibold text-slate-400">{warehouseBalances.length} مخزن متاح للعرض</p></div></div><Button type="button" variant="outline" size="sm" onClick={() => setWarehouseCardsExpanded(value => !value)} aria-expanded={warehouseCardsExpanded} className="rounded-xl border-[#b9d4d9] text-xs font-black text-[#0d4f62]"><ChevronDown className={`ml-1 h-4 w-4 transition-transform ${warehouseCardsExpanded ? "rotate-180" : ""}`} />{warehouseCardsExpanded ? "إخفاء الفروع" : "عرض الفروع"}</Button></div>
-              {warehouseCardsExpanded ? <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{warehouseBalances.map(warehouse => <WarehouseBranchCard key={`summary-${warehouse.id}`} warehouse={warehouse} lowItems={lowStockByWarehouse.get(warehouse.id) ?? []} onOpen={() => setLocation(`/warehouses/${warehouse.slot}`)} />)}</div> : <p className="mt-3 rounded-xl bg-[#f7fbfc] px-3 py-2 text-xs font-semibold leading-6 text-slate-500">استخدم زر «عرض الفروع» لمراجعة رصيد ووارد كل مخزن عند الحاجة، أو اختر مخزنًا من الخط الزمني بالأسفل لمتابعة حركته فقط.</p>}
-            </section>
-            <section className="home-card-toolbar flex flex-col gap-3 rounded-2xl border border-[#b5dce9]/70 bg-white/75 p-3 shadow-sm backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2 text-sm font-bold text-[#246d96]"><ListFilter className="h-4 w-4" /> <span>تخصيص عرض البطاقات</span></div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600"><span>التصفية</span><select value={cardFilter} onChange={event => setCardFilter(event.target.value as typeof cardFilter)} className="home-card-select rounded-lg border border-[#a9d5e5] bg-white px-3 py-2 text-xs font-bold text-[#193b54] outline-none"><option value="all">كل البطاقات</option><option value="attention">المتابعة</option><option value="balance">الأرصدة</option></select></label>
-                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600"><ArrowDownAZ className="h-4 w-4 text-[#3a9fc9]" /><span>الفرز</span><select value={cardSort} onChange={event => setCardSort(event.target.value as typeof cardSort)} className="home-card-select rounded-lg border border-[#a9d5e5] bg-white px-3 py-2 text-xs font-bold text-[#193b54] outline-none"><option value="default">الافتراضي</option><option value="high">الأعلى أولاً</option><option value="low">الأقل أولاً</option></select></label>
-              </div>
-            </section>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">{visibleCards.map(card => <StatCard key={card.key} label={card.label} value={card.value} detail={card.detail} secondaryDetail={card.secondaryDetail} warehouseItems={card.warehouseItems} itemsWithBalance={card.itemsWithBalance} extraItemsCount={card.extraItemsCount} onOpenItem={item => item.id ? setLocation(`/items?card=${item.id}`) : setLocation("/items")} icon={card.icon} tone={card.tone} />)}</div>
-
-            <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-              <Card className="home-pulse-card overflow-hidden border-0 bg-[#102a43] text-white shadow-[0_15px_35px_rgba(16,42,67,0.14)]"><CardContent className="p-6"><div className="flex flex-col justify-between gap-5 md:flex-row md:items-start"><div><div className="mb-3 flex items-center gap-2 text-[#f5c27b]"><CircleCheck className="h-4 w-4" /><span className="text-xs font-black uppercase tracking-[0.18em]">OPERATIONAL PULSE</span></div><h3 className="text-2xl font-black">مؤشر استقرار المخزون</h3><p className="mt-2 max-w-xl text-sm leading-6 text-white/65">قياس سريع لنسبة الأصناف التي تعمل داخل الحدود الآمنة مقارنةً بالأصناف التي تحتاج إلى متابعة.</p></div><div className="text-left"><span className="text-4xl font-black text-[#f5c27b]">{healthPercent}%</span><p className="mt-1 text-xs text-white/55">نسبة الاستقرار الحالية</p></div></div><div className="mt-6 h-3 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gradient-to-l from-[#f5c27b] to-[#0d806c] transition-all duration-500" style={{ width: `${healthPercent}%` }} /></div><div className="mt-4 flex flex-wrap gap-5 text-xs font-bold text-white/65"><span>آمن: {formatNumber(Math.max(0, totalItems - lowStockCount))} صنف</span><span className="text-[#f5c27b]">يحتاج متابعة: {formatNumber(lowStockCount)} صنف</span><span>حد التنبيه: {summary.data?.thresholdPercentage ?? 20}%</span></div></CardContent></Card>
-              <Card className="home-surface modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm"><CardContent className="p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-[#d08a3b]">QUICK OPERATIONS</p><h3 className="mt-2 text-xl font-black text-[#102a43]">بوابة التشغيل السريع</h3><p className="mt-2 text-sm leading-6 text-slate-400">اختصر الطريق إلى أكثر المهام استخداماً في دورة المخزون اليومية.</p></div><RefreshCcw className="h-5 w-5 text-[#b9d4d9]" /></div><div className="mt-5 grid grid-cols-3 gap-2"><button onClick={() => setLocation("/items")} className="home-quick-action rounded-xl bg-[#f7fbfc] p-3 text-right transition-colors hover:bg-[#e8f1f2]"><Package className="mb-4 h-5 w-5 text-[#0d4f62]" /><span className="block text-xs font-black text-[#102a43]">دليل الأصناف</span></button>{!isReadOnly && <button onClick={() => setLocation("/additions")} className="home-quick-action rounded-xl bg-[#f7fbfc] p-3 text-right transition-colors hover:bg-[#e7f3f1]"><ArrowDownToLine className="mb-4 h-5 w-5 text-[#0d806c]" /><span className="block text-xs font-black text-[#102a43]">إضافة وارد</span></button>}<button onClick={() => setLocation("/alerts")} className="home-quick-action rounded-xl bg-[#fffaf9] p-3 text-right transition-colors hover:bg-[#fff0ed]"><AlertTriangle className="mb-4 h-5 w-5 text-[#bd5147]" /><span className="block text-xs font-black text-[#102a43]">مركز التنبيه</span></button></div></CardContent></Card>
+            <section className="grid gap-3 sm:grid-cols-2">
+              {cardDefinitions.map(({ key, ...card }) => <StatCard key={key} {...card} />)}
+              <Card className="border border-[#dce7ee] bg-[#102a43] text-white shadow-[0_8px_22px_rgba(16,42,67,0.12)]"><CardContent className="flex h-full items-center justify-between gap-4 p-4"><div><p className="text-xs font-bold text-white/60">استقرار المخزون</p><p className="mt-1 text-2xl font-black text-[#f5c27b]">{healthPercent}%</p><p className="mt-1 text-[11px] text-white/65">{formatNumber(lowStockCount)} أصناف تحتاج متابعة</p></div><div className="h-2 w-24 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-[#f5c27b]" style={{ width: `${healthPercent}%` }} /></div></CardContent></Card>
             </section>
 
             <section className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
@@ -353,7 +319,14 @@ export default function Home() {
               </Card>
             </section>
 
-            <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+            <section className="rounded-2xl border border-[#dce7ee] bg-white p-4 shadow-[0_8px_22px_rgba(18,44,84,0.045)]">
+              <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2.5"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e8f1f2] text-[#0d4f62]"><Warehouse className="h-4 w-4" /></div><div><h3 className="text-sm font-black text-[#102a43]">المخازن والفروع</h3><p className="mt-0.5 text-[11px] font-semibold text-slate-400">{warehouseBalances.length} مخزن · افتح التفاصيل عند الحاجة</p></div></div><Button type="button" variant="outline" size="sm" onClick={() => setWarehouseCardsExpanded(value => !value)} aria-expanded={warehouseCardsExpanded} className="rounded-xl border-[#b9d4d9] text-xs font-black text-[#0d4f62]"><ChevronDown className={`ml-1 h-4 w-4 transition-transform ${warehouseCardsExpanded ? "rotate-180" : ""}`} />{warehouseCardsExpanded ? "إخفاء" : "عرض الفروع"}</Button></div>
+              {warehouseCardsExpanded ? <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{warehouseBalances.map(warehouse => <WarehouseBranchCard key={`summary-${warehouse.id}`} warehouse={warehouse} lowItems={lowStockByWarehouse.get(warehouse.id) ?? []} onOpen={() => setLocation(`/warehouses/${warehouse.slot}`)} />)}</div> : null}
+            </section>
+
+            <details className="group rounded-2xl border border-[#dce7ee] bg-white shadow-[0_8px_22px_rgba(18,44,84,0.045)]">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 marker:content-none"><div><h3 className="text-sm font-black text-[#102a43]">تفاصيل المتابعة</h3><p className="mt-0.5 text-[11px] text-slate-400">الأصناف المنخفضة وآخر الحركات</p></div><ChevronDown className="h-4 w-4 text-[#0d4f62] transition-transform group-open:rotate-180" /></summary>
+              <div className="grid gap-5 border-t border-[#edf2f5] p-4 xl:grid-cols-[1.15fr_0.85fr]">
               <Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm">
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between border-b border-[#edf2f5] px-6 py-5">
@@ -379,13 +352,8 @@ export default function Home() {
                   <Button variant="ghost" onClick={() => setLocation("/items")} className="mb-4 mr-4 rounded-lg text-xs font-bold text-[#0d4f62] hover:bg-[#e8f1f2]">استعراض المخزون<ChevronLeft className="mr-1 h-4 w-4" /></Button>
                 </CardContent>
               </Card>
-            </div>
-
-            <section className="grid gap-4 md:grid-cols-3">
-              <button onClick={() => setLocation("/items")} className="group rounded-2xl border border-[#e0ebef] bg-white p-5 text-right shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#a9c9cf] hover:shadow-lg"><div className="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-[#e8f1f2] text-[#0d4f62]"><Package className="h-5 w-5" /></div><p className="font-black text-[#102a43]">دليل الأصناف</p><p className="mt-1 text-xs leading-6 text-slate-400">ابحث وعدّل مستويات إعادة الطلب وتابع الأرصدة.</p></button>
-              <button onClick={() => setLocation("/transfers")} className="group rounded-2xl border border-[#e0ebef] bg-white p-5 text-right shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#f1d1a7] hover:shadow-lg"><div className="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-[#fff4df] text-[#a96821]"><ArrowLeftRight className="h-5 w-5" /></div><p className="font-black text-[#102a43]">التحويلات والمرتجعات</p><p className="mt-1 text-xs leading-6 text-slate-400">سجّل حركة الصنف بين المخازن أو أضف المرتجعات.</p></button>
-              <button onClick={() => setLocation("/settings")} className="group rounded-2xl border border-[#e0ebef] bg-white p-5 text-right shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#b4d5d2] hover:shadow-lg"><div className="mb-5 flex h-10 w-10 items-center justify-center rounded-xl bg-[#e7f3f1] text-[#0d806c]"><CircleCheck className="h-5 w-5" /></div><p className="font-black text-[#102a43]">إعدادات التنبيه</p><p className="mt-1 text-xs leading-6 text-slate-400">اضبط النسبة التي تحدد متى يظهر الصنف في قائمة التنبيه.</p></button>
-            </section>
+              </div>
+            </details>
           </>
         )}
       </div>
