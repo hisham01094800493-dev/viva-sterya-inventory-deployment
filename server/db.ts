@@ -167,7 +167,7 @@ function normalizeItemCode(code: string) {
   return normalized;
 }
 
-function normalizeName(name: string) {
+export function normalizeItemName(name: string) {
   const normalized = name.trim();
   if (!normalized) throw new InventoryError("BAD_REQUEST", "اسم الصنف مطلوب");
   return normalized;
@@ -625,7 +625,7 @@ export async function createItem(input: {
   imageUrl?: string | null;
 }) {
   const db = await requireDb();
-  const name = normalizeName(input.name);
+  const name = normalizeItemName(input.name);
   const initial = toScaled(input.initialStock);
   const reorder = toScaled(input.reorderLevel);
   const unitPrice = toMoneyScaled(input.unitPrice);
@@ -680,7 +680,7 @@ export async function importItems(input: Array<{
   const seen = new Set<string>();
   const normalizedRows = input.map((row, index) => {
     const code = normalizeItemCode(row.code);
-    const name = normalizeName(row.name);
+    const name = normalizeItemName(row.name);
     if (seen.has(code)) {
       throw new InventoryError("CONFLICT", `الكود ${code} مكرر داخل ملف الاستيراد في الصف ${index + 1}`);
     }
@@ -752,7 +752,7 @@ export async function updateItem(input: {
     let stockWarehouse = currentWarehouse;
 
     if (input.code !== undefined) updates.code = normalizeItemCode(input.code);
-    if (input.name !== undefined) updates.name = normalizeName(input.name);
+    if (input.name !== undefined) updates.name = normalizeItemName(input.name);
     if (input.warehouseId !== undefined) {
       const nextWarehouse = await resolveWarehouseId(tx, input.warehouseId);
       if (nextWarehouse.id !== currentWarehouse.id && toScaled(current.currentStock) > 0) {

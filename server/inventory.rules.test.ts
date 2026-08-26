@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateStockDelta, formatWarehouseItemCode, fromScaled, getCustomerReturnStockDelta, InventoryError, selectNextAutoItemCode, toScaled } from "./db";
+import { calculateStockDelta, formatWarehouseItemCode, fromScaled, getCustomerReturnStockDelta, InventoryError, normalizeItemName, selectNextAutoItemCode, toScaled } from "./db";
 
 describe("inventory quantity rules", () => {
   it("keeps decimal quantities deterministic at three decimal places", () => {
@@ -50,5 +50,9 @@ describe("inventory quantity rules", () => {
     const formatter = (sequence: number) => formatWarehouseItemCode(1, sequence);
     expect(selectNextAutoItemCode(1, ["10003"], formatter)).toEqual({ code: "10001", nextSequence: 2 });
     expect(selectNextAutoItemCode(1, ["10001", "10003"], formatter)).toEqual({ code: "10002", nextSequence: 3 });
+  });
+
+  it("preserves a complete new item name and removes only surrounding whitespace", () => {
+    expect(normalizeItemName("  لوحة كهرباء 30×30 شاليه  ")).toBe("لوحة كهرباء 30×30 شاليه");
   });
 });
