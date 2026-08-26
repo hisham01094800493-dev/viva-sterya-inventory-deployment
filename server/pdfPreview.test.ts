@@ -16,12 +16,13 @@ describe("عارض PDF الداخلي", () => {
     expect(getPdfDoubleTapZoom(1.5)).toBe(1);
   });
 
-  it("يعيد استخدام مستند PDF المحمّل عند تغيير الصفحة أو التكبير ويحد دقة الرسم", () => {
+  it("يعيد استخدام مستند PDF المحمّل عند تغيير الصفحة أو التكبير ويحافظ على دقة واضحة للنص", () => {
     const canvas = readFileSync(resolve(process.cwd(), "client/src/components/PdfPageCanvas.tsx"), "utf8");
     const exports = readFileSync(resolve(process.cwd(), "client/src/lib/inventoryExportFiles.ts"), "utf8");
     expect(canvas).toContain("pdfDocumentRef");
     expect(canvas).toContain("cached.pdf ? Promise.resolve(cached.pdf)");
-    expect(canvas).toContain("Math.min(2, window.devicePixelRatio || 1)");
+    expect(canvas).toContain("Math.min(3, window.devicePixelRatio || 1)");
+    expect(canvas).toContain('context.imageSmoothingQuality = "high"');
     expect(exports).toContain("void fetchArabicFontData()");
   });
 });

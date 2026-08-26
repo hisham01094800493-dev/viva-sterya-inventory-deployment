@@ -131,10 +131,12 @@ export function PdfPageCanvas({ url, pageNumber, zoom, onPageCount, onPageSwipe,
       const page = await pdf.getPage(Math.min(Math.max(1, pageNumber), pdf.numPages));
       const viewport = page.getViewport({ scale: 1.2 });
       const renderZoom = getPdfFitZoom(viewport.width, availableWidth, activeZoom);
-      const size = getPdfCanvasSize(viewport.width, viewport.height, renderZoom, Math.min(2, window.devicePixelRatio || 1));
+      const size = getPdfCanvasSize(viewport.width, viewport.height, renderZoom, Math.min(3, window.devicePixelRatio || 1));
       const canvas = canvasRef.current;
       const context = canvas?.getContext("2d", { alpha: false });
       if (!active || !canvas || !context) return;
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
       canvas.width = size.pixelWidth;
       canvas.height = size.pixelHeight;
       canvas.style.width = `${size.cssWidth}px`;
