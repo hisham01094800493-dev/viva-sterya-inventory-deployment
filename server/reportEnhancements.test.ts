@@ -4,7 +4,7 @@ import { uploadCompanyLogo } from "./companyLogoUpload";
 import { buildOutboundReturnRows } from "../client/src/lib/reportMovements";
 import { buildAccountSummary } from "../client/src/lib/accountSummary";
 import { buildUnlinkedCustomerParties } from "../client/src/lib/unlinkedCustomerParties";
-import { ARABIC_PDF_FONT_URL, buildAccountStatementExcel, buildAccountStatementPdf, buildItemCardExcel, buildItemCardPdf, buildItemCardMovementRows, formatItemCardPdfDate, formatItemCardMovementDetail, buildMainWarehousePdf, buildMovementExcel, buildMovementPdf, configureArabicPdf, formatPdfMovementDate, getMovementPdfColumnWidth, drawReportHeader, getPdfImageFormat, getReportHeaderDate, movementExportColumns, selectExportColumns, shapeArabic } from "../client/src/lib/inventoryExportFiles";
+import { ARABIC_PDF_FONT_URL, buildAccountStatementExcel, buildAccountStatementPdf, buildInventoryPdf, buildItemCardExcel, buildItemCardPdf, buildItemCardMovementRows, formatItemCardPdfDate, formatItemCardMovementDetail, buildMainWarehousePdf, buildMovementExcel, buildMovementPdf, configureArabicPdf, formatPdfMovementDate, getMovementPdfColumnWidth, drawReportHeader, getPdfImageFormat, getReportHeaderDate, movementExportColumns, selectExportColumns, shapeArabic } from "../client/src/lib/inventoryExportFiles";
 import { countMovementRows, createReportExportRequest, estimatePdfRemainingSeconds, filterMovementRows, filterMovementRowsByPurpose, filterMovementRowsBySearch, formatReportPartySummary } from "../client/src/pages/ReportsPage";
 import { createReportMailtoUrl, sharePdfFile } from "../client/src/lib/reportSharing";
 import { formatInventoryDate } from "../client/src/lib/inventoryDate";
@@ -317,6 +317,15 @@ describe("تحسينات تقارير المخزون", () => {
   it("يستخدم خطًا عربيًا TTF متاحًا لنسخة Railway بدل مسار تخزين محلي غير منشور", () => {
     expect(ARABIC_PDF_FONT_URL).toContain("NotoNaskhArabic-Regular.ttf");
     expect(ARABIC_PDF_FONT_URL).toMatch(/^https:\/\//);
+  });
+
+  it("يضمّن خط Noto Naskh Arabic في مولدات PDF الأساسية", async () => {
+    const movement = await buildMovementPdf([{ id: 1, type: "إضافة", date: "2026-08-26", eznNum: "A-1", itemCode: "10001", name: "صنف عربي", quantity: 1, detail: "وارد من: المخزن", unitPrice: 1, totalValue: 1 }]);
+    const inventory = await buildInventoryPdf([{ id: 1, code: "10001", name: "صنف عربي", category: "تصنيف", unit: "قطعة", currentStock: 1, reorderLevel: 0, unitPrice: 1 } as any]);
+    const itemCard = await buildItemCardPdf({ item: { id: 1, code: "10001", name: "صنف عربي", initialStock: 1, currentStock: 1, unitPrice: 1 } as any, additions: [], disbursements: [], returns: [] });
+    const mainWarehouse = await buildMainWarehousePdf([{ item: { id: 1, code: "10001", name: "صنف عربي", initialStock: 1, currentStock: 1, unitPrice: 1 }, additions: [], disbursements: [], returns: [] }]);
+    const account = await buildAccountStatementPdf([{ id: 1, type: "إضافة", date: "2026-08-26", eznNum: "A-1", itemCode: "10001", name: "صنف عربي", quantity: 1, detail: "وارد من: المخزن", unitPrice: 1, totalValue: 1 }]);
+    [movement, inventory, itemCard, mainWarehouse, account].forEach(pdf => expect(pdf.output()).toContain("NotoNaskhArabic"));
   });
 
   it("ينشئ ملفات كشف حساب مستقلة Excel وPDF", async () => {
