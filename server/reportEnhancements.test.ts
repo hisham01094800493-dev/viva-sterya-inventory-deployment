@@ -22,6 +22,11 @@ describe("تحسينات تقارير المخزون", () => {
     expect(normalizePdfMixedArabicText("وش لوحة كهرباء 30 سم")).toBe("وش لوحة كهرباء 30 سم");
   });
 
+  it("يحافظ على الرموز الشائعة في اسم الصنف دون حذفها", () => {
+    const name = "لوحة (30×30) + شاليه - درجة_أولى 50% ٪ «مقاوم» [A] {B} #1 @2 &3 /4 \\5 :6 ؛7 ؟8 !9 =10 |11 ~12 ^13 ° ±";
+    expect(normalizePdfMixedArabicText(name)).toBe(name);
+  });
+
   it("يرفع شعار الشركة ويحفظ رابط الإعداد", async () => {
     const put = vi.fn(async () => ({ key: "company/logo/logo.png", url: "/manus-storage/company/logo/logo.png" }));
     const save = vi.fn(async () => undefined);
