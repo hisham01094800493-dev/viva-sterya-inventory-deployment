@@ -4,7 +4,7 @@ import { uploadCompanyLogo } from "./companyLogoUpload";
 import { buildOutboundReturnRows } from "../client/src/lib/reportMovements";
 import { buildAccountSummary } from "../client/src/lib/accountSummary";
 import { buildUnlinkedCustomerParties } from "../client/src/lib/unlinkedCustomerParties";
-import { ARABIC_PDF_FONT_URL, buildAccountStatementExcel, buildAccountStatementPdf, buildInventoryPdf, buildItemCardExcel, buildItemCardPdf, buildItemCardMovementRows, buildStockVariancePdf, formatItemCardPdfDate, formatItemCardMovementDetail, buildMainWarehousePdf, buildMovementExcel, buildMovementPdf, configureArabicPdf, formatPdfMovementDate, getMovementPdfColumnWidth, drawReportHeader, getPdfImageFormat, getReportHeaderDate, movementExportColumns, selectExportColumns, shapeArabic } from "../client/src/lib/inventoryExportFiles";
+import { ARABIC_PDF_FONT_URL, buildAccountStatementExcel, buildAccountStatementPdf, buildInventoryPdf, buildItemCardExcel, buildItemCardPdf, buildItemCardMovementRows, buildStockVariancePdf, formatItemCardPdfDate, formatItemCardMovementDetail, buildMainWarehousePdf, buildMovementExcel, buildMovementPdf, configureArabicPdf, formatPdfMovementDate, getMovementPdfColumnWidth, drawReportHeader, getPdfImageFormat, getReportHeaderDate, movementExportColumns, normalizePdfMixedArabicText, selectExportColumns, shapeArabic } from "../client/src/lib/inventoryExportFiles";
 import { countMovementRows, createReportExportRequest, estimatePdfRemainingSeconds, filterMovementRows, filterMovementRowsByPurpose, filterMovementRowsBySearch, formatReportPartySummary } from "../client/src/pages/ReportsPage";
 import { createReportMailtoUrl, sharePdfFile } from "../client/src/lib/reportSharing";
 import { formatInventoryDate } from "../client/src/lib/inventoryDate";
@@ -16,6 +16,12 @@ vi.mock("jspdf-autotable", () => ({ default: vi.fn() }));
 const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
 
 describe("تحسينات تقارير المخزون", () => {
+  it("يحوّل رمز المقاس بين رقمين إلى صياغة عربية لا تفقد اسم الصنف داخل PDF", () => {
+    expect(normalizePdfMixedArabicText("وش لوحة كهرباء شاليه 30×30")).toBe("وش لوحة كهرباء شاليه 30 في 30");
+    expect(normalizePdfMixedArabicText("وش لوحة كهرباء شاليه ٣٠x٣٠")).toBe("وش لوحة كهرباء شاليه ٣٠ في ٣٠");
+    expect(normalizePdfMixedArabicText("وش لوحة كهرباء 30 سم")).toBe("وش لوحة كهرباء 30 سم");
+  });
+
   it("يرفع شعار الشركة ويحفظ رابط الإعداد", async () => {
     const put = vi.fn(async () => ({ key: "company/logo/logo.png", url: "/manus-storage/company/logo/logo.png" }));
     const save = vi.fn(async () => undefined);

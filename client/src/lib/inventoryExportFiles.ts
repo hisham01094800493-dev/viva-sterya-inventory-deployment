@@ -57,8 +57,13 @@ export async function configureArabicPdf(doc: jsPDF) {
   return doc;
 }
 
+export function normalizePdfMixedArabicText(value: string) {
+  return String(value).replace(/([0-9٠-٩])\s*(?:×|x|X|\*)\s*([0-9٠-٩])/g, "$1 في $2");
+}
+
 export function shapeArabic(doc: jsPDF, value: string) {
-  return arabicPdfDocs.has(doc) && typeof (doc as jsPDF & { processArabic?: (text: string) => string }).processArabic === "function" ? (doc as jsPDF & { processArabic: (text: string) => string }).processArabic(value) : value;
+  const normalized = normalizePdfMixedArabicText(value);
+  return arabicPdfDocs.has(doc) && typeof (doc as jsPDF & { processArabic?: (text: string) => string }).processArabic === "function" ? (doc as jsPDF & { processArabic: (text: string) => string }).processArabic(normalized) : normalized;
 }
 export function getArabicPdfFont(doc: jsPDF) { return arabicPdfDocs.has(doc) ? PDF_FONT_NAME : "helvetica"; }
 export function getPdfImageFormat(dataUrl?: string | null): "PNG" | "JPEG" { return dataUrl?.toLowerCase().startsWith("data:image/png") ? "PNG" : "JPEG"; }
