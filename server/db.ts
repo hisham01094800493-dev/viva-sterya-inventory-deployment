@@ -746,12 +746,18 @@ export async function updateItem(input: {
   return db.transaction(async (tx: any) => {
     const current = await getItemByIdForUpdate(tx, input.id);
     const updates: Record<string, unknown> = {};
+    const currentWarehouse = await resolveWarehouseId(tx, current.warehouseId);
+    let stockWarehouse = currentWarehouse;
 
     if (input.code !== undefined) updates.code = normalizeItemCode(input.code);
     if (input.name !== undefined) updates.name = normalizeName(input.name);
     if (input.warehouseId !== undefined) {
       const nextWarehouse = await resolveWarehouseId(tx, input.warehouseId);
+      if (nextWarehouse.id !== currentWarehouse.id && toScaled(current.currentStock) > 0) {
+        throw new InventoryError("CONFLICT", "لا يمكن تغيير مخزن صنف له رصيد. استخدم تحويل المخزون لنقل الكمية بين المخازن.");
+      }
       updates.warehouseId = nextWarehouse.id;
+      stockWarehouse = nextWarehouse;
     }
     if (input.reorderLevel !== undefined) {
       const reorder = toScaled(input.reorderLevel);
@@ -777,6 +783,12 @@ export async function updateItem(input: {
       }
       updates.initialStock = fromScaled(nextInitial);
       updates.currentStock = fromScaled(nextCurrent);
+      await applyWarehouseBalanceDelta(tx, current.id, stockWarehouse.id, delta);
+    }
+
+    if (stockWarehouse.id !== currentWarehouse.id && input.initialStock === undefined) {
+      const balanceRows = await tx.select().from(itemWarehouseBalances).where(and(eq(itemWarehouseBalances.itemId, current.id), eq(itemWarehouseBalances.warehouseId, stockWarehouse.id))).limit(1).for("update");
+      if (!balanceRows[0]) await tx.insert(itemWarehouseBalances).values({ itemId: current.id, warehouseId: stockWarehouse.id, currentStock: "0.000" });
     }
 
     if (Object.keys(updates).length > 0) {
