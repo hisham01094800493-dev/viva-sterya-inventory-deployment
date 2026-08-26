@@ -4,7 +4,7 @@ import { uploadCompanyLogo } from "./companyLogoUpload";
 import { buildOutboundReturnRows } from "../client/src/lib/reportMovements";
 import { buildAccountSummary } from "../client/src/lib/accountSummary";
 import { buildUnlinkedCustomerParties } from "../client/src/lib/unlinkedCustomerParties";
-import { buildAccountStatementExcel, buildAccountStatementPdf, buildItemCardExcel, buildItemCardPdf, buildItemCardMovementRows, formatItemCardPdfDate, formatItemCardMovementDetail, buildMainWarehousePdf, buildMovementExcel, buildMovementPdf, configureArabicPdf, formatPdfMovementDate, getMovementPdfColumnWidth, drawReportHeader, getPdfImageFormat, getReportHeaderDate, movementExportColumns, selectExportColumns } from "../client/src/lib/inventoryExportFiles";
+import { ARABIC_PDF_FONT_URL, buildAccountStatementExcel, buildAccountStatementPdf, buildItemCardExcel, buildItemCardPdf, buildItemCardMovementRows, formatItemCardPdfDate, formatItemCardMovementDetail, buildMainWarehousePdf, buildMovementExcel, buildMovementPdf, configureArabicPdf, formatPdfMovementDate, getMovementPdfColumnWidth, drawReportHeader, getPdfImageFormat, getReportHeaderDate, movementExportColumns, selectExportColumns, shapeArabic } from "../client/src/lib/inventoryExportFiles";
 import { countMovementRows, createReportExportRequest, estimatePdfRemainingSeconds, filterMovementRows, filterMovementRowsByPurpose, filterMovementRowsBySearch, formatReportPartySummary } from "../client/src/pages/ReportsPage";
 import { createReportMailtoUrl, sharePdfFile } from "../client/src/lib/reportSharing";
 import { formatInventoryDate } from "../client/src/lib/inventoryDate";
@@ -192,13 +192,13 @@ describe("تحسينات تقارير المخزون", () => {
     const pdfPages = (pdf as unknown as { internal: { pages: unknown[][] } }).internal.pages;
     expect(pdfPages.flat().some(command => String(command).includes("Tj"))).toBe(true);
     const autoTableOptions = vi.mocked(autoTable).mock.calls.at(-1)?.[1] as { head?: unknown[][]; body?: unknown[][] };
-    expect(autoTableOptions.head?.flat()).toContain("التفاصيل");
-    expect(autoTableOptions.head?.[0]?.[0]).toBe("صورة الإذن");
-    expect(autoTableOptions.head?.[0]?.[3]).toBe("التفاصيل");
-    expect(autoTableOptions.head?.[0]?.at(-2)).toBe("اسم الصنف");
-    expect(autoTableOptions.head?.[0]?.at(-1)).toBe("كود الصنف");
-    expect(autoTableOptions.body?.flat()).toContain("صنف اختبار");
-    expect(autoTableOptions.body?.flat()).toContain("منصرف إلى: شركة العميل");
+    expect(autoTableOptions.head?.flat()).toContain(shapeArabic(pdf, "التفاصيل"));
+    expect(autoTableOptions.head?.[0]?.[0]).toBe(shapeArabic(pdf, "صورة الإذن"));
+    expect(autoTableOptions.head?.[0]?.[3]).toBe(shapeArabic(pdf, "التفاصيل"));
+    expect(autoTableOptions.head?.[0]?.at(-2)).toBe(shapeArabic(pdf, "اسم الصنف"));
+    expect(autoTableOptions.head?.[0]?.at(-1)).toBe(shapeArabic(pdf, "كود الصنف"));
+    expect(autoTableOptions.body?.flat()).toContain(shapeArabic(pdf, "صنف اختبار"));
+    expect(autoTableOptions.body?.flat()).toContain(shapeArabic(pdf, "منصرف إلى: شركة العميل"));
     expect(autoTableOptions.body?.flat()).toContain("01 / 08 / 2026");
     const calls: unknown[][] = [];
     drawReportHeader({ addImage: (...args: unknown[]) => { calls.push(["image", ...args]); }, setFontSize: (...args: unknown[]) => { calls.push(["font", ...args]); }, text: (...args: unknown[]) => { calls.push(["text", ...args]); } } as never, "Smart Inventory - Disbursements & Returns", "data:image/png;base64,logo", reportDate);
@@ -219,8 +219,9 @@ describe("تحسينات تقارير المخزون", () => {
     const rows = [{ id: 2, type: "صرف", date: "2026-08-02", eznNum: "D-2", itemCode: "B", name: "حديد 8 مم", quantity: 3, detail: "عميل", unitPrice: 11, totalValue: 33 }];
     await buildAccountStatementPdf(rows, { columns: ["name", "date", "quantity", "eznNum", "detail"] });
     const options = vi.mocked(autoTable).mock.calls.at(-1)?.[1] as { head?: unknown[][] };
-    expect(options.head?.[0]).toEqual(["رقم الإذن", "الكمية", "التاريخ", "اسم الصنف"]);
-    expect(options.head?.[0]).not.toContain("التفاصيل");
+    const pdf = (vi.mocked(autoTable).mock.calls.at(-1)?.[0] as any) as import("jspdf").jsPDF;
+    expect(options.head?.[0]).toEqual([shapeArabic(pdf, "رقم الإذن"), shapeArabic(pdf, "الكمية"), shapeArabic(pdf, "التاريخ"), shapeArabic(pdf, "اسم الصنف")]);
+    expect(options.head?.[0]).not.toContain(shapeArabic(pdf, "التفاصيل"));
   });
 
   it("يحدد صيغة الصورة الصحيحة داخل PDF لكارت الصنف والشعار", () => {
@@ -234,11 +235,11 @@ describe("تحسينات تقارير المخزون", () => {
     const pdf = await buildItemCardPdf({ item: { id: 3, code: "10001", name: "صنف تجريبي", category: "أدوات", unit: "قطعة", initialStock: "5.000", currentStock: "8.000", incomingStock: "4.000", outgoingStock: "1.000", reorderLevel: "2.000", unitPrice: "12.50", imageUrl: "/item.png" } as any, additions: [{ date: "2026-08-01", eznNum: "A-1", quantity: 4, unitPrice: 12.5, supplier: "المورد" }], disbursements: [{ date: "2026-08-02", eznNum: "D-1", quantity: 1, unitPrice: 12.5, destination: "قسم" }], returns: [{ date: "2026-08-03", eznNum: "R-1", quantity: 1, unitPrice: 12.5, fromStore: "عميل" }] });
     expect(pdf.output("arraybuffer").byteLength).toBeGreaterThan(500);
     const calls = vi.mocked(autoTable).mock.calls;
-    expect(calls.flatMap(call => ((call[1] as any)?.body ?? [])).flat()).toEqual(expect.arrayContaining(["إضافة", "صرف", "مرتجع", "الإجمالي", "01-08-2026"]));
+    expect(calls.flatMap(call => ((call[1] as any)?.body ?? [])).flat()).toEqual(expect.arrayContaining([shapeArabic(pdf, "إضافة"), shapeArabic(pdf, "صرف"), shapeArabic(pdf, "مرتجع"), shapeArabic(pdf, "الإجمالي"), "01-08-2026"]));
     const movementTableOptions = calls.at(-1)?.[1] as { body?: unknown[][] };
     expect(movementTableOptions.body?.some(row => row.includes("01-08-2026"))).toBe(true);
     const pdfTotalRow = movementTableOptions.body?.at(-1) ?? [];
-    expect(pdfTotalRow).toContain("الإجمالي");
+    expect(pdfTotalRow).toContain(shapeArabic(pdf, "الإجمالي"));
     expect(pdfTotalRow).toContain("8.000");
     const rows = buildItemCardMovementRows({ item: { initialStock: 5, unitPrice: 12.5 } as any, additions: [{ date: "2026-08-01", quantity: 4, unitPrice: 12.5 }], disbursements: [{ date: "2026-08-02", quantity: 1, unitPrice: 12.5 }], returns: [{ date: "2026-08-03", quantity: 1, unitPrice: 12.5 }] });
     expect(rows.map(row => row.movement)).toEqual(["إضافة", "صرف", "مرتجع"]);
@@ -253,7 +254,8 @@ describe("تحسينات تقارير المخزون", () => {
     vi.mocked(autoTable).mockClear();
     await buildItemCardPdf({ item: { id: 4, name: "صنف فلتر", initialStock: 0, unitPrice: 10 } as any, additions: [{ date: "2026-08-01", eznNum: "A-4", quantity: 2, supplier: "مورد" }], disbursements: [{ date: "2026-08-02", eznNum: "D-4", quantity: 1, destination: "عميل" }], returns: [] }, { includePermitColumn: true, movementFilter: "صرف" });
     const filteredOptions = vi.mocked(autoTable).mock.calls.at(-1)?.[1] as { head?: unknown[][]; body?: unknown[][] };
-    expect(filteredOptions.head?.flat()).toContain("رقم الإذن");
+    const filteredPdf = (vi.mocked(autoTable).mock.calls.at(-1)?.[0] as any) as import("jspdf").jsPDF;
+    expect(filteredOptions.head?.flat()).toContain(shapeArabic(filteredPdf, "رقم الإذن"));
     expect(filteredOptions.body?.flat()).toContain("D-4");
     expect(filteredOptions.body?.flat()).not.toContain("A-4");
     const itemWorkbook = await buildItemCardExcel({ item: { id: 5, code: "X-5", name: "صنف Excel", initialStock: 3, currentStock: 4, unit: "طن", unitPrice: 20 } as any, additions: [{ date: "2026-08-01", eznNum: "A-5", quantity: 2, supplier: "مورد" }], disbursements: [{ date: "2026-08-02", eznNum: "D-5", quantity: 1, destination: "عميل" }], returns: [] }, { includePermitColumn: true, movementFilter: "صرف" });
@@ -310,6 +312,11 @@ describe("تحسينات تقارير المخزون", () => {
     const doc = await configureArabicPdf(new (await import("jspdf")).jsPDF());
     expect((doc as any).getR2L?.()).toBe(false);
     vi.unstubAllGlobals();
+  });
+
+  it("يستخدم خطًا عربيًا TTF متاحًا لنسخة Railway بدل مسار تخزين محلي غير منشور", () => {
+    expect(ARABIC_PDF_FONT_URL).toContain("NotoNaskhArabic-Regular.ttf");
+    expect(ARABIC_PDF_FONT_URL).toMatch(/^https:\/\//);
   });
 
   it("ينشئ ملفات كشف حساب مستقلة Excel وPDF", async () => {

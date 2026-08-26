@@ -25,7 +25,8 @@ export async function blobToDataUrl(blob: Blob) { return await new Promise<strin
 export async function convertWebpToPng(blob: Blob) { const bitmap = await createImageBitmap(blob); const canvas = document.createElement("canvas"); canvas.width = bitmap.width; canvas.height = bitmap.height; canvas.getContext("2d")?.drawImage(bitmap, 0, 0); bitmap.close(); return await new Promise<Blob>((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error("تعذر تحويل الصورة")), "image/png")); }
 export async function fetchImageAsset(url?: string | null) { if (!url) return null; try { const response = await fetch(url); if (!response.ok) return null; const source = await response.blob(); const isWebp = source.type === "image/webp" || url.toLowerCase().includes(".webp"); const blob = isWebp ? await convertWebpToPng(source) : source; const extension = isWebp ? "png" as const : getExportImageExtension(source.type, url) === "png" ? "png" as const : "jpeg" as const; return { buffer: await blob.arrayBuffer(), dataUrl: await blobToDataUrl(blob), extension }; } catch { return null; } }
 
-export const ARABIC_PDF_FONT_URL = "/manus-storage/NotoNaskhArabic-Regular_6198bb2a.ttf";
+// يجب أن يكون الخط متاحًا خارج بيئة Manus لأن ملفات PDF تُنشأ في نسخة Railway أيضًا.
+export const ARABIC_PDF_FONT_URL = "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoNaskhArabic/NotoNaskhArabic-Regular.ttf";
 let arabicFontDataPromise: Promise<string | null> | null = null;
 const arabicPdfDocs = new WeakSet<object>();
 const PDF_FONT_NAME = "NotoNaskhArabic";
