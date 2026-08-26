@@ -302,12 +302,14 @@ export async function listWarehousesByUsage() {
 
 export async function listWarehouseBalanceSummaries() {
   const db = await requireDb();
-  const [warehouseRows, balanceRows] = await Promise.all([
+  const [warehouseRows, balanceRows, incomingRows] = await Promise.all([
     db.select({ id: warehouses.id, slot: warehouses.slot, name: warehouses.name }).from(warehouses).orderBy(warehouses.slot),
     db.select({ warehouseId: itemWarehouseBalances.warehouseId, itemCount: count(itemWarehouseBalances.itemId), balance: sum(itemWarehouseBalances.currentStock) }).from(itemWarehouseBalances).groupBy(itemWarehouseBalances.warehouseId),
+    db.select({ warehouseId: additions.warehouseId, incoming: sum(additions.quantity) }).from(additions).where(not(isNull(additions.warehouseId))).groupBy(additions.warehouseId),
   ]);
   const balancesByWarehouse = new Map(balanceRows.map(row => [row.warehouseId, { itemCount: Number(row.itemCount ?? 0), balance: Number(row.balance ?? 0) }]));
-  return warehouseRows.map(warehouse => ({ ...warehouse, ...(balancesByWarehouse.get(warehouse.id) ?? { itemCount: 0, balance: 0 }) }));
+  const incomingByWarehouse = new Map(incomingRows.map(row => [row.warehouseId, Number(row.incoming ?? 0)]));
+  return warehouseRows.map(warehouse => ({ ...warehouse, ...(balancesByWarehouse.get(warehouse.id) ?? { itemCount: 0, balance: 0 }), incoming: incomingByWarehouse.get(warehouse.id) ?? 0 }));
 }
 
 export async function updateWarehouse(input: { id: number; name: string }) {
