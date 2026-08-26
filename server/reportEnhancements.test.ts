@@ -16,9 +16,9 @@ vi.mock("jspdf-autotable", () => ({ default: vi.fn() }));
 const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
 
 describe("تحسينات تقارير المخزون", () => {
-  it("يحوّل رمز المقاس بين رقمين إلى صياغة عربية لا تفقد اسم الصنف داخل PDF", () => {
-    expect(normalizePdfMixedArabicText("وش لوحة كهرباء شاليه 30×30")).toBe("وش لوحة كهرباء شاليه 30 في 30");
-    expect(normalizePdfMixedArabicText("وش لوحة كهرباء شاليه ٣٠x٣٠")).toBe("وش لوحة كهرباء شاليه ٣٠ في ٣٠");
+  it("يحافظ على رموز المقاس بين الأرقام داخل اسم الصنف في PDF", () => {
+    expect(normalizePdfMixedArabicText("وش لوحة كهرباء شاليه 30×30")).toBe("وش لوحة كهرباء شاليه 30×30");
+    expect(normalizePdfMixedArabicText("وش لوحة كهرباء شاليه ٣٠*٣٠")).toBe("وش لوحة كهرباء شاليه ٣٠*٣٠");
     expect(normalizePdfMixedArabicText("وش لوحة كهرباء 30 سم")).toBe("وش لوحة كهرباء 30 سم");
   });
 
@@ -344,17 +344,17 @@ describe("تحسينات تقارير المخزون", () => {
   });
 
   it("يستخدم خطًا عربيًا TTF متاحًا لنسخة Railway بدل مسار تخزين محلي غير منشور", () => {
-    expect(ARABIC_PDF_FONT_URL).toContain("NotoNaskhArabic-Regular.ttf");
+    expect(ARABIC_PDF_FONT_URL).toContain("DejaVuSans.ttf");
     expect(ARABIC_PDF_FONT_URL).toMatch(/^https:\/\//);
   });
 
-  it("يضمّن خط Noto Naskh Arabic في مولدات PDF الأساسية", async () => {
+  it("يضمّن خط DejaVu Sans الداعم للعربية ورموز المقاس في مولدات PDF الأساسية", async () => {
     const movement = await buildMovementPdf([{ id: 1, type: "إضافة", date: "2026-08-26", eznNum: "A-1", itemCode: "10001", name: "صنف عربي", quantity: 1, detail: "وارد من: المخزن", unitPrice: 1, totalValue: 1 }]);
     const inventory = await buildInventoryPdf([{ id: 1, code: "10001", name: "صنف عربي", category: "تصنيف", unit: "قطعة", currentStock: 1, reorderLevel: 0, unitPrice: 1 } as any]);
     const itemCard = await buildItemCardPdf({ item: { id: 1, code: "10001", name: "صنف عربي", initialStock: 1, currentStock: 1, unitPrice: 1 } as any, additions: [], disbursements: [], returns: [] });
     const mainWarehouse = await buildMainWarehousePdf([{ item: { id: 1, code: "10001", name: "صنف عربي", initialStock: 1, currentStock: 1, unitPrice: 1 }, additions: [], disbursements: [], returns: [] }]);
     const account = await buildAccountStatementPdf([{ id: 1, type: "إضافة", date: "2026-08-26", eznNum: "A-1", itemCode: "10001", name: "صنف عربي", quantity: 1, detail: "وارد من: المخزن", unitPrice: 1, totalValue: 1 }]);
-    [movement, inventory, itemCard, mainWarehouse, account].forEach(pdf => expect(pdf.output()).toContain("NotoNaskhArabic"));
+    [movement, inventory, itemCard, mainWarehouse, account].forEach(pdf => expect(pdf.output()).toContain("DejaVuSans"));
   });
 
   it("ينشئ ملفات كشف حساب مستقلة Excel وPDF", async () => {

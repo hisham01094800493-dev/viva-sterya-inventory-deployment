@@ -26,10 +26,10 @@ export async function convertWebpToPng(blob: Blob) { const bitmap = await create
 export async function fetchImageAsset(url?: string | null) { if (!url) return null; try { const response = await fetch(url); if (!response.ok) return null; const source = await response.blob(); const isWebp = source.type === "image/webp" || url.toLowerCase().includes(".webp"); const blob = isWebp ? await convertWebpToPng(source) : source; const extension = isWebp ? "png" as const : getExportImageExtension(source.type, url) === "png" ? "png" as const : "jpeg" as const; return { buffer: await blob.arrayBuffer(), dataUrl: await blobToDataUrl(blob), extension }; } catch { return null; } }
 
 // يجب أن يكون الخط متاحًا خارج بيئة Manus لأن ملفات PDF تُنشأ في نسخة Railway أيضًا.
-export const ARABIC_PDF_FONT_URL = "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoNaskhArabic/NotoNaskhArabic-Regular.ttf";
+export const ARABIC_PDF_FONT_URL = "https://cdn.jsdelivr.net/npm/dejavu-fonts-ttf@2.37/ttf/DejaVuSans.ttf";
 let arabicFontDataPromise: Promise<string | null> | null = null;
 const arabicPdfDocs = new WeakSet<object>();
-const PDF_FONT_NAME = "NotoNaskhArabic";
+const PDF_FONT_NAME = "DejaVuSans";
 
 async function fetchArabicFontData() {
   if (!arabicFontDataPromise) arabicFontDataPromise = fetch(ARABIC_PDF_FONT_URL).then(async response => { if (!response.ok) return null; const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""; if (contentType.includes("image/") || contentType.includes("text/html")) return null; return response.arrayBuffer(); }).then(buffer => buffer ? Array.from(new Uint8Array(buffer), byte => String.fromCharCode(byte)).join("") : null).then(binary => binary ? btoa(binary) : null).catch(() => null);
@@ -45,9 +45,9 @@ export async function configureArabicPdf(doc: jsPDF) {
   const fontData = await fetchArabicFontData();
   if (fontData) {
     try {
-      doc.addFileToVFS("NotoNaskhArabic-Regular.ttf", fontData);
-      doc.addFont("NotoNaskhArabic-Regular.ttf", PDF_FONT_NAME, "normal");
-      doc.addFont("NotoNaskhArabic-Regular.ttf", PDF_FONT_NAME, "bold");
+      doc.addFileToVFS("DejaVuSans.ttf", fontData);
+      doc.addFont("DejaVuSans.ttf", PDF_FONT_NAME, "normal");
+      doc.addFont("DejaVuSans.ttf", PDF_FONT_NAME, "bold");
       doc.setFont(PDF_FONT_NAME, "normal");
       arabicPdfDocs.add(doc);
     } catch {
@@ -58,7 +58,7 @@ export async function configureArabicPdf(doc: jsPDF) {
 }
 
 export function normalizePdfMixedArabicText(value: string) {
-  return String(value).replace(/([0-9٠-٩])\s*(?:×|x|X|\*)\s*([0-9٠-٩])/g, "$1 في $2");
+  return String(value);
 }
 
 export function shapeArabic(doc: jsPDF, value: string) {
