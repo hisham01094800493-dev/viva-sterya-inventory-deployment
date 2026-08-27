@@ -957,6 +957,7 @@
   .home-calculator-key--operator { background: #e7f3f1; color: #0d806c; }
   .home-calculator-key--equal { background: #0d4f62; border-color: #0d4f62; color: #ffffff; }
   .home-calculator-key--clear { background: #fff0ed; border-color: #f2c8c2; color: #bd5147; }
+  .dark .home-calculator-display { background: #102a43 !important; border-color: rgba(181, 235, 232, 0.35) !important; color: #f4f8fb !important; text-shadow: none !important; }
   .dark .home-calculator-dialog { background: #1d343d !important; border-color: rgba(181, 235, 232, 0.28) !important; }
   .dark .home-calculator-key { background: #243f49 !important; border-color: rgba(181, 235, 232, 0.22) !important; color: #f2fbf8 !important; }
   .dark .home-calculator-key:hover { background: #315660 !important; color: #ffffff !important; }

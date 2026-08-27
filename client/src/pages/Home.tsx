@@ -106,7 +106,7 @@ function QuickCalculator() {
     <Button type="button" variant="outline" size="icon" onClick={() => setOpen(true)} className="home-calculator-trigger h-10 w-10 rounded-xl border-white/35 bg-white/10 text-white hover:bg-white/18 hover:text-white" aria-label="فتح الآلة الحاسبة" title="آلة حاسبة"><Calculator className="h-4.5 w-4.5" /></Button>
     <DialogContent className="home-calculator-dialog w-[calc(100vw-2rem)] max-w-sm rounded-2xl border-[#b9d4d9] bg-white p-5 shadow-2xl" dir="rtl">
       <DialogHeader><DialogTitle className="flex items-center gap-2 text-lg font-black text-[#102a43]"><Calculator className="h-5 w-5 text-[#0d806c]" />آلة حاسبة سريعة</DialogTitle><DialogDescription>للحسابات السريعة أثناء تسجيل الحركات.</DialogDescription></DialogHeader>
-      <output aria-live="polite" className="mt-4 block min-h-16 break-all rounded-xl border border-[#dce7ee] bg-[#f6fafb] px-4 py-4 text-left font-mono text-2xl font-black tracking-wide text-[#102a43]" dir="ltr">{display}</output>
+      <output aria-live="polite" className="home-calculator-display mt-4 block min-h-16 break-all rounded-xl border border-[#dce7ee] bg-[#f6fafb] px-4 py-4 text-left font-mono text-2xl font-black tracking-wide text-[#102a43]" dir="ltr">{display}</output>
       <div className="mt-3 grid grid-cols-4 gap-2">
         <button type="button" onClick={clear} className="home-calculator-key home-calculator-key--clear" aria-label="مسح العملية">C</button>
         <button type="button" onClick={erase} className="home-calculator-key" aria-label="حذف الرقم الأخير"><Delete className="h-4 w-4" /></button>

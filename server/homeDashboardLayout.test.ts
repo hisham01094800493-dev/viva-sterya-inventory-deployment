@@ -30,6 +30,8 @@ describe("تنظيم الشاشة الرئيسية", () => {
     expect(styles).toContain(".dark .home-timeline-metric--incoming");
     expect(styles).toContain(".dark .home-timeline-metric--outgoing");
     expect(styles).toContain(".dark .home-timeline-metric--transfer");
+    expect(styles).toContain(".dark .home-calculator-display");
+    expect(styles).toContain("color: #f4f8fb !important");
   });
 
   it("يبقي إشعارات الشريط والاختصارات العائمة والمحادثات ضمن الغلاف العام", () => {
