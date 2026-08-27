@@ -919,6 +919,26 @@
     background: linear-gradient(135deg, #315d62 0%, #2e4d50 58%, #3f4b47 100%) !important;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24), 0 0 24px rgba(82, 194, 197, 0.1) !important;
   }
+
+  .home-timeline-metric {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.2rem;
+    border-radius: 0.8rem;
+    padding: 0.6rem 0.45rem;
+    text-align: center;
+  }
+  .home-timeline-metric span { font-size: 0.65rem; font-weight: 700; line-height: 1.25; }
+  .home-timeline-metric strong { font-size: 0.95rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+  .home-timeline-metric--incoming { background: #e7f3f1; color: #0d806c; }
+  .home-timeline-metric--outgoing { background: #fff0ed; color: #bd5147; }
+  .home-timeline-metric--transfer { background: #fff4df; color: #a96821; }
+  .dark .home-timeline-range { background: rgba(15, 40, 49, 0.88) !important; border: 1px solid rgba(181, 235, 232, 0.16); }
+  .dark .home-timeline-select { background: #1d343d !important; border-color: rgba(181, 235, 232, 0.3) !important; color: #eff8f5 !important; }
+  .dark .home-timeline-metric--incoming { background: rgba(23, 102, 92, 0.34) !important; color: #a5ece0 !important; }
+  .dark .home-timeline-metric--outgoing { background: rgba(137, 67, 58, 0.36) !important; color: #ffd0c8 !important; }
+  .dark .home-timeline-metric--transfer { background: rgba(137, 99, 41, 0.34) !important; color: #ffe0a3 !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {

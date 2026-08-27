@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
-import { CartesianGrid, Cell, Line, LineChart, Pie, PieChart, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -131,14 +131,14 @@ function StatCard({ label, value, detail, icon: Icon, tone }: { label: string; v
     blue: "bg-[#eaf1fb] text-[#3c6395]",
   };
   return (
-    <Card className="home-stat-card border border-[#dce7ee] bg-white shadow-[0_8px_22px_rgba(18,44,84,0.045)]">
-      <CardContent className="p-3.5 sm:p-4">
+    <Card className="home-stat-card home-surface h-full border border-[#dce7ee] bg-white shadow-[0_8px_22px_rgba(18,44,84,0.045)]">
+      <CardContent className="p-3 sm:p-4">
         <div className="flex items-start justify-between gap-3">
-          <div className={`home-stat-icon flex h-10 w-10 items-center justify-center rounded-xl ${tones[tone]}`}><Icon className="h-5 w-5" strokeWidth={2.4} /></div>
-          <span className="text-[11px] font-bold text-slate-400">{detail}</span>
+          <div className={`home-stat-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}><Icon className="h-4.5 w-4.5" strokeWidth={2.4} /></div>
+          <span className="text-right text-[10px] font-bold text-slate-400 sm:text-[11px]">{detail}</span>
         </div>
-        <p className="mt-3 text-sm font-bold text-slate-600">{label}</p>
-        <p className="mt-0.5 text-2xl font-black tracking-tight text-[#102a43] sm:text-[1.7rem]">{value}</p>
+        <p className="mt-2.5 text-[11px] font-bold leading-5 text-slate-600 sm:mt-3 sm:text-sm">{label}</p>
+        <p className="mt-0.5 text-xl font-black tracking-tight text-[#102a43] sm:text-[1.7rem]">{value}</p>
       </CardContent>
     </Card>
   );
@@ -195,21 +195,12 @@ export default function Home() {
     [analytics?.series, movementRange, timelineAnalytics.data?.series],
   );
   const movementTotals = useMemo(() => getMovementSeriesTotals(movementSeries), [movementSeries]);
-  const statusData = useMemo(
-    () => [
-      { key: "safe", label: "آمن", value: Number(analytics?.status.safe ?? 0), color: "#0d806c" },
-      { key: "watch", label: "مراقبة", value: Number(analytics?.status.watch ?? 0), color: "#d08a3b" },
-      { key: "low", label: "منخفض", value: Number(analytics?.status.low ?? 0), color: "#bd5147" },
-      { key: "empty", label: "نفد", value: Number(analytics?.status.empty ?? 0), color: "#7f1d1d" },
-    ],
-    [analytics?.status],
-  );
-  const hasStatusData = statusData.some(item => item.value > 0);
   const warehouseBalances = warehouseBalanceSummary.data ?? summarizeWarehouseBalances(warehouses.data ?? [], inventory.data ?? []);
   const lowStockByWarehouse = useMemo(() => new Map((warehouseLowStock.data ?? []).map(entry => [entry.warehouseId, entry.lowItems])), [warehouseLowStock.data]);
   const cardDefinitions = useMemo(() => [
     { key: "items", label: "إجمالي الأصناف", value: formatNumber(summary.data?.stats.totalItems), detail: "صنف مسجل", icon: Boxes, tone: "teal" as const },
     { key: "attention", label: "أصناف تحتاج متابعة", value: formatNumber(summary.data?.stats.lowStockCount), detail: `تحت ${summary.data?.thresholdPercentage ?? 20}%`, icon: AlertTriangle, tone: "rose" as const },
+    { key: "health", label: "استقرار المخزون", value: `${healthPercent}%`, detail: lowStockCount ? "يتطلب متابعة" : "مستقر", icon: Warehouse, tone: "blue" as const },
   ], [summary.data]);
 
   return (
@@ -230,6 +221,7 @@ export default function Home() {
               {!isReadOnly && <div className="flex flex-wrap gap-2">
                 <Button onClick={() => setLocation("/additions")} className="h-10 rounded-xl bg-white px-3.5 text-sm font-bold text-[#0d4f62] hover:bg-[#f5f7f8]"><Plus className="ml-1.5 h-4 w-4" />إضافة وارد</Button>
                 <Button onClick={() => setLocation("/disbursements")} variant="outline" className="h-10 rounded-xl border-white/25 bg-white/10 px-3.5 text-sm font-bold text-white hover:bg-white/15 hover:text-white"><ArrowUpFromLine className="ml-1.5 h-4 w-4" />إذن صرف</Button>
+                <Button onClick={() => setLocation("/items?create=1")} variant="outline" className="h-10 rounded-xl border-[#f5c27b]/55 bg-[#f5c27b]/15 px-3.5 text-sm font-bold text-white hover:bg-[#f5c27b]/25 hover:text-white"><Boxes className="ml-1.5 h-4 w-4" />إضافة صنف جديد</Button>
               </div>}
             </div>
           </div>
@@ -241,23 +233,20 @@ export default function Home() {
           <Card className="border-red-100 bg-red-50"><CardContent className="flex items-center gap-3 p-5 text-sm font-bold text-red-700"><AlertTriangle className="h-5 w-5" />تعذر تحميل ملخص المخزون حالياً. اتصل بالإنترنت مرة واحدة لحفظ بيانات لوحة التحكم محلياً.</CardContent></Card>
         ) : (
           <>
-            <section className="grid gap-3 sm:grid-cols-2">
+            <section className="grid grid-cols-3 gap-2.5 sm:gap-3">
               {cardDefinitions.map(({ key, ...card }) => <StatCard key={key} {...card} />)}
-              <Card className="border border-[#dce7ee] bg-[#102a43] text-white shadow-[0_8px_22px_rgba(16,42,67,0.12)]"><CardContent className="flex h-full items-center justify-between gap-4 p-4"><div><p className="text-xs font-bold text-white/60">استقرار المخزون</p><p className="mt-1 text-2xl font-black text-[#f5c27b]">{healthPercent}%</p><p className="mt-1 text-[11px] text-white/65">{formatNumber(lowStockCount)} أصناف تحتاج متابعة</p></div><div className="h-2 w-24 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-[#f5c27b]" style={{ width: `${healthPercent}%` }} /></div></CardContent></Card>
             </section>
 
-            <section className="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
-              <Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+            <section className="home-surface overflow-hidden rounded-2xl border border-[#dce7ee] bg-white shadow-[0_10px_30px_rgba(18,44,84,0.055)]">
+              <div className="p-4 sm:p-5">
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[0.2em] text-[#0d806c]">MOVEMENT PULSE</p>
-                      <h3 className="mt-2 text-xl font-black text-[#102a43]">حركة المخزون عبر الزمن</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-400">يعرض الآن حركة {timelineLabel} فقط عند الاختيار، مع تبديل الوارد والمنصرف والتحويلات فورًا.</p>
+                      <div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#e7f3f1] text-[#0d806c]"><ArrowLeftRight className="h-4 w-4" /></span><h3 className="text-base font-black text-[#102a43] sm:text-lg">حركة المخزون عبر الزمن</h3></div>
+                      <p className="mt-1.5 text-xs leading-5 text-slate-400 sm:text-sm">يعرض حركة {timelineLabel} فقط عند الاختيار.</p>
                     </div>
-                    <div className="flex flex-col items-stretch gap-2 sm:items-end">
-                      <label className="flex items-center gap-2 text-xs font-bold text-slate-600"><Warehouse className="h-4 w-4 text-[#0d806c]" /><span>المخزن</span><select value={timelineWarehouseId} onChange={event => setTimelineWarehouseId(event.target.value === "all" ? "all" : Number(event.target.value))} className="h-9 rounded-lg border border-[#b9d4d9] bg-white px-2 text-xs font-black text-[#102a43] outline-none"><option value="all">كل المخازن</option>{warehouses.data?.map(warehouse => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select></label>
-                    <div className="flex rounded-xl bg-[#f5f8f9] p-1" dir="rtl">
+                  <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-600"><Warehouse className="h-4 w-4 text-[#0d806c]" /><span>المخزن</span><select value={timelineWarehouseId} onChange={event => setTimelineWarehouseId(event.target.value === "all" ? "all" : Number(event.target.value))} className="home-timeline-select h-9 rounded-lg border border-[#b9d4d9] bg-white px-2 text-xs font-black text-[#102a43] outline-none"><option value="all">كل المخازن</option>{warehouses.data?.map(warehouse => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select></label>
+                    <div className="home-timeline-range flex rounded-xl bg-[#f5f8f9] p-1" dir="rtl">
                       {[7, 30, 90].map(days => (
                         <button
                           key={days}
@@ -268,63 +257,39 @@ export default function Home() {
                           {days} يوم
                         </button>
                       ))}
-                    </div></div>
+                    </div>
                   </div>
-                  <div className="mt-5 grid grid-cols-3 gap-2 text-center text-xs font-bold">
-                    <div className="rounded-xl bg-[#e7f3f1] px-3 py-2 text-[#0d806c]">وارد الرسم <strong className="mr-1">{formatNumber(movementTotals.additions)}</strong></div>
-                    <div className="rounded-xl bg-[#fff0ed] px-3 py-2 text-[#bd5147]">منصرف الرسم <strong className="mr-1">{formatNumber(movementTotals.disbursements)}</strong></div>
-                    <div className="rounded-xl bg-[#fff4df] px-3 py-2 text-[#a96821]">تحويلات الرسم <strong className="mr-1">{formatNumber(movementTotals.transfers)}</strong></div>
-                  </div>
-                  {timelineAnalytics.isLoading && timelineWarehouseId !== "all" ? <div className="mt-4 flex h-[270px] items-center justify-center text-sm font-bold text-slate-400">جارٍ تحميل حركة {timelineLabel}...</div> : movementSeries.length ? (
-                    <ChartContainer config={movementChartConfig} className="mt-4 h-[270px] min-h-[270px] w-full aspect-auto">
-                      <LineChart accessibilityLayer data={movementSeries} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
-                        <CartesianGrid vertical={false} stroke="#edf2f5" />
-                        <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={formatChartDate} minTickGap={28} />
-                        <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={value => formatNumber(value)} width={46} />
-                        <ChartTooltip cursor={{ stroke: "#b9d4d9", strokeDasharray: "4 4" }} content={<ChartTooltipContent labelFormatter={value => formatChartDate(String(value))} formatter={(value, name) => [formatNumber(Number(value)), name]} />} />
-                        <Line type="monotone" dataKey="additions" stroke="var(--color-additions)" strokeWidth={3} dot={false} activeDot={{ r: 5, fill: "#0d806c" }} />
-                        <Line type="monotone" dataKey="disbursements" stroke="var(--color-disbursements)" strokeWidth={3} dot={false} activeDot={{ r: 5, fill: "#bd5147" }} />
-                        <Line type="monotone" dataKey="transfers" stroke="var(--color-transfers)" strokeWidth={3} strokeDasharray="5 5" dot={false} activeDot={{ r: 5, fill: "#d08a3b" }} />
-                      </LineChart>
-                    </ChartContainer>
-                  ) : (
-                    <EmptyState label="لا توجد بيانات حركة كافية لبناء الرسم البياني حالياً." />
-                  )}
-                  <div className="mt-3 flex flex-wrap justify-center gap-5 text-xs font-bold text-slate-500">
-                    {Object.entries(movementChartConfig).map(([key, item]) => <span key={key} className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span>)}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <p className="text-xs font-black uppercase tracking-[0.2em] text-[#bd5147]">STOCK ALERTS</p>
-                  <h3 className="mt-2 text-xl font-black text-[#102a43]">حالة الأصناف والتنبيهات</h3>
-                  <p className="mt-1 text-sm leading-6 text-slate-400">توزيع مباشر للأصناف حسب مستوى الأمان وحد التنبيه.</p>
-                  {hasStatusData ? (
-                    <ChartContainer config={{ safe: { label: "آمن", color: "#0d806c" }, watch: { label: "مراقبة", color: "#d08a3b" }, low: { label: "منخفض", color: "#bd5147" }, empty: { label: "نفد", color: "#7f1d1d" } }} className="mx-auto mt-3 h-[235px] min-h-[235px] w-full max-w-[300px] aspect-auto">
-                      <PieChart>
-                        <ChartTooltip content={<ChartTooltipContent hideLabel formatter={(value, name) => [formatNumber(Number(value)), name]} />} />
-                        <Pie data={statusData} dataKey="value" nameKey="label" innerRadius={62} outerRadius={92} paddingAngle={3} strokeWidth={0}>
-                          {statusData.map(item => <Cell key={item.key} fill={item.color} />)}
-                        </Pie>
-                      </PieChart>
-                    </ChartContainer>
-                  ) : <EmptyState label="لا توجد أصناف مسجلة لبناء توزيع التنبيهات حالياً." />}
-                  <div className="grid grid-cols-2 gap-2">
-                    {statusData.map(item => <div key={item.key} className="flex items-center justify-between rounded-xl bg-[#f8fafb] px-3 py-2 text-xs"><span className="inline-flex items-center gap-2 font-bold text-slate-500"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span><strong className="text-[#102a43]">{formatNumber(item.value)}</strong></div>)}
-                  </div>
-                  <Button variant="ghost" onClick={() => setLocation("/alerts")} className="mt-4 w-full rounded-lg text-xs font-bold text-[#bd5147] hover:bg-[#fff0ed]">فتح مركز التنبيهات<ChevronLeft className="mr-1 h-4 w-4" /></Button>
-                </CardContent>
-              </Card>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                  <div className="home-timeline-metric home-timeline-metric--incoming"><span>إجمالي الوارد</span><strong>{formatNumber(movementTotals.additions)}</strong></div>
+                  <div className="home-timeline-metric home-timeline-metric--outgoing"><span>إجمالي المنصرف</span><strong>{formatNumber(movementTotals.disbursements)}</strong></div>
+                  <div className="home-timeline-metric home-timeline-metric--transfer"><span>التحويلات</span><strong>{formatNumber(movementTotals.transfers)}</strong></div>
+                </div>
+                {timelineAnalytics.isLoading && timelineWarehouseId !== "all" ? <div className="mt-4 flex h-[240px] items-center justify-center text-sm font-bold text-slate-400">جارٍ تحميل حركة {timelineLabel}...</div> : movementSeries.length ? (
+                  <ChartContainer config={movementChartConfig} className="mt-4 h-[240px] min-h-[240px] w-full aspect-auto sm:h-[280px] sm:min-h-[280px]">
+                    <LineChart accessibilityLayer data={movementSeries} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
+                      <CartesianGrid vertical={false} stroke="#edf2f5" />
+                      <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={formatChartDate} minTickGap={28} />
+                      <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={value => formatNumber(value)} width={46} />
+                      <ChartTooltip cursor={{ stroke: "#b9d4d9", strokeDasharray: "4 4" }} content={<ChartTooltipContent labelFormatter={value => formatChartDate(String(value))} formatter={(value, name) => [formatNumber(Number(value)), name]} />} />
+                      <Line type="monotone" dataKey="additions" stroke="var(--color-additions)" strokeWidth={3} dot={false} activeDot={{ r: 5, fill: "#0d806c" }} />
+                      <Line type="monotone" dataKey="disbursements" stroke="var(--color-disbursements)" strokeWidth={3} dot={false} activeDot={{ r: 5, fill: "#bd5147" }} />
+                      <Line type="monotone" dataKey="transfers" stroke="var(--color-transfers)" strokeWidth={3} strokeDasharray="5 5" dot={false} activeDot={{ r: 5, fill: "#d08a3b" }} />
+                    </LineChart>
+                  </ChartContainer>
+                ) : <EmptyState label="لا توجد بيانات حركة كافية لبناء الرسم البياني حالياً." />}
+                <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 text-[11px] font-bold text-slate-500 sm:text-xs">
+                  {Object.entries(movementChartConfig).map(([key, item]) => <span key={key} className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span>)}
+                </div>
+              </div>
             </section>
 
-            <section className="rounded-2xl border border-[#dce7ee] bg-white p-4 shadow-[0_8px_22px_rgba(18,44,84,0.045)]">
+            <section className="home-surface rounded-2xl border border-[#dce7ee] bg-white p-4 shadow-[0_8px_22px_rgba(18,44,84,0.045)]">
               <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2.5"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e8f1f2] text-[#0d4f62]"><Warehouse className="h-4 w-4" /></div><div><h3 className="text-sm font-black text-[#102a43]">المخازن والفروع</h3><p className="mt-0.5 text-[11px] font-semibold text-slate-400">{warehouseBalances.length} مخزن · افتح التفاصيل عند الحاجة</p></div></div><Button type="button" variant="outline" size="sm" onClick={() => setWarehouseCardsExpanded(value => !value)} aria-expanded={warehouseCardsExpanded} className="rounded-xl border-[#b9d4d9] text-xs font-black text-[#0d4f62]"><ChevronDown className={`ml-1 h-4 w-4 transition-transform ${warehouseCardsExpanded ? "rotate-180" : ""}`} />{warehouseCardsExpanded ? "إخفاء" : "عرض الفروع"}</Button></div>
               {warehouseCardsExpanded ? <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{warehouseBalances.map(warehouse => <WarehouseBranchCard key={`summary-${warehouse.id}`} warehouse={warehouse} lowItems={lowStockByWarehouse.get(warehouse.id) ?? []} onOpen={() => setLocation(`/warehouses/${warehouse.slot}`)} />)}</div> : null}
             </section>
 
-            <details className="group rounded-2xl border border-[#dce7ee] bg-white shadow-[0_8px_22px_rgba(18,44,84,0.045)]">
+            <details className="home-surface group rounded-2xl border border-[#dce7ee] bg-white shadow-[0_8px_22px_rgba(18,44,84,0.045)]">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 marker:content-none"><div><h3 className="text-sm font-black text-[#102a43]">تفاصيل المتابعة</h3><p className="mt-0.5 text-[11px] text-slate-400">الأصناف المنخفضة وآخر الحركات</p></div><ChevronDown className="h-4 w-4 text-[#0d4f62] transition-transform group-open:rotate-180" /></summary>
               <div className="grid gap-5 border-t border-[#edf2f5] p-4 xl:grid-cols-[1.15fr_0.85fr]">
               <Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm">
