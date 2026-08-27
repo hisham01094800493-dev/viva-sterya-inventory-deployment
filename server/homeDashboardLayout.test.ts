@@ -11,6 +11,8 @@ describe("تنظيم الشاشة الرئيسية", () => {
     expect(home).toContain('className="home-hero relative overflow-hidden');
     expect(home).toContain('setLocation("/items?create=1")');
     expect(home).toContain("إضافة صنف جديد");
+    expect(home).toContain("<QuickCalculator />");
+    expect(home).toContain('aria-label="فتح الآلة الحاسبة"');
     expect(home.indexOf('className="home-hero relative overflow-hidden')).toBeLessThan(home.indexOf('className="grid grid-cols-3 gap-2.5'));
   });
 

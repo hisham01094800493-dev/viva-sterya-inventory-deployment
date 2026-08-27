@@ -1,6 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -11,12 +12,15 @@ import {
   ArrowLeftRight,
   ArrowUpFromLine,
   Boxes,
+  Calculator,
   CalendarDays,
   Clock3,
+  Delete,
   ChevronLeft,
   ChevronDown,
   Plus,
   RefreshCcw,
+  RotateCcw,
   Warehouse,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -38,6 +42,31 @@ export function formatHomeBannerTime(value: Date, locale = "en-US", timeZone?: s
   return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", second: "2-digit", ...(timeZone ? { timeZone } : {}) }).format(value);
 }
 
+export function calculateQuickExpression(rawExpression: string): number | null {
+  const expression = rawExpression.replaceAll("×", "*").replaceAll("÷", "/").replaceAll(" ", "");
+  if (!/^\d+(?:\.\d+)?(?:[+\-*/]\d+(?:\.\d+)?)*$/.test(expression)) return null;
+  const values = expression.split(/[+\-*/]/).map(Number);
+  const operators = expression.match(/[+\-*/]/g) ?? [];
+  let total = 0;
+  let current = values[0];
+  for (let index = 0; index < operators.length; index += 1) {
+    const next = values[index + 1];
+    if (operators[index] === "*") current *= next;
+    else if (operators[index] === "/") {
+      if (next === 0) return null;
+      current /= next;
+    } else if (operators[index] === "+") {
+      total += current;
+      current = next;
+    } else {
+      total += current;
+      current = -next;
+    }
+  }
+  const result = total + current;
+  return Number.isFinite(result) ? Number(result.toFixed(8)) : null;
+}
+
 function HomeHeroDateTime() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -45,6 +74,49 @@ function HomeHeroDateTime() {
     return () => window.clearInterval(interval);
   }, []);
   return <div className="home-hero-datetime mb-4 space-y-1.5"><div className="home-hero-date flex items-center gap-2"><CalendarDays className="h-4 w-4" style={{ color: "#ffffff" }} /><span className="text-xs font-bold" style={{ color: "#ffffff" }}>{new Intl.DateTimeFormat("en-US", { dateStyle: "full" }).format(now)}</span></div><div className="home-hero-time mr-6 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-black" aria-live="polite" aria-label="الوقت الحالي"><Clock3 className="h-3.5 w-3.5" /><span className="font-mono" dir="ltr">{formatHomeBannerTime(now)}</span></div></div>;
+}
+
+function QuickCalculator() {
+  const [open, setOpen] = useState(false);
+  const [expression, setExpression] = useState("0");
+  const isOperator = (value: string) => ["+", "-", "×", "÷"].includes(value);
+  const appendNumber = (value: string) => setExpression(current => {
+    if (current === "خطأ") return value === "." ? "0." : value;
+    const lastTerm = current.split(/[+\-×÷]/).at(-1) ?? "";
+    if (value === "." && lastTerm.includes(".")) return current;
+    if (current === "0") return value === "." ? "0." : value;
+    if (lastTerm === "0" && value !== ".") return `${current.slice(0, -1)}${value}`;
+    return `${current}${value}`;
+  });
+  const appendOperator = (operator: string) => setExpression(current => {
+    if (current === "خطأ") return "0";
+    if (isOperator(current.at(-1) ?? "")) return `${current.slice(0, -1)}${operator}`;
+    return `${current}${operator}`;
+  });
+  const calculate = () => setExpression(current => {
+    const result = calculateQuickExpression(current);
+    return result === null ? "خطأ" : String(result);
+  });
+  const clear = () => setExpression("0");
+  const erase = () => setExpression(current => current === "خطأ" || current.length <= 1 ? "0" : current.slice(0, -1));
+  const display = expression.replaceAll("*", "×").replaceAll("/", "÷");
+  const keys = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "-", ".", "0", "=", "+"];
+
+  return <Dialog open={open} onOpenChange={setOpen}>
+    <Button type="button" variant="outline" size="icon" onClick={() => setOpen(true)} className="home-calculator-trigger h-10 w-10 rounded-xl border-white/35 bg-white/10 text-white hover:bg-white/18 hover:text-white" aria-label="فتح الآلة الحاسبة" title="آلة حاسبة"><Calculator className="h-4.5 w-4.5" /></Button>
+    <DialogContent className="home-calculator-dialog w-[calc(100vw-2rem)] max-w-sm rounded-2xl border-[#b9d4d9] bg-white p-5 shadow-2xl" dir="rtl">
+      <DialogHeader><DialogTitle className="flex items-center gap-2 text-lg font-black text-[#102a43]"><Calculator className="h-5 w-5 text-[#0d806c]" />آلة حاسبة سريعة</DialogTitle><DialogDescription>للحسابات السريعة أثناء تسجيل الحركات.</DialogDescription></DialogHeader>
+      <output aria-live="polite" className="mt-4 block min-h-16 break-all rounded-xl border border-[#dce7ee] bg-[#f6fafb] px-4 py-4 text-left font-mono text-2xl font-black tracking-wide text-[#102a43]" dir="ltr">{display}</output>
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        <button type="button" onClick={clear} className="home-calculator-key home-calculator-key--clear" aria-label="مسح العملية">C</button>
+        <button type="button" onClick={erase} className="home-calculator-key" aria-label="حذف الرقم الأخير"><Delete className="h-4 w-4" /></button>
+        <button type="button" onClick={() => appendOperator("÷")} className="home-calculator-key home-calculator-key--operator" aria-label="قسمة">÷</button>
+        <button type="button" onClick={() => appendOperator("×")} className="home-calculator-key home-calculator-key--operator" aria-label="ضرب">×</button>
+        {keys.filter(key => !["÷", "×"].includes(key)).map(key => <button key={key} type="button" onClick={() => key === "=" ? calculate() : isOperator(key) ? appendOperator(key) : appendNumber(key)} className={`home-calculator-key ${isOperator(key) ? "home-calculator-key--operator" : ""} ${key === "=" ? "home-calculator-key--equal" : ""}`}>{key}</button>)}
+      </div>
+      <Button type="button" variant="ghost" onClick={() => { clear(); setOpen(false); }} className="mt-3 w-full rounded-xl text-xs font-bold text-slate-500 hover:bg-[#eef7f7] hover:text-[#0d4f62]"><RotateCcw className="ml-1.5 h-3.5 w-3.5" />مسح وإغلاق</Button>
+    </DialogContent>
+  </Dialog>;
 }
 
 const movementChartConfig = {
@@ -222,6 +294,7 @@ export default function Home() {
                 <Button onClick={() => setLocation("/additions")} className="h-10 rounded-xl bg-white px-3.5 text-sm font-bold text-[#0d4f62] hover:bg-[#f5f7f8]"><Plus className="ml-1.5 h-4 w-4" />إضافة وارد</Button>
                 <Button onClick={() => setLocation("/disbursements")} variant="outline" className="h-10 rounded-xl border-white/25 bg-white/10 px-3.5 text-sm font-bold text-white hover:bg-white/15 hover:text-white"><ArrowUpFromLine className="ml-1.5 h-4 w-4" />إذن صرف</Button>
                 <Button onClick={() => setLocation("/items?create=1")} variant="outline" className="h-10 rounded-xl border-[#f5c27b]/55 bg-[#f5c27b]/15 px-3.5 text-sm font-bold text-white hover:bg-[#f5c27b]/25 hover:text-white"><Boxes className="ml-1.5 h-4 w-4" />إضافة صنف جديد</Button>
+                <QuickCalculator />
               </div>}
             </div>
           </div>
