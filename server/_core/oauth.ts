@@ -84,7 +84,10 @@ export function registerOAuthRoutes(app: Express) {
   app.get("/api/oauth/google/callback", (req, res, next) => {
     if (!googleConfigured()) return res.status(503).json({ error: "Google OAuth is not configured" });
     passport.authenticate("google", { session: false }, async (error: Error | null, user: Awaited<ReturnType<typeof db.upsertGoogleUser>> | false) => {
-      if (error || !user) return res.redirect("/?login=failed");
+      if (error || !user) {
+        console.error("[OAuth] Google authentication failed", error ?? "No user returned");
+        return res.redirect("/?login=failed");
+      }
       try {
         const sessionId = randomUUID();
         const userAgent = String(req.headers["user-agent"] ?? "").slice(0, 4000);
