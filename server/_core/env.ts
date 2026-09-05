@@ -22,7 +22,10 @@ export function buildDatabaseUrlFromEnv() {
 }
 
 export function getDatabaseUrl() {
-  return normalizeDatabaseUrl(process.env.DATABASE_URL) || buildDatabaseUrlFromEnv();
+  // Prefer explicit DB_* variables in hosted environments. This prevents a
+  // stale DATABASE_URL (for example one still pointing at the old database)
+  // from overriding the deployment's current host, database, and TLS setup.
+  return buildDatabaseUrlFromEnv() || normalizeDatabaseUrl(process.env.DATABASE_URL);
 }
 
 export function getDatabaseSsl() {
