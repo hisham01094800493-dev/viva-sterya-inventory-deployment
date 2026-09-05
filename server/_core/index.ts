@@ -61,11 +61,11 @@ async function startServer() {
     serveStatic(app);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  const PORT = Number(process.env.PORT || 3000);
+  const port = await findAvailablePort(PORT);
 
-  if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+  if (port !== PORT) {
+    console.log(`Port ${PORT} is busy, using port ${port} instead`);
   }
 
   server.listen(port, () => {

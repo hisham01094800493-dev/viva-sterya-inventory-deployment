@@ -52,9 +52,9 @@ export class InventoryError extends Error {
 }
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (!_db && ENV.databaseUrl) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _db = drizzle(mysql.createPool({ uri: ENV.databaseUrl, ssl: ENV.databaseSsl, connectionLimit: 5, enableKeepAlive: true }) as any);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -2214,7 +2214,7 @@ function safeDatabaseIdentifier(name: string) {
 }
 
 export async function runIsolatedFullBackupRestore() {
-  const sourceUrl = process.env.DATABASE_URL;
+  const sourceUrl = ENV.databaseUrl;
   if (!sourceUrl) throw new InventoryError("UNAVAILABLE", "اتصال قاعدة البيانات غير متاح");
   const source = new URL(sourceUrl);
   const sourceDatabase = decodeURIComponent(source.pathname.replace(/^\//, ""));
@@ -2235,7 +2235,7 @@ export async function runIsolatedFullBackupRestore() {
   let testConnection: mysql.Connection | undefined;
   try {
     const { snapshot } = await getBackupSnapshotFromRecord(latestBackup.id);
-    adminConnection = await mysql.createConnection(sourceUrl);
+    adminConnection = await mysql.createConnection({ uri: sourceUrl, ssl: ENV.databaseSsl });
     const testDatabaseId = safeDatabaseIdentifier(testDatabase);
     const sourceDatabaseId = safeDatabaseIdentifier(sourceDatabase);
     await adminConnection.query(`CREATE DATABASE IF NOT EXISTS ${testDatabaseId}`);
@@ -2248,7 +2248,7 @@ export async function runIsolatedFullBackupRestore() {
       await adminConnection.query(`CREATE TABLE ${testDatabaseId}.${tableId} LIKE ${sourceDatabaseId}.${tableId}`);
     }
     source.pathname = `/${encodeURIComponent(testDatabase)}`;
-    testConnection = await mysql.createConnection(source.toString());
+    testConnection = await mysql.createConnection({ uri: source.toString(), ssl: ENV.databaseSsl });
     const testDb = drizzle(testConnection);
     const result = await restoreBackupSnapshotIntoDatabase(testDb, snapshot, { insertOnly: true, batchSize: 100 });
     const restoredTableCounts: Record<string, number> = {};

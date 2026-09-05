@@ -35,6 +35,7 @@ export function buildMySqlSessionOptions(databaseUrl: string) {
     port: Number(url.port || 3306),
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
+    ssl: ENV.databaseSsl,
     database,
     createDatabaseTable: true,
     clearExpired: true,

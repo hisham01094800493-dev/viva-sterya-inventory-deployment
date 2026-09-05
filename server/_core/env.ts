@@ -1,16 +1,42 @@
+function clean(value: string | undefined) {
+  return value?.trim() ?? "";
+}
+
 export function normalizeEnvironmentValue(value: string | undefined, variableName: string) {
   const escapedName = variableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return (value ?? "").trim().replace(new RegExp(`^${escapedName}\\s*=\\s*`, "i"), "");
+  return clean(value).replace(new RegExp(`^${escapedName}\\s*=\\s*`, "i"), "");
 }
 
 export function normalizeDatabaseUrl(value: string | undefined) {
   return normalizeEnvironmentValue(value, "DATABASE_URL");
 }
 
+export function buildDatabaseUrlFromEnv() {
+  const host = clean(process.env.DB_HOST);
+  const user = clean(process.env.DB_USER);
+  const password = process.env.DB_PASSWORD ?? "";
+  const name = clean(process.env.DB_NAME);
+  const port = clean(process.env.DB_PORT) || "3306";
+  if (!host || !user || !name) return "";
+  return `mysql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(name)}`;
+}
+
+export function getDatabaseUrl() {
+  return normalizeDatabaseUrl(process.env.DATABASE_URL) || buildDatabaseUrlFromEnv();
+}
+
+export function getDatabaseSsl() {
+  const ca = clean(process.env.DB_SSL_CA || process.env.MYSQL_SSL_CA);
+  if (ca) return { ca, rejectUnauthorized: true };
+  if (clean(process.env.DB_SSL).toLowerCase() === "false") return undefined;
+  return { rejectUnauthorized: true };
+}
+
 export const ENV = {
-  appId: process.env.APP_ID ?? "smart-inventory-railway",
+  appId: process.env.APP_ID ?? "smart-inventory",
   cookieSecret: process.env.SESSION_SECRET ?? process.env.JWT_SECRET ?? "",
-  databaseUrl: normalizeDatabaseUrl(process.env.DATABASE_URL),
+  databaseUrl: getDatabaseUrl(),
+  databaseSsl: getDatabaseSsl(),
   appUrl: normalizeEnvironmentValue(process.env.APP_URL, "APP_URL"),
   googleClientId: normalizeEnvironmentValue(process.env.GOOGLE_CLIENT_ID, "GOOGLE_CLIENT_ID"),
   googleClientSecret: normalizeEnvironmentValue(process.env.GOOGLE_CLIENT_SECRET, "GOOGLE_CLIENT_SECRET"),
