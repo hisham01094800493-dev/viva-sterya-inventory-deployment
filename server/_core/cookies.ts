@@ -43,6 +43,9 @@ export function getSessionCookieOptions(
     httpOnly: true,
     path: "/",
     sameSite: "none",
-    secure: isSecureRequest(req),
+    // Render terminates TLS at its proxy. Force Secure in production even if
+    // a platform revision omits x-forwarded-proto on the callback request;
+    // SameSite=None cookies are rejected by browsers unless Secure is set.
+    secure: process.env.NODE_ENV === "production" || isSecureRequest(req),
   };
 }
