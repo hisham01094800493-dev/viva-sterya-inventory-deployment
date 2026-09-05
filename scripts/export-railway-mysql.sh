@@ -10,7 +10,7 @@ mysqldump --protocol=TCP \
   --port="$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(u.port || "3306")' "$RAILWAY_MYSQL_URL")" \
   --user="$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(decodeURIComponent(u.username))' "$RAILWAY_MYSQL_URL")" \
   --password="$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(decodeURIComponent(u.password))' "$RAILWAY_MYSQL_URL")" \
-  --databases "$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(u.pathname.replace(/^\\//, ""))' "$RAILWAY_MYSQL_URL")" \
+  --databases "$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(u.pathname.replace(/^\//, ""))' "$RAILWAY_MYSQL_URL")" \
   --single-transaction --quick --routines --triggers --set-gtid-purged=OFF > "$OUTPUT"
 
 printf 'Exported database to %s\n' "$OUTPUT"
