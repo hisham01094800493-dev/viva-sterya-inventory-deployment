@@ -90,18 +90,26 @@ export function registerOAuthRoutes(app: Express) {
       }
       try {
         const sessionId = randomUUID();
+        // Authentication must not depend on optional audit/notification tables.
+        // Create the signed session first so a migration mismatch in those
+        // tables cannot send a valid Google login back to login=failed.
+        const sessionToken = await sdk.createSessionToken(user.openId, { name: user.name || user.email || "Google User", expiresInMs: ONE_YEAR_MS, sessionId });
+        res.cookie(COOKIE_NAME, sessionToken, { ...getSessionCookieOptions(req), sameSite: "lax", maxAge: ONE_YEAR_MS });
+
         const userAgent = String(req.headers["user-agent"] ?? "").slice(0, 4000);
         const deviceType = detectDeviceType(userAgent);
         const ipAddress = getClientIp(req);
-        const knownFingerprint = await db.hasLoginFingerprint({ userId: user.id, userAgent, deviceType });
-        const loginLogId = await db.createLoginAuditLog({ userId: user.id, sessionId, userName: user.name, email: user.email, loginMethod: "google", userAgent, deviceType, ipAddress });
-        if (!knownFingerprint) {
-          const deviceLabel = deviceType === "mobile" ? "هاتف" : deviceType === "tablet" ? "جهاز لوحي" : "كمبيوتر";
-          await db.createSecurityNotification({ notificationType: "new_login_device", title: "تسجيل دخول من جهاز جديد", message: `سجّل ${user.name || user.email || "مستخدم"} الدخول من ${deviceLabel} أو متصفح جديد في ${new Date().toLocaleString("ar-EG")}. المتصفح: ${userAgent || "غير معروف"}${ipAddress ? `، عنوان الشبكة: ${ipAddress}` : ""}`, loginLogId });
-          await db.createAuditLog({ userId: user.id, userName: user.name, action: "new_login_device", entity: "security", entityId: loginLogId, details: { deviceType, ipAddress } });
+        try {
+          const knownFingerprint = await db.hasLoginFingerprint({ userId: user.id, userAgent, deviceType });
+          const loginLogId = await db.createLoginAuditLog({ userId: user.id, sessionId, userName: user.name, email: user.email, loginMethod: "google", userAgent, deviceType, ipAddress });
+          if (!knownFingerprint) {
+            const deviceLabel = deviceType === "mobile" ? "هاتف" : deviceType === "tablet" ? "جهاز لوحي" : "كمبيوتر";
+            await db.createSecurityNotification({ notificationType: "new_login_device", title: "تسجيل دخول من جهاز جديد", message: `سجّل ${user.name || user.email || "مستخدم"} الدخول من ${deviceLabel} أو متصفح جديد في ${new Date().toLocaleString("ar-EG")}. المتصفح: ${userAgent || "غير معروف"}${ipAddress ? `، عنوان الشبكة: ${ipAddress}` : ""}`, loginLogId });
+            await db.createAuditLog({ userId: user.id, userName: user.name, action: "new_login_device", entity: "security", entityId: loginLogId, details: { deviceType, ipAddress } });
+          }
+        } catch (auditError) {
+          console.error("[OAuth] Login audit recording failed; continuing login", auditError);
         }
-        const sessionToken = await sdk.createSessionToken(user.openId, { name: user.name || user.email || "Google User", expiresInMs: ONE_YEAR_MS, sessionId });
-        res.cookie(COOKIE_NAME, sessionToken, { ...getSessionCookieOptions(req), sameSite: "lax", maxAge: ONE_YEAR_MS });
         res.redirect("/");
       } catch (callbackError) {
         console.error("[OAuth] Google callback failed", callbackError);
