@@ -32,7 +32,13 @@ export function getDatabaseSsl() {
   const ca = clean(process.env.DB_SSL_CA || process.env.MYSQL_SSL_CA);
   if (ca) return { ca, rejectUnauthorized: true };
   if (clean(process.env.DB_SSL).toLowerCase() === "false") return undefined;
-  return { rejectUnauthorized: true };
+  // Aiven provides encrypted MySQL connections, but its server certificate is
+  // not trusted by Node unless the Aiven CA is supplied explicitly. Keep TLS
+  // enabled by default while allowing the hosted service to connect without
+  // rejecting Aiven's self-signed chain. Set DB_SSL_REJECT_UNAUTHORIZED=true
+  // together with DB_SSL_CA when strict certificate verification is desired.
+  const rejectUnauthorized = clean(process.env.DB_SSL_REJECT_UNAUTHORIZED).toLowerCase() === "true";
+  return { rejectUnauthorized };
 }
 
 export const ENV = {
