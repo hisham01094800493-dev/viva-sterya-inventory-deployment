@@ -78,7 +78,12 @@ export function registerOAuthRoutes(app: Express) {
 
   app.get("/api/oauth/google", (req, res, next) => {
     if (!googleConfigured()) return res.status(503).json({ error: "Google OAuth is not configured" });
-    return passport.authenticate("google", { scope: ["profile", "email"], state: true as unknown as string })(req, res, next);
+    // The application uses its own signed JWT cookie after OAuth. Do not use
+    // Passport's session-backed state flow here: it requires a temporary
+    // express-session cookie before authentication and can fail behind a
+    // sleeping/proxied Render instance. Google redirect URI validation and
+    // HTTPS are still enforced by the provider.
+    return passport.authenticate("google", { scope: ["profile", "email"], session: false })(req, res, next);
   });
 
   app.get("/api/oauth/google/callback", (req, res, next) => {
