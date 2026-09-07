@@ -1,4 +1,4 @@
-fimport { useAuth } from "@/_core/hooks/useAuth";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import {
   ArrowDownToLine,
