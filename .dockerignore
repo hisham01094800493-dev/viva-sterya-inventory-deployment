@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.git
+.gitignore
+dist
+coverage
+.nyc_output
+.cache
+.vite
+.turbo
+*.log
+.env
+.env.*
+.DS_Store
