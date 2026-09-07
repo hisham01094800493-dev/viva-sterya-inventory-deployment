@@ -380,7 +380,10 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   const warehouseMenuItems = [{ icon: Warehouse, label: "المخازن", path: "/warehouses" }];
   const governanceItem = buildGovernanceNavigationItems(user.role);
   const allNavigationItems = [...menuItems.slice(0, 2), ...warehouseMenuItems, { icon: Truck, label: "الموردون للإضافات", path: "/suppliers" }, { icon: UserRound, label: "العملاء/جهات الصرف", path: "/customers" }, ...menuItems.slice(2), ...governanceItem];
-  const screenForPath = (path: string) => path.startsWith("/warehouses") ? "inventory" : path.replace(/^\//, "").split("?")[0] || "dashboard";
+  // The permission model calls the items screen "inventory", while the
+  // browser route is /items. Keep both names aligned so the sidebar does not
+  // hide the inventory entry for users who already have inventory access.
+  const screenForPath = (path: string) => path === "/items" || path.startsWith("/warehouses") ? "inventory" : path.replace(/^\//, "").split("?")[0] || "dashboard";
   const hasScreenPermission = (path: string) => path.startsWith("/governance") || !effectivePermissions || effectivePermissions.allowedScreens.includes(screenForPath(path));
   const navigationItems = allNavigationItems.filter(item => hasScreenPermission(item.path) && (!readOnlyRole || !["/additions", "/disbursements", "/transfers", "/suppliers", "/customers"].includes(item.path)));
   const chatEnabled = hasScreenPermission("/chat");
