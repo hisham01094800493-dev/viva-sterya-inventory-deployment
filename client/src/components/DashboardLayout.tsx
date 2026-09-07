@@ -1,4 +1,4 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+fimport { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import {
   ArrowDownToLine,
@@ -137,7 +137,7 @@ export function WarehouseNavigationList({ items, activePath, onNavigate, darkMod
 
 const menuItems = [
   { icon: LayoutDashboard, label: "نظرة عامة", path: "/" },
-  { icon: Package, label: "الأصناف والمخزون", path: "/items" },
+  { icon: Package, label: "المخزون", path: "/items" },
   { icon: ArrowDownToLine, label: "إضافات المخزون", path: "/additions" },
   { icon: ArrowUpFromLine, label: "أذونات الصرف", path: "/disbursements" },
   { icon: ArrowLeftRight, label: "التحويلات والمرتجعات", path: "/transfers" },
