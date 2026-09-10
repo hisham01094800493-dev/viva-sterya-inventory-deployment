@@ -135,7 +135,7 @@ function drawPdfWatermark(doc: jsPDF, logo?: string | null, opacity = 0.08, scal
     }
   }
 }
-export async function buildInventoryPdf(rows: InventoryExportItem[] | null | undefined, options: { columns?: ExportColumnKey[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkEnabled?: boolean } = {}) {
+export async function buildInventoryPdf(rows: InventoryExportItem[] | null | undefined, options: { columns?: ExportColumnKey[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean } = {}) {
   const { jsPDF, autoTable } = await loadPdfTools();
   const safeRows = Array.isArray(rows) ? rows.filter((row): row is InventoryExportItem => Boolean(row && typeof row === 'object')) : [];
   const keys = selected(inventoryExportColumns, options.columns);
