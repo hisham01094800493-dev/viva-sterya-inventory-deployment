@@ -18,6 +18,18 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+export const userAbsences = mysqlTable("user_absences", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  startDate: varchar("start_date", { length: 10 }).notNull(),
+  days: int("days").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, table => ({ userDateIdx: index("user_absences_user_date_idx").on(table.userId, table.startDate) }));
+
+export type UserAbsence = typeof userAbsences.$inferSelect;
+export type InsertUserAbsence = typeof userAbsences.$inferInsert;
+
 export const auditLogs = mysqlTable("audit_logs", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id"),
