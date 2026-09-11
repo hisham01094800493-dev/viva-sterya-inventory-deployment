@@ -64,7 +64,6 @@ function PermissionEditor({ userId, users, records, pending, onClose, onSave, on
 }
 
 
-
 function AbsenceManager({ userId, userName, onClose }: { userId: number; userName: string; onClose: () => void }) {
   const listQuery = trpc.governance.absenceAdminList.useQuery();
   const create = trpc.governance.absenceCreate.useMutation({ onSuccess: () => listQuery.refetch() });
@@ -77,30 +76,21 @@ function AbsenceManager({ userId, userName, onClose }: { userId: number; userNam
   const reset = () => { setStartDate(""); setDays("1"); setEditingId(null); };
   const save = async () => {
     try {
-      if (seditingId) await update.mutateAsync({ id: editingId, startDate, days: Number(days) });
+      if (editingId) await update.mutateAsync({ id: editingId, startDate, days: Number(days) });
       else await create.mutateAsync({ userId, startDate, days: Number(days) });
-      toast.success(editingId ? "ØªÙ ØªØ¹Ø¯ÙÙ ÙØªØ±Ø© Ø§ÙØºÙØ§Ø¨" : "ØªÙØ¨ ØµØ¶Ø§ÙØ© ÙØªØ±Ø© Ø§ÙØºÙØ§Ø¨");
+      toast.success(editingId ? "تم تعديل فترة الغياب" : "تمت إضافة فترة الغياب");
       reset();
-    } catch (error: any) { toast.error(error?.message || "2+v,v`v.6`v*¶,v*H6)öa6.¶b¶)ö*NÈBNÂÛÛÝÜX][H
-]NÝ[ËÛÝ[[X\HO]È]J]È]J	Ù]_U
-KÙ][YJ
-H
-È
-ÛÝ[HJH
-
-
-KÓØØ[Q]TÝ[Ê\QQÈNÂ]\]Û\ÜÓ[YOH]MÝ[YLÜ\Ü\VÈØY
-WHËVÈÙÙ×HM]Û\ÜÓ[YOH^^]Ü\][\ËXÙ[\\ÝYKX]ÙY[Ø\L]ÈÛ\ÜÓ[YOHÛXXÚÈ^VÈÌLM×H¶)v+ö)ö,v*H6.¶b¶)ö*Ý\Ù\[Y_OÚÏÛ\ÜÓ[YOH^^È^\Û]KML¶*¶)ö,vb¶+6*6+ö)ö)ö*6)öa6.¶b¶)ö*6#6.v+ö+È6)öa6(öb¶)öaKÜÙ]]Û\OH]Û\X[HÚÜÝÛÛXÚÏ^ÛÛÛÜÙ_O¶)v.¶a6)ö`Ð]ÛÙ]]Û\ÜÏH]MÜYØ\LÈYÜYXÛÛËMX[Û\ÜÏH^\ÛHÛXÛ¶*¶)ö,vb¶+6)öa6*6+ö)öb¶*OÛX[X[Û\ÜÏH^\ÛHÛXÛ¶.v+ö+È6)öa6(öb¶)öaOÛX[]Û\ÜÏHÝ[Y^Ë]Ú]HL^\ÛHÜ[Û\ÜÏHÛXÛ¶*¶)ö,vb¶+6a¶aö)öb¶*OÜÜ[Û\ÜÏH]L^VÈÌ
-ÌNHÜÝ\]H	[X\^\ÊHÈÜX][
-Ý\]K[X\^\ÊJH¸ %OÜÙ]]Û\ÜÏH^][\ËY[Ø\L]Û\OH]Û\ØXY^È\Ý\]H[X\^\ÊHHÜX]K\Ô[[È\]K\Ô[[ßHÛÛXÚÏ^Ê
-HOÚYØ]J
-_OÙ[][ÒYÈ¶+v`v.6)öa6*¶nv+öb¶a¶-v-¶)ö`v*H6a6.¶b¶)ö*OÐ]ÛÙ]Ù]XHÛ\ÜÓ[YOHËY[^\YÚ^\ÛHXY¶)öa6(öb¶)öaOÝ¶)öa6a¶aö)öb¶*OÝ¶)öa6(öb¶)öaOÝ¶)v+6,v)ö(v)ö*ÝÝÝXYÙOÜÝÜËX\
+    } catch (error: any) { toast.error(error?.message || "تعذر حفظ فترة الغياب"); }
+  };
+  const formatEnd = (date: string, count: number) => new Date(new Date(`${date}T00:00:00`).getTime() + (count - 1) * 86400000).toLocaleDateString("ar-EG");
+  return <div className="mt-4 rounded-2xl border border-[#b9d4d9] bg-[#f7fbfc] p-4">
+    <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-black text-[#102a43]">إدارة غياب: {userName}</h3><p className="text-xs text-slate-500">تاريخ بداية الغياب وعدد الأيام المتتالية.</p></div><Button type="button" variant="ghost" onClick={onClose}>إغلاق</Button></div>
+    <div className="mt-4 grid gap-3 md:grid-cols-4"><label className="text-sm font-bold">تاريخ البداية<input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="mt-1 w-full rounded-xl border p-2" /></label><label className="text-sm font-bold">عدد الأيام<input type="number" min="1" max="366" value={days} onChange={e => setDays(e.target.value)} className="mt-1 w-full rounded-xl border p-2" /></label><div className="rounded-xl bg-white p-2 text-sm"><span className="font-bold">تاريخ النهاية</span><p className="mt-2 text-[#0d7180]">{startDate && Number(days) > 0 ? formatEnd(startDate, Number(days)) : "—"}</p></div><div className="flex items-end gap-2"><Button type="button" disabled={!startDate || Number(days) < 1 || create.isPending || update.isPending} onClick={() => void save()}>{editingId ? "حفظ التعديل" : "إضافة الغياب"}</Button>{editingId && <Button type="button" variant="outline" onClick={reset}>إلغاء</Button>}</div></div>
+    <div className="mt-4 overflow-x-auto"><table className="w-full text-right text-sm"><thead><tr className="border-b text-xs text-slate-400"><th className="p-2">البداية</th><th className="p-2">الأيام</th><th className="p-2">النهاية</th><th className="p-2">إجراءات</th></tr></thead><tbody>{rows.map(row => <tr key={row.id} className="border-b border-slate-100"><td className="p-2">{row.startDate}</td><td className="p-2">{row.days}</td><td className="p-2">{formatEnd(row.startDate, row.days)}</td><td className="p-2"><Button type="button" variant="outline" className="ml-2 px-2 py-1 text-xs" onClick={() => { setEditingId(row.id); setStartDate(row.startDate); setDays(String(row.days)); }}>تعديل</Button><Button type="button" variant="destructive" className="px-2 py-1 text-xs" disabled={remove.isPending} onClick={() => { if (window.confirm("حذف فترة الغياب؟")) void remove.mutateAsync({ id: row.id }); }}>حذف</Button></td></tr>)}</tbody></table>{!rows.length && <p className="p-3 text-center text-xs text-slate-500">لا توجد فترات غياب مسجلة.</p>}</div>
+  </div>;
+}
 
-ÝÊHOÙ^O^ÜÝËYOÜÝËÝ\]_OÝÜÝË^\ßOÝÙÜX][
-ÝËÝ\]KÝË^\Ê_OÝ]Û\OH]Û\X[HÝ][HÛÛXÚÏ^Ê
-HOÈÙ]Y][ÒY
-ÝËY
-NÈÙ]Ý\]JÝËÝ\]JNÈÙ]^\ÊÝ[ÊÝË^\ÊJNÈ_O¶+6,v)ö(OÐ]ÛÝÝOÝÙOÝXOÜÝÜË[ÝÈ[¶)öa6)öa6*6+ö)öb¶*H6)öa6.¶b¶)ö*6av,ö+6a6*KÜOÙ]Ù]ÂBexport default function GovernancePage() {
+export default function GovernancePage() {
   const [tab, setTab] = useState<"users" | "audit" | "shares" | "logins" | "backup" | "backups" | "backup-center" | "reset">(() => { const requested = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null; return requested === "reset" || requested === "backups" || requested === "backup-center" || requested === "logins" || requested === "shares" ? requested : "users"; });
   const fileRef = useRef<HTMLInputElement>(null);
   const usersQuery = trpc.governance.users.useQuery(undefined, { enabled: tab === "users" });
