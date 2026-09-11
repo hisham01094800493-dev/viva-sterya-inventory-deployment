@@ -70,12 +70,13 @@ export function WarehousesPage() {
   const [, params] = useRoute("/warehouses/:slot");
   const [, setLocation] = useLocation();
   const requestedSlot = params?.slot ? Number(params.slot) : 1;
-  const warehouses = trpc.warehouses.list.useQuery();
-  const selected = warehouses.data?.find(item => item.slot === requestedSlot) ?? warehouses.data?.[0];
-  const items = trpc.items.warehouseStocks.useQuery({ warehouseId: selected?.id ?? 1 }, { enabled: Boolean(selected) }) as unknown as { data?: WarehouseStockTableRow[]; isLoading: boolean };
+  const warehouses = trpc.warehouses.list.useQuery(undefined, { refetchOnMount: "always", refetchOnWindowFocus: true });
   const update = trpc.warehouses.update.useMutation();
   const utils = trpc.useUtils();
-  const permissions = trpc.permissions.mine.useQuery();
+  const permissions = trpc.permissions.mine.useQuery(undefined, { refetchOnMount: "always", refetchOnWindowFocus: true });
+  const visibleWarehouses = permissions.data ? (permissions.data.allowedWarehouseIds.length ? (warehouses.data ?? []).filter(item => permissions.data.allowedWarehouseIds.includes(item.id)) : warehouses.data ?? []) : [];
+  const selected = visibleWarehouses.find(item => item.slot === requestedSlot) ?? visibleWarehouses[0];
+  const items = trpc.items.warehouseStocks.useQuery({ warehouseId: selected?.id ?? 1 }, { enabled: Boolean(selected) }) as unknown as { data?: WarehouseStockTableRow[]; isLoading: boolean };
   const preferences = trpc.preferences.get.useQuery();
   const updatePreferences = trpc.preferences.update.useMutation();
   const canViewFinancialDetails = permissions.data?.allowedReports.includes(WAREHOUSE_FINANCIAL_PERMISSION) ?? false;

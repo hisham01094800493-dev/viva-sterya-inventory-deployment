@@ -274,7 +274,10 @@ export default function Home() {
   const [absenceDetailsOpen, setAbsenceDetailsOpen] = useState(false);
   const absenceDays = (absences.data ?? []).reduce((total, row) => total + Number(row.days ?? 0), 0);
   const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
+  const permissions = trpc.permissions.mine.useQuery(undefined, { ...inventoryQueryOptions, refetchOnMount: "always" });
+  const visibleWarehouses = permissions.data ? (permissions.data.allowedWarehouseIds.length ? (warehouses.data ?? []).filter(item => permissions.data.allowedWarehouseIds.includes(item.id)) : warehouses.data ?? []) : [];
   const inventory = trpc.items.list.useQuery(undefined, inventoryQueryOptions);
+  const visibleInventory = permissions.data?.allowedWarehouseIds.length ? (inventory.data ?? []).filter(item => item.warehouseId == null || permissions.data!.allowedWarehouseIds.includes(item.warehouseId)) : inventory.data ?? [];
   const warehouseLowStock = trpc.items.warehouseLowStock.useQuery(undefined, inventoryQueryOptions);
   const warehouseBalanceSummary = trpc.items.warehouseBalanceSummaries.useQuery(undefined, inventoryQueryOptions);
   const totalItems = Number(summary.data?.stats.totalItems ?? 0);
@@ -286,7 +289,7 @@ export default function Home() {
   const analytics = summary.data?.analytics;
   const timelineAnalyticsInput = useMemo(() => ({ warehouseId: timelineWarehouseId === "all" ? null : timelineWarehouseId }), [timelineWarehouseId]);
   const timelineAnalytics = trpc.dashboard.movementAnalytics.useQuery(timelineAnalyticsInput, dashboardQueryOptions);
-  const selectedTimelineWarehouse = timelineWarehouseId === "all" ? null : warehouses.data?.find(warehouse => warehouse.id === timelineWarehouseId) ?? null;
+  const selectedTimelineWarehouse = timelineWarehouseId === "all" ? null : visibleWarehouses.find(warehouse => warehouse.id === timelineWarehouseId) ?? null;
   const timelineLabel = selectedTimelineWarehouse?.name ?? "كل المخازن";
   const movementSeries = useMemo(
     () => (timelineAnalytics.data?.series ?? analytics?.series ?? []).slice(-movementRange),
@@ -294,16 +297,16 @@ export default function Home() {
   );
   const movementTotals = useMemo(() => getMovementSeriesTotals(movementSeries), [movementSeries]);
   const warehouseBalances = useMemo(() => {
-    const summaries = warehouseBalanceSummary.data ?? summarizeWarehouseBalances(warehouses.data ?? [], inventory.data ?? []);
+    const summaries = warehouseBalanceSummary.data ?? summarizeWarehouseBalances(visibleWarehouses, visibleInventory);
     const itemCounts = new Map<number, number>();
     for (const item of inventory.data ?? []) {
       if (item.warehouseId != null) itemCounts.set(item.warehouseId, (itemCounts.get(item.warehouseId) ?? 0) + 1);
     }
     return summaries.map(warehouse => ({ ...warehouse, itemCount: itemCounts.get(warehouse.id) ?? 0 }));
-  }, [inventory.data, warehouseBalanceSummary.data, warehouses.data]);
+  }, [visibleInventory, warehouseBalanceSummary.data, visibleWarehouses]);
   const latestItemsByWarehouse = useMemo(() => {
     const latest = new Map<number, CurrentBalanceItem>();
-    for (const item of inventory.data ?? []) {
+    for (const item of visibleInventory) {
       if (item.warehouseId == null) continue;
       const current = latest.get(item.warehouseId);
       if (!current || isLaterItemCode(item, current)) latest.set(item.warehouseId, item);
@@ -311,7 +314,7 @@ export default function Home() {
     return warehouseBalances
       .map(warehouse => ({ warehouse, item: latest.get(warehouse.id) }))
       .filter((entry): entry is { warehouse: (typeof warehouseBalances)[number]; item: CurrentBalanceItem } => Boolean(entry.item));
-  }, [inventory.data, warehouseBalances]);
+  }, [visibleInventory, warehouseBalances]);
   const lowStockByWarehouse = useMemo(() => new Map((warehouseLowStock.data ?? []).map(entry => [entry.warehouseId, entry.lowItems])), [warehouseLowStock.data]);
   const cardDefinitions = useMemo(() => [
     { key: "items", label: "إجمالي الأصناف", value: formatNumber(summary.data?.stats.totalItems), detail: "صنف مسجل", icon: Boxes, tone: "teal" as const },

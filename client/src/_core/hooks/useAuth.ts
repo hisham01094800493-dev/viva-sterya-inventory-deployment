@@ -3,6 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { resolveOfflineUser } from "./offlineSession";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
@@ -30,9 +31,10 @@ function readCachedUser(): CachedUser | null {
   }
 }
 
-export function useAuth(options?: UseAuthOptions) {
-  const { redirectOnUnauthenticated = false, redirectPath } = options ?? {};
+export function useAuth(options: UseAuthOptions = {}) {
+  const { redirectOnUnauthenticated = true, redirectPath } = options;
   const utils = trpc.useUtils();
+  const queryClient = useQueryClient();
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [cachedUser, setCachedUser] = useState<CachedUser | null>(readCachedUser);
 
@@ -84,9 +86,13 @@ export function useAuth(options?: UseAuthOptions) {
       } catch {}
       setCachedUser(null);
       utils.auth.me.setData(undefined, null);
+      queryClient.removeQueries({ queryKey: ["warehouses"] });
+      queryClient.removeQueries({ queryKey: ["permissions"] });
+      queryClient.removeQueries({ queryKey: ["dashboard"] });
+      queryClient.removeQueries({ queryKey: ["items"] });
       await utils.auth.me.invalidate();
     }
-  }, [logoutMutation, utils]);
+  }, [logoutMutation, queryClient, utils]);
 
   const state = useMemo(() => {
     const user = resolveOfflineUser(meQuery.data, cachedUser, isOffline);
