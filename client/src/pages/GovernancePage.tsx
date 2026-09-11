@@ -74,24 +74,33 @@ function AbsenceManager({ userId, userName, onClose }: { userId: number; userNam
   const [days, setDays] = useState("1");
   const [editingId, setEditingId] = useState<number | null>(null);
   const rows = (listQuery.data ?? []).filter(row => row.userId === userId);
-  const endDate = startDate && Number(days) > 0 ? new Date(new Date(startDate + "T00:00:00").getTime() + (Number(days) - 1) * 86400000).toLocaleDateString("ar-EG") : "â";
   const reset = () => { setStartDate(""); setDays("1"); setEditingId(null); };
-  const save = async () => { try { if (editingId) await update.mutateAsync({ id: editingId, startDate, days: Number(days) }); else await create.mutateAsync({ userId, startDate, days: Number(days) }); toast.success(editingId ? "ØªÙ ØªØ¹Ø¯ÙÙ ÙØªØ±Ø© Ø§ÙØºÙØ§Ø¨" : "ØªÙØª Ø¥Ø¶Ø§ÙØ© ÙØªØ±Ø© Ø§ÙØºÙØ§Ø¨"); reset(); } catch (error: any) { toast.error(error?.message || "ØªØ¹Ø°Ø± Ø­ÙØ¸ ÙØªØ±Ø© Ø§ÙØºÙØ§Ø¨"); } };
-  return <div className="mt-4 rounded-2xl border border-[#b9d4d9] bg-[#f7fbfc] p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-black text-[#102a43]">Ø¥Ø¯Ø§Ø±Ø© ØºÙØ§Ø¨: {userName}</h3><p className="text-xs text-slate-500">ÙØªÙ Ø­Ø³Ø§Ø¨ ØªØ§Ø±ÙØ® Ø§ÙÙÙØ§ÙØ© ØªÙÙØ§Ø¦ÙØ§ÙØ ÙÙØ§ ÙØ³ÙØ­ Ø¨ØªØ¯Ø§Ø®Ù Ø§ÙÙØªØ±Ø§Øª.</p></div><Button type="button" variant="ghost" onClick={onClose}>Ø¥ØºÙØ§Ù</Button></div><div class="mt-4 grid gap-3 md:grid-cols-4"><label className="text-sm font-bold">Ø±ÙÙÙ Ø§ÙØ¨Ø¯Ø§ÙØ©<input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="mt-1 w-full rounded border p-2" /></label><label className="text-sm font-bold">Ø§ÙØ£ÙØ§Ù <input type="number" min="1" max="366" value={days} onChange={e => setDays(e.target.value)} className="mt-1 w-full rounded border p-2" /></label><div class="rounded-xl bg-white p-2 text-sm"><span class="font-bold"¶+v+v)öa6)ö)öb¶*OÜÜ[Ù[]_OÜÙ]]Û\ÜÏH^][\ËY[Ø\L]Û\OH]Û\ØXY^È\Ý\]H[X\^\ÊHHÜX]K\Ô[[È\]K\Ô[[ßHÛÛXÚÏ^Ê
-HOÚYØ]J
-_OÙY][ÒYÈ¶av)öa6*¶.v+öb¶a¶)v-¶)ö`v*H6)öa6.¶b¶)ö*OÐ]ÛÙY][ÒY	]Û\OH]Û\X[HÝ][HÛÛXÚÏ^Ü\Ù]O¶)va6.¶)ö(OÐ]ÛOÙ]Ù]]Û\ÜÏH]MÝ\ÝË^X]]ÈXHÛ\ÜÓ[YOHËY[^\YÚ^\ÛHXY¶)öa6a¶aö)öb¶*OÝ¶)öa6(öb¶)öaOÝ¶)öa6a¶aö)öb¶*OÝ¶)ö,vb¶+ÝÝÝXYÙOÜÝÜËX\
-ÝÈOÈÛÛÝ[H]È]J]È]JÝËÝ\]H
-ÈKÙ][YJ
+  const save = async () => {
+    try {
+      if (seditingId) await update.mutateAsync({ id: editingId, startDate, days: Number(days) });
+      else await create.mutateAsync({ userId, startDate, days: Number(days) });
+      toast.success(editingId ? "ØªÙ ØªØ¹Ø¯ÙÙ ÙØªØ±Ø© Ø§ÙØºÙØ§Ø¨" : "ØªÙØ¨ ØµØ¶Ø§ÙØ© ÙØªØ±Ø© Ø§ÙØºÙØ§Ø¨");
+      reset();
+    } catch (error: any) { toast.error(error?.message || "2+v,v`v.6`v*¶,v*H6)öa6.¶b¶)ö*NÈBNÂÛÛÝÜX][H
+]NÝ[ËÛÝ[[X\HO]È]J]È]J	Ù]_U
+KÙ][YJ
 H
 È
-ÝË^\ÈHJH
+ÛÝ[HJH
 
-
-KÓØØ[Q]TÝ[Ê\QQÈNÈ]\Ù^O^ÜÝËYOÜÝËÝ\]_OÝÜÝË^\ßOÝÙ[OÝ]Û\OH]Û\X[HÝ][HÛÛXÚÏ^Ê
+
+KÓØØ[Q]TÝ[Ê\QQÈNÂ]\]Û\ÜÓ[YOH]MÝ[YLÜ\Ü\VÈØY
+WHËVÈÙÙ×HM]Û\ÜÓ[YOH^^]Ü\][\ËXÙ[\\ÝYKX]ÙY[Ø\L]ÈÛ\ÜÓ[YOHÛXXÚÈ^VÈÌLM×H¶)v+ö)ö,v*H6.¶b¶)ö*Ý\Ù\[Y_OÚÏÛ\ÜÓ[YOH^^È^\Û]KML¶*¶)ö,vb¶+6*6+ö)ö)ö*6)öa6.¶b¶)ö*6#6.v+ö+È6)öa6(öb¶)öaKÜÙ]]Û\OH]Û\X[HÚÜÝÛÛXÚÏ^ÛÛÛÜÙ_O¶)v.¶a6)ö`Ð]ÛÙ]]Û\ÜÏH]MÜYØ\LÈYÜYXÛÛËMX[Û\ÜÏH^\ÛHÛXÛ¶*¶)ö,vb¶+6)öa6*6+ö)öb¶*OÛX[X[Û\ÜÏH^\ÛHÛXÛ¶.v+ö+È6)öa6(öb¶)öaOÛX[]Û\ÜÏHÝ[Y^Ë]Ú]HL^\ÛHÜ[Û\ÜÏHÛXÛ¶*¶)ö,vb¶+6a¶aö)öb¶*OÜÜ[Û\ÜÏH]L^VÈÌ
+ÌNHÜÝ\]H	[X\^\ÊHÈÜX][
+Ý\]K[X\^\ÊJH¸ %OÜÙ]]Û\ÜÏH^][\ËY[Ø\L]Û\OH]Û\ØXY^È\Ý\]H[X\^\ÊHHÜX]K\Ô[[È\]K\Ô[[ßHÛÛXÚÏ^Ê
+HOÚYØ]J
+_OÙ[][ÒYÈ¶+v`v.6)öa6*¶nv+öb¶a¶-v-¶)ö`v*H6a6.¶b¶)ö*OÐ]ÛÙ]Ù]XHÛ\ÜÓ[YOHËY[^\YÚ^\ÛHXY¶)öa6(öb¶)öaOÝ¶)öa6a¶aö)öb¶*OÝ¶)öa6(öb¶)öaOÝ¶)v+6,v)ö(v)ö*ÝÝÝXYÙOÜÝÜËX\
+
+ÝÊHOÙ^O^ÜÝËYOÜÝËÝ\]_OÝÜÝË^\ßOÝÙÜX][
+ÝËÝ\]KÝË^\Ê_OÝ]Û\OH]Û\X[HÝ][HÛÛXÚÏ^Ê
 HOÈÙ]Y][ÒY
 ÝËY
-NÈÙ]Ý\]JÝËÝ\]JNÈÙ]^\ÊÝ[ÊÝË^\ÊJNÈ_O¶*¶nv+ö)öb¶aÐ]Û]Û\OH]Û\X[H\ÝXÝ]HÛÛXÚÏ^Ê
-HOÚY[[ÝK]]]P\Þ[ÊÈYÝËYJ_O¶+v,6`OÐ]ÛÝÝÈJ_OÝÙOÝXOÜÝÜË[ÝÈ[¶a¶)öa6)È6*¶b6+6+È6`v*¶,v*H6.¶b¶)ö*ÜÙ]Ù]ÂBexport default function GovernancePage() {
+NÈÙ]Ý\]JÝËÝ\]JNÈÙ]^\ÊÝ[ÊÝË^\ÊJNÈ_O¶+6,v)ö(OÐ]ÛÝÝOÝÙOÝXOÜÝÜË[ÝÈ[¶)öa6)öa6*6+ö)öb¶*H6)öa6.¶b¶)ö*6av,ö+6a6*KÜOÙ]Ù]ÂBexport default function GovernancePage() {
   const [tab, setTab] = useState<"users" | "audit" | "shares" | "logins" | "backup" | "backups" | "backup-center" | "reset">(() => { const requested = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null; return requested === "reset" || requested === "backups" || requested === "backup-center" || requested === "logins" || requested === "shares" ? requested : "users"; });
   const fileRef = useRef<HTMLInputElement>(null);
   const usersQuery = trpc.governance.users.useQuery(undefined, { enabled: tab === "users" });
