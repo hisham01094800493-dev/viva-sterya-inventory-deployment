@@ -259,7 +259,7 @@ export default function Home() {
   useEffect(() => { const syncPreview = () => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); setPreviewReadOnly(raw ? Boolean(JSON.parse(raw)?.readOnly) : null); } catch { setPreviewReadOnly(null); } }; window.addEventListener("smart-inventory-preview", syncPreview); return () => window.removeEventListener("smart-inventory-preview", syncPreview); }, []);
   const isReadOnly = previewReadOnly ?? ["viewer", "reviewer", "reports"].includes(user?.role ?? "");
   const summary = trpc.dashboard.summary.useQuery(undefined, dashboardQueryOptions);
-  const absences = trpc.governance.absenceList.useQuery(undefined, { enabled: Boolean(user) });
+  const absences = trpc.governance.absenceList.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchOnWindowFocus: true });
   const [absenceDetailsOpen, setAbsenceDetailsOpen] = useState(false);
   const absenceDays = (absences.data ?? []).reduce((total, row) => total + Number(row.days ?? 0), 0);
   const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
