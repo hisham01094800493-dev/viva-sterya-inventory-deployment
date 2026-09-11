@@ -70,6 +70,7 @@ export async function getDb() {
         read_at timestamp NULL, created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id), KEY notifications_recipient_idx (recipient_user_id), KEY notifications_created_at_idx (created_at)
       )`));
+      await _db.execute(sql.raw(`ALTER TABLE user_permissions ADD COLUMN IF NOT EXISTS allowed_warehouses TEXT NOT NULL DEFAULT '[]'`));
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -288,6 +289,10 @@ export async function listWarehouses() {
   const rows = await db.select().from(warehouses).orderBy(warehouses.slot);
   return rows;
 }
+export async function listWarehousesForAccess(allowedWarehouseIds: number[] | null) {
+  const rows = await listWarehouses();
+  return allowedWarehouseIds?.length ? rows.filter(row => allowedWarehouseIds.includes(row.id)) : rows;
+}
 
 type WarehouseUsageCandidate = { id: number; slot: number; name: string };
 type WarehouseUsageRow = { warehouseId: number | null; usageCount: unknown };
@@ -313,6 +318,10 @@ export async function listWarehousesByUsage() {
     db.select({ warehouseId: transfers.toWarehouseId, usageCount: count() }).from(transfers).where(not(isNull(transfers.toWarehouseId))).groupBy(transfers.toWarehouseId),
   ]);
   return rankWarehousesByUsage(warehouseRows, [...additionsUsage, ...disbursementsUsage, ...transferSourcesUsage, ...transferDestinationsUsage]);
+}
+export async function listWarehousesByUsageForAccess(allowedWarehouseIds: number[] | null) {
+  const rows = await listWarehousesByUsage();
+  return allowedWarehouseIds?.length ? rows.filter(row => allowedWarehouseIds.includes(row.id)) : rows;
 }
 
 export async function listWarehouseBalanceSummaries() {
@@ -2301,23 +2310,26 @@ const READ_ONLY_DEFAULT_REPORTS = ["inventory-summary", "movement-reports", "ite
 function parsePermissionList(value: string | null | undefined, fallback: readonly string[]) {
   try { const parsed = JSON.parse(value || "[]"); return Array.isArray(parsed) ? parsed.filter(item => typeof item === "string") : [...fallback]; } catch { return [...fallback]; }
 }
+function parseWarehouseIds(value: string | null | undefined) {
+  try { const parsed = JSON.parse(value || "[]"); return Array.isArray(parsed) ? parsed.filter(item => Number.isInteger(item) && item > 0) as number[] : []; } catch { return []; }
+}
 
 export async function getUserPermissionSettings(userId: number, role: string) {
   const db = await requireDb();
   const rows = await db.select().from(userPermissions).where(eq(userPermissions.userId, userId)).limit(1);
-  if (rows[0]) return { userId, allowedScreens: parsePermissionList(rows[0].allowedScreens, READ_ONLY_DEFAULT_SCREENS), allowedReports: parsePermissionList(rows[0].allowedReports, READ_ONLY_DEFAULT_REPORTS), readOnly: rows[0].readOnly };
+  if (rows[0]) return { userId, allowedScreens: parsePermissionList(rows[0].allowedScreens, READ_ONLY_DEFAULT_SCREENS), allowedReports: parsePermissionList(rows[0].allowedReports, READ_ONLY_DEFAULT_REPORTS), allowedWarehouseIds: parseWarehouseIds(rows[0].allowedWarehouses), readOnly: rows[0].readOnly };
   const isReadOnly = ["viewer", "reviewer", "reports"].includes(role);
-  return { userId, allowedScreens: isReadOnly ? READ_ONLY_DEFAULT_SCREENS : [...PERMISSION_SCREENS], allowedReports: isReadOnly ? READ_ONLY_DEFAULT_REPORTS : role === "admin" ? [...PERMISSION_REPORTS] : [...OPERATIONAL_REPORTS], readOnly: isReadOnly };
+  return { userId, allowedScreens: isReadOnly ? READ_ONLY_DEFAULT_SCREENS : [...PERMISSION_SCREENS], allowedReports: isReadOnly ? READ_ONLY_DEFAULT_REPORTS : role === "admin" ? [...PERMISSION_REPORTS] : [...OPERATIONAL_REPORTS], allowedWarehouseIds: [], readOnly: isReadOnly };
 }
 
 export async function listManagedUserPermissions() {
   const db = await requireDb();
-  return db.select({ userId: userPermissions.userId, allowedScreens: userPermissions.allowedScreens, allowedReports: userPermissions.allowedReports, readOnly: userPermissions.readOnly }).from(userPermissions);
+  return db.select({ userId: userPermissions.userId, allowedScreens: userPermissions.allowedScreens, allowedReports: userPermissions.allowedReports, allowedWarehouseIds: userPermissions.allowedWarehouses, readOnly: userPermissions.readOnly }).from(userPermissions);
 }
 
-export async function upsertUserPermissionSettings(input: { userId: number; allowedScreens: string[]; allowedReports: string[]; readOnly: boolean }) {
+export async function upsertUserPermissionSettings(input: { userId: number; allowedScreens: string[]; allowedReports: string[]; allowedWarehouseIds: number[]; readOnly: boolean }) {
   const db = await requireDb();
-  await db.insert(userPermissions).values({ userId: input.userId, allowedScreens: JSON.stringify(input.allowedScreens), allowedReports: JSON.stringify(input.allowedReports), readOnly: input.readOnly }).onDuplicateKeyUpdate({ set: { allowedScreens: JSON.stringify(input.allowedScreens), allowedReports: JSON.stringify(input.allowedReports), readOnly: input.readOnly } });
+  await db.insert(userPermissions).values({ userId: input.userId, allowedScreens: JSON.stringify(input.allowedScreens), allowedReports: JSON.stringify(input.allowedReports), allowedWarehouses: JSON.stringify(input.allowedWarehouseIds), readOnly: input.readOnly }).onDuplicateKeyUpdate({ set: { allowedScreens: JSON.stringify(input.allowedScreens), allowedReports: JSON.stringify(input.allowedReports), allowedWarehouses: JSON.stringify(input.allowedWarehouseIds), readOnly: input.readOnly } });
   return getUserPermissionSettings(input.userId, input.readOnly ? "viewer" : "user");
 }
 
@@ -2469,18 +2481,16 @@ export async function getMovementAnalytics(
   inventoryRows: Array<{ currentStock: string | number | null; reorderLevel: string | number | null }>,
   thresholdPercentage: number,
   warehouseId: number | null = null,
+  allowedWarehouseIds: number[] = [],
 ) {
   const db = await requireDb();
+  const additionCondition = warehouseId === null && allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : warehouseId === null ? undefined : eq(additions.warehouseId, warehouseId);
+  const disbursementCondition = warehouseId === null && allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : warehouseId === null ? undefined : eq(disbursements.warehouseId, warehouseId);
+  const transferCondition = warehouseId === null && allowedWarehouseIds.length ? or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)) : warehouseId === null ? undefined : or(eq(transfers.fromWarehouseId, warehouseId), eq(transfers.toWarehouseId, warehouseId));
   const [additionRows, disbursementRows, transferRows] = await Promise.all([
-    warehouseId === null
-      ? db.select({ date: additions.date, quantity: additions.quantity }).from(additions)
-      : db.select({ date: additions.date, quantity: additions.quantity }).from(additions).where(eq(additions.warehouseId, warehouseId)),
-    warehouseId === null
-      ? db.select({ date: disbursements.date, quantity: disbursements.quantity }).from(disbursements)
-      : db.select({ date: disbursements.date, quantity: disbursements.quantity }).from(disbursements).where(eq(disbursements.warehouseId, warehouseId)),
-    warehouseId === null
-      ? db.select({ date: transfers.date, quantity: transfers.quantity }).from(transfers)
-      : db.select({ date: transfers.date, quantity: transfers.quantity }).from(transfers).where(or(eq(transfers.fromWarehouseId, warehouseId), eq(transfers.toWarehouseId, warehouseId))),
+    db.select({ date: additions.date, quantity: additions.quantity }).from(additions).where(additionCondition),
+    db.select({ date: disbursements.date, quantity: disbursements.quantity }).from(disbursements).where(disbursementCondition),
+    db.select({ date: transfers.date, quantity: transfers.quantity }).from(transfers).where(transferCondition),
   ]);
 
   return buildMovementAnalytics({ additions: additionRows, disbursements: disbursementRows, transfers: transferRows }, inventoryRows, thresholdPercentage);

@@ -397,6 +397,7 @@ export const userPermissions = mysqlTable("user_permissions", {
   userId: int("user_id").notNull().unique(),
   allowedScreens: text("allowed_screens").notNull(),
   allowedReports: text("allowed_reports").notNull(),
+  allowedWarehouses: text("allowed_warehouses").notNull().default("[]"),
   readOnly: boolean("read_only").default(true).notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

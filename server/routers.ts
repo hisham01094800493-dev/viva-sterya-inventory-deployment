@@ -46,7 +46,9 @@ import {
   listTransfers,
   listTransfersPaged,
   listWarehouses,
+  listWarehousesForAccess,
   listWarehousesByUsage,
+  listWarehousesByUsageForAccess,
   updateWarehouse,
   listSuppliers,
   createSupplier,
@@ -148,6 +150,9 @@ async function safe<T>(work: () => Promise<T>) {
     rethrowInventoryError(error);
   }
 }
+function canViewWarehouse(allowedWarehouseIds: number[], warehouseId: number | null | undefined) {
+  return !allowedWarehouseIds.length || (warehouseId != null && allowedWarehouseIds.includes(warehouseId));
+}
 
 const itemInput = z.object({
   code: z.string().trim().max(64).optional(),
@@ -244,8 +249,8 @@ export const appRouter = router({
   whatsapp: whatsappRouter,
 
   warehouses: router({
-    list: protectedProcedure.query(() => safe(() => listWarehouses())),
-    listByUsage: protectedProcedure.query(() => safe(() => listWarehousesByUsage())),
+    list: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); return safe(() => listWarehousesForAccess(permissions.allowedWarehouseIds)); }),
+    listByUsage: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); return safe(() => listWarehousesByUsageForAccess(permissions.allowedWarehouseIds)); }),
     update: adminProcedure.input(warehouseUpdateInput).mutation(({ input }) => safe(() => updateWarehouse(input))),
   }),
   suppliers: router({
@@ -270,39 +275,35 @@ export const appRouter = router({
   items: router({
     list: permissionProcedure("inventory")
       .input(z.object({ search: z.string().optional(), warehouseId: z.number().int().positive().optional() }).optional())
-      .query(({ input }) => safe(() => input?.warehouseId ? listItems(input.search, input.warehouseId) : listItems(input?.search))),
+      .query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); if (input?.warehouseId && !canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" }); const rows = await safe(() => input?.warehouseId ? listItems(input.search, input.warehouseId) : listItems(input?.search)); return permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows; }),
     warehouseStocks: permissionProcedure("inventory")
       .input(z.object({ warehouseId: z.number().int().positive() }))
       .query(async ({ ctx, input }) => {
         const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
+        if (!canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" });
         const rows = await safe(() => listWarehouseStockRows(input.warehouseId));
         const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
         return canViewFinancialDetails ? rows : rows.map(({ unitPrice: _unitPrice, ...row }) => row);
       }),
-    warehouseLowStock: permissionProcedure("inventory").query(() => safe(() => listWarehouseLowStockItems())),
-    warehouseBalanceSummaries: permissionProcedure("inventory").query(() => safe(() => listWarehouseBalanceSummaries())),
+    warehouseLowStock: permissionProcedure("inventory").query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const rows = await safe(() => listWarehouseLowStockItems()); return permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows; }),
+    warehouseBalanceSummaries: permissionProcedure("inventory").query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const rows = await safe(() => listWarehouseBalanceSummaries()); return permissions.allowedWarehouseIds.length ? rows.filter(row => permissions.allowedWarehouseIds.includes(row.id)) : rows; }),
     listPaged: permissionProcedure("inventory")
       .input(z.object({ search: z.string().optional(), warehouseId: z.number().int().positive().optional(), category: z.string().optional(), stockFilter: z.enum(["all", "low", "healthy"]).default("all"), sortBy: z.enum(["name", "code", "stock"]).default("name"), page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(24) }))
       .query(async ({ ctx, input }) => {
         const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
+        if (input.warehouseId && !canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" });
         const result = await safe(() => listItemsPaged(input));
         const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
         return canViewFinancialDetails ? result : { ...result, items: result.items.map(({ unitPrice: _unitPrice, ...item }) => item) };
       }),
     categories: permissionProcedure("inventory").query(() => safe(() => listItemCategories())),
-    getById: permissionProcedure("inventory").input(z.object({ id: z.number().int().positive() })).query(({ input }) =>
-      safe(() => getItemById(input.id)),
-    ),
-    getByCode: permissionProcedure("inventory").input(z.object({ code: z.string().trim().min(1) })).query(({ input }) =>
-      safe(() => getItemByCode(input.code)),
-    ),
-    card: reportPermissionProcedure("item-card").input(z.object({ id: z.number().int().positive() })).query(({ input }) =>
-      safe(() => getItemCard(input.id)),
-    ),
-    mainWarehouseCards: permissionProcedure("inventory").query(() => safe(() => getMainWarehouseItemCards())),
+    getById: permissionProcedure("inventory").input(z.object({ id: z.number().int().positive() })).query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const item = await safe(() => getItemById(input.id)); if (item && !canViewWarehouse(permissions.allowedWarehouseIds, item.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا الصنف" }); return item; }),
+    getByCode: permissionProcedure("inventory").input(z.object({ code: z.string().trim().min(1) })).query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const item = await safe(() => getItemByCode(input.code)); if (item && !canViewWarehouse(permissions.allowedWarehouseIds, item.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا الصنف" }); return item; }),
+    card: reportPermissionProcedure("item-card").input(z.object({ id: z.number().int().positive() })).query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const item = await safe(() => getItemById(input.id)); if (item && !canViewWarehouse(permissions.allowedWarehouseIds, item.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا الصنف" }); return safe(() => getItemCard(input.id)); }),
+    mainWarehouseCards: permissionProcedure("inventory").query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); if (permissions.allowedWarehouseIds.length && !permissions.allowedWarehouseIds.includes(1)) return []; return safe(() => getMainWarehouseItemCards()); }),
     warehouseCards: permissionProcedure("inventory")
       .input(z.object({ warehouseId: z.number().int().positive() }))
-      .query(({ input }) => safe(() => getWarehouseItemCards(input.warehouseId))),
+      .query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); if (!canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" }); return safe(() => getWarehouseItemCards(input.warehouseId)); }),
     nextCode: protectedProcedure.input(z.object({ warehouseId: z.number().int().positive().nullable().optional() }).optional()).query(({ input }) =>
       safe(() => suggestNextItemCode(input?.warehouseId)),
     ),
@@ -402,42 +403,52 @@ export const appRouter = router({
   dashboard: router({
     movementAnalytics: permissionProcedure("dashboard")
       .input(z.object({ warehouseId: z.number().int().positive().nullable().default(null) }))
-      .query(({ input }) =>
+      .query(({ ctx, input }) =>
         safe(async () => {
+          const permissions = await getUserPermissionSettings(ctx.user.id, ctx.user.role);
           const [rows, configuredThreshold] = await Promise.all([
             getInventoryRows(),
             getSettingValue("threshold_percentage", "20"),
           ]);
+          const visibleRows = permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows;
           const thresholdPercentage = Math.min(100, Math.max(0, Number(configuredThreshold) || 20));
-          return getMovementAnalytics(rows, thresholdPercentage, input.warehouseId);
+          if (input.warehouseId && !canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" });
+          return getMovementAnalytics(visibleRows, thresholdPercentage, input.warehouseId, permissions.allowedWarehouseIds);
         }),
       ),
-    summary: permissionProcedure("dashboard").query(async () =>
+    summary: permissionProcedure("dashboard").query(async ({ ctx }) =>
       safe(async () => {
+        const permissions = await getUserPermissionSettings(ctx.user.id, ctx.user.role);
         const [rows, movements, latestPermits, configuredThreshold] = await Promise.all([
           getInventoryRows(),
           getRecentMovements(8),
           getLatestPermitSummaries(),
           getSettingValue("threshold_percentage", "20"),
         ]);
+        const visibleRows = permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows;
+        const visibleMovements = permissions.allowedWarehouseIds.length ? {
+          additions: movements.additions.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)),
+          disbursements: movements.disbursements.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)),
+          transfers: movements.transfers.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.fromWarehouseId) || canViewWarehouse(permissions.allowedWarehouseIds, row.toWarehouseId)),
+        } : movements;
         const thresholdPercentage = Math.min(100, Math.max(0, Number(configuredThreshold) || 20));
-        const lowStock = rows.filter(item => {
+        const lowStock = visibleRows.filter(item => {
           const current = Number(item.currentStock ?? 0);
           const reorder = Number(item.reorderLevel ?? 0);
           if (reorder <= 0) return current <= 0;
           return current <= reorder * (thresholdPercentage / 100);
         });
         const total = (field: "currentStock" | "incomingStock" | "outgoingStock") =>
-          rows.reduce((sum, item) => sum + Number(item[field] ?? 0), 0);
-        const itemCountsByWarehouse = Array.from(rows.reduce((counts, item) => {
+          visibleRows.reduce((sum, item) => sum + Number(item[field] ?? 0), 0);
+        const itemCountsByWarehouse = Array.from(visibleRows.reduce((counts, item) => {
           const warehouseId = item.warehouseId ?? null;
           counts.set(warehouseId, (counts.get(warehouseId) ?? 0) + 1);
           return counts;
         }, new Map<number | null, number>()).entries()).map(([warehouseId, count]) => ({ warehouseId, count }));
-        const analytics = await getMovementAnalytics(rows, thresholdPercentage);
+        const analytics = await getMovementAnalytics(visibleRows, thresholdPercentage, null, permissions.allowedWarehouseIds);
         return {
           stats: {
-            totalItems: rows.length,
+            totalItems: visibleRows.length,
             lowStockCount: lowStock.length,
             totalCurrentStock: total("currentStock"),
             totalIncoming: total("incomingStock"),
@@ -446,7 +457,7 @@ export const appRouter = router({
           },
           thresholdPercentage,
           lowStock,
-          recentMovements: movements,
+          recentMovements: visibleMovements,
           latestPermits,
           analytics,
         };
@@ -548,7 +559,7 @@ export const appRouter = router({
   permissions: router({
     mine: protectedProcedure.query(({ ctx }) => safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role))),
     list: adminProcedure.query(() => safe(() => listManagedUserPermissions())),
-    update: adminProcedure.input(z.object({ userId: z.number().int().positive(), allowedScreens: z.array(z.enum(["dashboard", "inventory", "additions", "disbursements", "transfers", "suppliers", "customers", "reports", "alerts", "chat", "stock-adjustments", "settings"])).max(30), allowedReports: z.array(z.enum(["inventory-summary", "movement-reports", "item-card", "supplier-account", "customer-account", "adjustments", "warehouse-financial-details", "item-create", "item-create-disabled"])).max(30), readOnly: z.boolean() })).mutation(({ input }) => safe(() => upsertUserPermissionSettings(input))),
+    update: adminProcedure.input(z.object({ userId: z.number().int().positive(), allowedScreens: z.array(z.enum(["dashboard", "inventory", "additions", "disbursements", "transfers", "suppliers", "customers", "reports", "alerts", "chat", "stock-adjustments", "settings"])).max(30), allowedReports: z.array(z.enum(["inventory-summary", "movement-reports", "item-card", "supplier-account", "customer-account", "adjustments", "warehouse-financial-details", "item-create", "item-create-disabled"])).max(30), allowedWarehouseIds: z.array(z.number().int().positive()).max(100), readOnly: z.boolean() })).mutation(({ input }) => safe(() => upsertUserPermissionSettings(input))),
   }),
 
   preferences: router({
