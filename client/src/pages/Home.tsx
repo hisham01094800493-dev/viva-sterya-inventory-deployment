@@ -14,6 +14,7 @@ import {
   Boxes,
   Calculator,
   CalendarDays,
+  CalendarCheck,
   Clock3,
   Delete,
   ChevronLeft,
@@ -67,6 +68,17 @@ export function calculateQuickExpression(rawExpression: string): number | null {
   return Number.isFinite(result) ? Number(result.toFixed(8)) : null;
 }
 
+function formatAbsenceDate(value: string | null | undefined) {
+  const raw = value?.trim() ?? "";
+  const parsed = new Date(raw + "T00:00:00");
+  return raw && !Number.isNaN(parsed.getTime()) ? new Intl.DateTimeFormat("ar-EG", { day: "numeric", month: "long", year: "numeric" }).format(parsed) : raw;
+}
+function getAbsenceEndDate(startDate: string, days: number) {
+  const end = new Date(startDate + "T00:00:00");
+  if (Number.isNaN(end.getTime()) || !Number.isFinite(days) || days < 1) return "";
+  end.setDate(end.getDate() + days - 1);
+  return end.toISOString().slice(0, 10);
+}
 function HomeHeroDateTime() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -247,6 +259,9 @@ export default function Home() {
   useEffect(() => { const syncPreview = () => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); setPreviewReadOnly(raw ? Boolean(JSON.parse(raw)?.readOnly) : null); } catch { setPreviewReadOnly(null); } }; window.addEventListener("smart-inventory-preview", syncPreview); return () => window.removeEventListener("smart-inventory-preview", syncPreview); }, []);
   const isReadOnly = previewReadOnly ?? ["viewer", "reviewer", "reports"].includes(user?.role ?? "");
   const summary = trpc.dashboard.summary.useQuery(undefined, dashboardQueryOptions);
+  const absences = trpc.governance.absenceList.useQuery(undefined, { enabled: Boolean(user) });
+  const [absenceDetailsOpen, setAbsenceDetailsOpen] = useState(false);
+  const absenceDays = (absences.data ?? []).reduce((total, row) => total + Number(row.days ?? 0), 0);
   const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
   const inventory = trpc.items.list.useQuery(undefined, inventoryQueryOptions);
   const warehouseLowStock = trpc.items.warehouseLowStock.useQuery(undefined, inventoryQueryOptions);
@@ -273,7 +288,8 @@ export default function Home() {
     { key: "items", label: "إجمالي الأصناف", value: formatNumber(summary.data?.stats.totalItems), detail: "صنف مسجل", icon: Boxes, tone: "teal" as const },
     { key: "attention", label: "أصناف تحتاج متابعة", value: formatNumber(summary.data?.stats.lowStockCount), detail: `تحت ${summary.data?.thresholdPercentage ?? 20}%`, icon: AlertTriangle, tone: "rose" as const },
     { key: "health", label: "استقرار المخزون", value: `${healthPercent}%`, detail: lowStockCount ? "يتطلب متابعة" : "مستقر", icon: Warehouse, tone: "blue" as const },
-  ], [summary.data]);
+    { key: "absence", label: "أيام الغياب", value: absences.isLoading ? "—" : formatNumber(absenceDays), detail: absences.error ? "تعذر التحميل" : "إجمالي مسجل لك", icon: CalendarCheck, tone: "gold" as const },
+  ], [absenceDays, absences.error, absences.isLoading, summary.data]);
 
   return (
     <DashboardLayout>
@@ -289,6 +305,8 @@ export default function Home() {
               <p className="mt-2 max-w-xl text-sm leading-6 text-white/70">ملخص اليوم، حركة المخازن، والتنبيهات المهمة في مكان واحد.</p>
             </div>
             <div className="flex flex-col items-start gap-3 md:items-end">
+              <button type="button" onClick={() => setAbsenceDetailsOpen(true)} className="w-full max-w-sm rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-right shadow-inner backdrop-blur-sm transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#f5c27b]/70" dir="rtl" aria-label="فتح تفاصيل أيام الغياب"><div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#f5c27b]/20 text-[#f5c27b]"><CalendarCheck className="h-4 w-4" /></span><p className="text-xs font-black text-white">ملخص الغياب</p><span className="mr-auto rounded-full bg-[#f5c27b] px-3 py-1 text-sm font-black text-[#102a43]">{absenceDays} {absenceDays === 1 ? "يوم" : "أيام"}</span></div><p className="mt-2 text-[11px] text-white/60">اضغط لعرض تفاصيل التواريخ المسجلة</p></button>
+              <Dialog open={absenceDetailsOpen} onOpenChange={setAbsenceDetailsOpen}><DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto" dir="rtl"><DialogHeader><DialogTitle className="text-xl font-black text-[#102a43]">تفاصيل أيام الغياب</DialogTitle><DialogDescription>الفترات المسجلة لحسابك وإجماليها {absenceDays} يوم.</DialogDescription></DialogHeader><div className="space-y-3">{(absences.data ?? []).length ? [...(absences.data ?? [])].sort((a, b) => String(b.startDate).localeCompare(String(a.startDate))).map(row => <div key={row.id} className="rounded-2xl border border-[#dcebee] bg-[#f7fbfc] p-4"><div className="flex items-center justify-between gap-3"><span className="text-sm font-black text-[#102a43]">{formatAbsenceDate(row.startDate)}</span><span className="rounded-full bg-[#e8f7f6] px-3 py-1 text-xs font-black text-[#0d7180]">{row.days} {row.days === 1 ? "يوم" : "أيام"}</span></div><p className="mt-2 text-xs text-slate-500">حتى {formatAbsenceDate(getAbsenceEndDate(row.startDate, Number(row.days)))}</p></div>) : <div className="rounded-2xl bg-slate-50 p-6 text-center text-sm text-slate-500">لا توجد فترات غياب مسجلة حتى الآن.</div>}</div></DialogContent></Dialog>
               {!isReadOnly && <div className="flex flex-wrap gap-2">
                 <Button onClick={() => setLocation("/additions")} className="h-10 rounded-xl bg-white px-3.5 text-sm font-bold text-[#0d4f62] hover:bg-[#f5f7f8]"><Plus className="ml-1.5 h-4 w-4" />إضافة وارد</Button>
                 <Button onClick={() => setLocation("/disbursements")} variant="outline" className="h-10 rounded-xl border-white/25 bg-white/10 px-3.5 text-sm font-bold text-white hover:bg-white/15 hover:text-white"><ArrowUpFromLine className="ml-1.5 h-4 w-4" />إذن صرف</Button>
