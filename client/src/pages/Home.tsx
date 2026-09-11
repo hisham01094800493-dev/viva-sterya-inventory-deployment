@@ -291,7 +291,14 @@ export default function Home() {
     [analytics?.series, movementRange, timelineAnalytics.data?.series],
   );
   const movementTotals = useMemo(() => getMovementSeriesTotals(movementSeries), [movementSeries]);
-  const warehouseBalances = warehouseBalanceSummary.data ?? summarizeWarehouseBalances(warehouses.data ?? [], inventory.data ?? []);
+  const warehouseBalances = useMemo(() => {
+    const summaries = warehouseBalanceSummary.data ?? summarizeWarehouseBalances(warehouses.data ?? [], inventory.data ?? []);
+    const itemCounts = new Map<number, number>();
+    for (const item of inventory.data ?? []) {
+      if (item.warehouseId != null) itemCounts.set(item.warehouseId, (itemCounts.get(item.warehouseId) ?? 0) + 1);
+    }
+    return summaries.map(warehouse => ({ ...warehouse, itemCount: itemCounts.get(warehouse.id) ?? 0 }));
+  }, [inventory.data, warehouseBalanceSummary.data, warehouses.data]);
   const latestItemsByWarehouse = useMemo(() => {
     const latest = new Map<number, CurrentBalanceItem>();
     for (const item of inventory.data ?? []) {
