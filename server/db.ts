@@ -62,6 +62,14 @@ export async function getDb() {
         created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id), KEY user_absences_user_date_idx (user_id, start_date)
       )`));
+      await _db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS notifications (
+        id int AUTO_INCREMENT NOT NULL, recipient_user_id int NULL, created_by int NULL,
+        notification_type varchar(64) NOT NULL, title varchar(255) NOT NULL, message text NOT NULL,
+        priority enum('low','normal','high','critical') NOT NULL DEFAULT 'normal', link varchar(500) NULL,
+        help_status enum('new','in_progress','completed') NOT NULL DEFAULT 'new', is_read boolean NOT NULL DEFAULT false,
+        read_at timestamp NULL, created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id), KEY notifications_recipient_idx (recipient_user_id), KEY notifications_created_at_idx (created_at)
+      )`));
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
