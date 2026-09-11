@@ -139,7 +139,7 @@ const movementChartConfig = {
 
 type WarehouseSummaryInput = { id: number; slot: number; name: string };
 type InventoryBalanceInput = { warehouseId?: number | null; currentStock?: unknown; reorderLevel?: unknown };
-type CurrentBalanceItem = { id?: number; code?: string | null; name?: string | null; unit?: string | null; currentStock?: unknown };
+type CurrentBalanceItem = { id?: number; warehouseId?: number | null; code?: string | null; name?: string | null; unit?: string | null; currentStock?: unknown };
 type CurrentBalanceCardItem = { id?: number; code: string; name: string };
 type WarehouseItemCountInput = { warehouseId?: number | null; count?: number | string | null };
 type WarehouseItemCountDetail = { id?: number; name: string; count: number };
@@ -283,6 +283,16 @@ export default function Home() {
   );
   const movementTotals = useMemo(() => getMovementSeriesTotals(movementSeries), [movementSeries]);
   const warehouseBalances = warehouseBalanceSummary.data ?? summarizeWarehouseBalances(warehouses.data ?? [], inventory.data ?? []);
+  const latestItemsByWarehouse = useMemo(() => {
+    const latest = new Map<number, CurrentBalanceItem>();
+    for (const item of inventory.data ?? []) {
+      if (item.warehouseId == null || latest.has(item.warehouseId)) continue;
+      latest.set(item.warehouseId, item);
+    }
+    return warehouseBalances
+      .map(warehouse => ({ warehouse, item: latest.get(warehouse.id) }))
+      .filter((entry): entry is { warehouse: (typeof warehouseBalances)[number]; item: CurrentBalanceItem } => Boolean(entry.item));
+  }, [inventory.data, warehouseBalances]);
   const lowStockByWarehouse = useMemo(() => new Map((warehouseLowStock.data ?? []).map(entry => [entry.warehouseId, entry.lowItems])), [warehouseLowStock.data]);
   const cardDefinitions = useMemo(() => [
     { key: "items", label: "إجمالي الأصناف", value: formatNumber(summary.data?.stats.totalItems), detail: "صنف مسجل", icon: Boxes, tone: "teal" as const },
@@ -316,6 +326,20 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="home-latest-ticker home-surface overflow-hidden rounded-2xl border border-[#dce7ee] bg-white shadow-[0_8px_22px_rgba(18,44,84,0.045)]" dir="rtl" aria-label="آخر صنف في كل مخزن">
+          <div className="flex items-center gap-3 border-b border-[#edf2f5] px-4 py-3 sm:px-5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#e7f3f1] text-[#0d7180]"><Clock3 className="h-4 w-4" /></span>
+            <div className="min-w-0"><h3 className="text-sm font-black text-[#102a43]">آخر صنف في كل مخزن</h3><p className="mt-0.5 text-[11px] text-slate-400">يتحدث تلقائياً مع إضافة أو تعديل الأصناف</p></div>
+          </div>
+          {latestItemsByWarehouse.length ? <div className="home-latest-ticker__viewport"><div className="home-latest-ticker__track">
+            {[...latestItemsByWarehouse, ...latestItemsByWarehouse].map(({ warehouse, item }, index) => <button key={`${warehouse.id}-${item.id ?? index}-${index}`} type="button" onClick={() => setLocation(`/warehouses/${warehouse.slot}`)} className="home-latest-ticker__item text-right" aria-label={`فتح ${warehouse.name}، آخر صنف ${item.name ?? "بدون اسم"}`}>
+              <span className="home-latest-ticker__warehouse"><Warehouse className="h-3.5 w-3.5" />{warehouse.name}</span>
+              <span className="home-latest-ticker__code">{item.code ?? "—"}</span>
+              <span className="home-latest-ticker__name">{item.name ?? "صنف بدون اسم"}</span>
+              <span className="home-latest-ticker__stock">الرصيد {formatNumber(item.currentStock)}</span>
+            </button>)}
+          </div></div> : <div className="px-5 py-5 text-center text-sm text-slate-400">لا توجد أصناف مرتبطة بالمخازن حتى الآن.</div>}
+        </section>
         {summary.isLoading && !summary.data ? (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="home-skeleton-card h-28 rounded-2xl bg-white" />)}</div>
         ) : summary.error && !summary.data ? (
