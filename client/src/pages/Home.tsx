@@ -288,7 +288,8 @@ export default function Home() {
     { key: "items", label: "إجمالي الأصناف", value: formatNumber(summary.data?.stats.totalItems), detail: "صنف مسجل", icon: Boxes, tone: "teal" as const },
     { key: "attention", label: "أصناف تحتاج متابعة", value: formatNumber(summary.data?.stats.lowStockCount), detail: `تحت ${summary.data?.thresholdPercentage ?? 20}%`, icon: AlertTriangle, tone: "rose" as const },
     { key: "health", label: "استقرار المخزون", value: `${healthPercent}%`, detail: lowStockCount ? "يتطلب متابعة" : "مستقر", icon: Warehouse, tone: "blue" as const },
-  ], [summary.data]);
+    { key: "absence", label: "أيام الغياب", value: absences.isLoading ? "—" : formatNumber(absenceDays), detail: absences.error ? "تعذر التحميل" : "إجمالي مسجل لك", icon: CalendarCheck, tone: "gold" as const },
+  ], [absenceDays, absences.error, absences.isLoading, summary.data]);
 
   return (
     <DashboardLayout>
