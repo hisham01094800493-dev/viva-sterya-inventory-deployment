@@ -70,7 +70,14 @@ export async function getDb() {
         read_at timestamp NULL, created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id), KEY notifications_recipient_idx (recipient_user_id), KEY notifications_created_at_idx (created_at)
       )`));
-      await _db.execute(sql.raw(`ALTER TABLE user_permissions ADD COLUMN IF NOT EXISTS allowed_warehouses TEXT NOT NULL DEFAULT '[]'`));
+      try {
+        await _db.execute(sql.raw(`ALTER TABLE user_permissions ADD COLUMN allowed_warehouses TEXT NOT NULL DEFAULT '[]'`));
+      } catch (migrationError: any) {
+        // A duplicate-column error is expected after the first successful boot.
+        // Do not make authentication unavailable if an older MySQL variant rejects
+        // the additive migration syntax; the application can still serve sessions.
+        if (migrationError?.code !== "ER_DUP_FIELDNAME") console.warn("[Database] Warehouse permission migration deferred:", migrationError?.message ?? migrationError);
+      }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
