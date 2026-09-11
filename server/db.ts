@@ -32,6 +32,7 @@ import {
   backupVerificationConfigs,
   backupVerificationRuns,
   User,
+  userAbsences,
   users,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -2635,3 +2636,33 @@ export async function listChatUsers(currentUserId: number) {
   const db = await requireDb();
   return db.select({ id: users.id, name: users.name, email: users.email, role: users.role }).from(users).where(not(eq(users.id, currentUserId))).orderBy(asc(users.name));
 }
+
+
+export async function listUserAbsences(userId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return userId ? db.select().from(userAbsences).where(eq(userAbsences.userId, userId)).orderBy(asc(userAbsences.startDate)) : db.select().from(userAbsences).orderBy(asc(userAbsences.startDate));
+}
+
+export async function createUserAbsence(input: { userId: number; startDate: string; days: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("ÙØ§Ø¹Ø¯Ø© Ø§ÙØ¨ÙØ§ÙØ§Øª ØºÙØ± ÙØªØ§Ø­Ø©");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate) || Number.isNaN(new Date(input.startDate + "T00:00:00Z").getTime())) throw new Error("ØªØ§Ø±ÙØ® Ø¨Ø¯Ø§ÙØ© Ø§ÙØºÙØ§Ø¨ ØºÙØ± ØµØ§ÙØ­");
+  if (!Number.isInteger(input.days) || input.days < 1 || input.days > 366) throw new Error("Ø¹Ø¯Ø¯ Ø£ÙØ§Ù Ø§ÙØºÙØ§Ø¨ ÙØ¬Ø¨ Ø£Ù ÙÙÙÙ Ø¨ÙÙ 1 Ù366");
+  const existing = await listUserAbsences(input.userId);
+  const start = new Date(input.startDate + "T00:00:00Z").getTime(); const end = start + (input.days - 1) * 86400000;
+  if (existing.some(row => { const otherStart = new Date(row.startDate + "T00:00:00Z").getTime(); const otherEnd = otherStart + (row.days - 1) * 86400000; return start <= otherEnd && end >= otherStart; })) throw new Error("ÙØªØ±Ø© Ø§ÙØºÙØ§Ø¨ ØªØªØ¯Ø§Ø®Ù ÙØ¹ ÙØªØ±Ø© ÙØ³Ø¬ÙØ© ÙØ³Ø¨ÙØ§Ù");
+  const result = await db.insert(userAbsences).values({ userId: input.userId, startDate: input.startDate, days: input.days });
+  return { id: Number((result as any).insertId), userId: input.userId, startDate: input.startDate, days: input.days };
+}
+
+export async function updateUserAbsence(input: { id: number; startDate: string; days: number }) {
+  const db = await getDb(); if (!db) throw new Error("ÙØ§Ø¹Ø¯Ø© Ø§ÙØ¨ÙØ§ÙØ§Øª ØºÙØ± ÙØªØ§Ø­Ø©");
+  const current = (await db.select().from(userAbsences).where(eq(userAbsences.id, input.id)))[0]; if (!current) throw new Error("ÙØªØ±Ø© Ø§ÙØºÙØ§Ø¨ ØºÙØ± ÙÙØ¬ÙØ¯Ø©");
+  await db.delete(userAbsences).where(eq(userAbsences.id, input.id));
+  try { const updated = await createUserAbsence({ userId: current.userId, startDate: input.startDate, days: input.days }); return { ...updated, id: input.id }; } catch (error) { await db.insert(userAbsences).values({ userId: current.userId, startDate: current.startDate, days: current.days }); throw error; }
+}
+
+export async function deleteUserAbsence(id: number) { const db = await getDb(); if (!db) throw new Error("ÙØ§Ø¹Ø¯Ø© Ø§ÙØ¨ÙØ§ÙØ§Øª ØºÙØ± ÙØªØ§Ø­Ø©"); await db.delete(userAbsences).where(eq(userAbsences.id, id)); return { id }; }
+
+export async function getUserAbsenceTotals(userId?: number) { const rows = await listUserAbsences(userId); return rows.reduce((total, row) => { total[row.userId] = (total[row.userId] || 0) + row.days; return total; }, {} as Record<number, number>); }
