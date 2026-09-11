@@ -15,7 +15,6 @@ import {
   Calculator,
   CalendarDays,
   CalendarCheck,
-  CalendarCheck,
   Clock3,
   Delete,
   ChevronLeft,
