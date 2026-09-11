@@ -356,7 +356,7 @@ export default function Home() {
               <span className="home-latest-ticker__warehouse"><Warehouse className="h-3.5 w-3.5" />{warehouse.name}</span>
               <span className="home-latest-ticker__code">{item.code ?? "—"}</span>
               <span className="home-latest-ticker__name">{item.name ?? "صنف بدون اسم"}</span>
-              <span className="home-latest-ticker__stock">الرصيد {formatNumber(item.currentStock)}</span>
+              <span className="home-latest-ticker__stock">الرصيد {formatNumber(Number(item.currentStock ?? 0))}</span>
             </button>)}
           </div></div> : <div className="px-5 py-5 text-center text-sm text-slate-400">لا توجد أصناف مرتبطة بالمخازن حتى الآن.</div>}
         </section>
