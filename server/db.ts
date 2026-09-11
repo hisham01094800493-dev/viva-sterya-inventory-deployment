@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, gte, inArray, isNull, like, lt, lte, not, or, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, inArray, isNull, like, lt, lte, not, or, sql, sum } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
@@ -56,6 +56,12 @@ export async function getDb() {
   if (!_db && ENV.databaseUrl) {
     try {
       _db = drizzle(mysql.createPool({ uri: ENV.databaseUrl, ssl: ENV.databaseSsl, connectionLimit: 5, enableKeepAlive: true }) as any);
+      // Ensure this feature works even when the host skips Drizzle migrations.
+      await _db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS user_absences (
+        id int AUTO_INCREMENT NOT NULL, user_id int NOT NULL, start_date varchar(10) NOT NULL, days int NOT NULL,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id), KEY user_absences_user_date_idx (user_id, start_date)
+      )`));
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
