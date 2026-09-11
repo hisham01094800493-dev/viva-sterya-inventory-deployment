@@ -14,6 +14,8 @@ import {
   Boxes,
   Calculator,
   CalendarDays,
+  CalendarCheck,
+  CalendarCheck,
   Clock3,
   Delete,
   ChevronLeft,
@@ -247,6 +249,8 @@ export default function Home() {
   useEffect(() => { const syncPreview = () => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); setPreviewReadOnly(raw ? Boolean(JSON.parse(raw)?.readOnly) : null); } catch { setPreviewReadOnly(null); } }; window.addEventListener("smart-inventory-preview", syncPreview); return () => window.removeEventListener("smart-inventory-preview", syncPreview); }, []);
   const isReadOnly = previewReadOnly ?? ["viewer", "reviewer", "reports"].includes(user?.role ?? "");
   const summary = trpc.dashboard.summary.useQuery(undefined, dashboardQueryOptions);
+  const absences = trpc.governance.absenceList.useQuery(undefined, { enabled: Boolean(user) });
+  const absenceDays = (absences.data ?? []).reduce((total, row) => total + Number(row.days ?? 0), 0);
   const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
   const inventory = trpc.items.list.useQuery(undefined, inventoryQueryOptions);
   const warehouseLowStock = trpc.items.warehouseLowStock.useQuery(undefined, inventoryQueryOptions);
@@ -290,6 +294,7 @@ export default function Home() {
             </div>
             <div className="flex flex-col items-start gap-3 md:items-end">
               <HomeHeroDateTime />
+              <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-right shadow-inner backdrop-blur-sm" dir="rtl" aria-label="ملخص أيام الغياب"><div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#f5c27b]/20 text-[#f5c27b]"><CalendarCheck className="h-4 w-4" /></span><p className="text-xs font-black text-white">ملخص الغياب</p><span className="mr-auto rounded-full bg-[#f5c27b] px-3 py-1 text-sm font-black text-[#102a43]">{absenceDays} {absenceDays === 1 ? "يوم" : "أيام"}</span></div><p className="mt-2 text-[11px] text-white/60">إجمالي الأيام المسجلة لك</p></div>
               {!isReadOnly && <div className="flex flex-wrap gap-2">
                 <Button onClick={() => setLocation("/additions")} className="h-10 rounded-xl bg-white px-3.5 text-sm font-bold text-[#0d4f62] hover:bg-[#f5f7f8]"><Plus className="ml-1.5 h-4 w-4" />إضافة وارد</Button>
                 <Button onClick={() => setLocation("/disbursements")} variant="outline" className="h-10 rounded-xl border-white/25 bg-white/10 px-3.5 text-sm font-bold text-white hover:bg-white/15 hover:text-white"><ArrowUpFromLine className="ml-1.5 h-4 w-4" />إذن صرف</Button>
