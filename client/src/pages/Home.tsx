@@ -275,9 +275,10 @@ export default function Home() {
   const absenceDays = (absences.data ?? []).reduce((total, row) => total + Number(row.days ?? 0), 0);
   const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
   const permissions = trpc.permissions.mine.useQuery(undefined, { ...inventoryQueryOptions, refetchOnMount: "always" });
-  const visibleWarehouses = permissions.data ? (permissions.data.allowedWarehouseIds.length ? (warehouses.data ?? []).filter(item => permissions.data.allowedWarehouseIds.includes(item.id)) : warehouses.data ?? []) : [];
+  const allowedWarehouseIds = permissions.data?.allowedWarehouseIds ?? [];
+  const visibleWarehouses = permissions.data ? (allowedWarehouseIds.length ? (warehouses.data ?? []).filter(item => allowedWarehouseIds.includes(item.id)) : warehouses.data ?? []) : [];
   const inventory = trpc.items.list.useQuery(undefined, inventoryQueryOptions);
-  const visibleInventory = permissions.data?.allowedWarehouseIds.length ? (inventory.data ?? []).filter(item => item.warehouseId == null || permissions.data!.allowedWarehouseIds.includes(item.warehouseId)) : inventory.data ?? [];
+  const visibleInventory = allowedWarehouseIds.length ? (inventory.data ?? []).filter(item => item.warehouseId == null || allowedWarehouseIds.includes(item.warehouseId)) : inventory.data ?? [];
   const warehouseLowStock = trpc.items.warehouseLowStock.useQuery(undefined, inventoryQueryOptions);
   const warehouseBalanceSummary = trpc.items.warehouseBalanceSummaries.useQuery(undefined, inventoryQueryOptions);
   const totalItems = Number(summary.data?.stats.totalItems ?? 0);
