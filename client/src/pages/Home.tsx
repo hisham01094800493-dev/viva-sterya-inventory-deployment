@@ -161,6 +161,15 @@ export function summarizeWarehouseBalances(warehouses: WarehouseSummaryInput[], 
   return warehouses.map(warehouse => { const rows = inventory.filter(item => item.warehouseId === warehouse.id); return { ...warehouse, itemCount: rows.length, balance: rows.reduce((total, item) => total + Number(item.currentStock ?? 0), 0), lowCount: rows.filter(item => Number(item.currentStock ?? 0) <= Number(item.reorderLevel ?? 0)).length }; });
 }
 
+function isLaterItemCode(candidate: CurrentBalanceItem, current: CurrentBalanceItem) {
+  const candidateCode = candidate.code?.trim() ?? "";
+  const currentCode = current.code?.trim() ?? "";
+  const candidateNumber = Number(candidateCode.replace(/\D/g, ""));
+  const currentNumber = Number(currentCode.replace(/\D/g, ""));
+  if (Number.isFinite(candidateNumber) && Number.isFinite(currentNumber) && candidateNumber !== currentNumber) return candidateNumber > currentNumber;
+  return candidateCode.localeCompare(currentCode, "en", { numeric: true }) > 0;
+}
+
 export function getWarehouseItemCountDetails(warehouses: WarehouseSummaryInput[], counts: WarehouseItemCountInput[]) {
   const countByWarehouseId = new Map<number, number>();
   let unassignedCount = 0;
@@ -286,8 +295,9 @@ export default function Home() {
   const latestItemsByWarehouse = useMemo(() => {
     const latest = new Map<number, CurrentBalanceItem>();
     for (const item of inventory.data ?? []) {
-      if (item.warehouseId == null || latest.has(item.warehouseId)) continue;
-      latest.set(item.warehouseId, item);
+      if (item.warehouseId == null) continue;
+      const current = latest.get(item.warehouseId);
+      if (!current || isLaterItemCode(item, current)) latest.set(item.warehouseId, item);
     }
     return warehouseBalances
       .map(warehouse => ({ warehouse, item: latest.get(warehouse.id) }))
@@ -309,6 +319,7 @@ export default function Home() {
           <div className="absolute -bottom-28 right-24 h-72 w-72 rounded-full border-[36px] border-[#d08a3b]/10" />
           <div className="relative z-10 flex flex-col justify-between gap-5 md:flex-row md:items-end">
             <div>
+              <HomeHeroDateTime />
               <p className="text-xs font-black uppercase tracking-[0.28em] text-[#f5c27b]">SMART INVENTORY</p>
               <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">لوحة تشغيل المخزون</h2>
               <p className="mt-2 max-w-xl text-sm leading-6 text-white/70">ملخص اليوم، حركة المخازن، والتنبيهات المهمة في مكان واحد.</p>
