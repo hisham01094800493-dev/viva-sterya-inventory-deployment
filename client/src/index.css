@@ -2580,3 +2580,46 @@ body {
 }
 @keyframes homeLatestTicker { from { transform: translateX(0); } to { transform: translateX(50%); } }
 @media (prefers-reduced-motion: reduce) { .home-latest-ticker__track { animation: none; overflow-x: auto; } }
+@layer components {
+  .home-calculator-dialog {
+    overflow: hidden;
+    background: #0b0f17 !important;
+    color: #eef6dc;
+    box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55), inset 0 1px rgba(255, 255, 255, 0.05);
+  }
+  .home-calculator-handle { width: 5.5rem; height: 0.3rem; margin: 0 auto 0.7rem; border-radius: 999px; background: #1697f4; }
+  .home-calculator-display {
+    overflow: auto;
+    background: #172b3d !important;
+    color: #efffcd !important;
+    text-shadow: 0 0 18px rgba(206, 255, 147, 0.18);
+  }
+  .home-calculator-functions { color: #efffcd; }
+  .home-calculator-function { min-height: 2.2rem; color: #efffcd; font-size: 1.35rem; font-weight: 500; }
+  .home-calculator-function:hover { color: #ffffff; }
+  .home-calculator-key {
+    min-height: 4.25rem;
+    border: 0 !important;
+    border-radius: 999px;
+    background: #101a27 !important;
+    color: #eaffc8 !important;
+    font-size: 1.65rem;
+    font-weight: 500;
+    box-shadow: inset 0 1px rgba(255,255,255,0.025), 0 5px 10px rgba(0,0,0,0.12);
+    transition: transform 120ms ease, filter 120ms ease, background-color 120ms ease;
+  }
+  .home-calculator-key:hover { background: #17283a !important; color: #ffffff !important; filter: brightness(1.15); }
+  .home-calculator-key:active { transform: scale(0.94); }
+  .home-calculator-key--operator { background: #4a5265 !important; color: #f5f7ff !important; }
+  .home-calculator-key--operator:hover { background: #5a647a !important; }
+  .home-calculator-key--equal { background: #315eae !important; color: #ffd77b !important; }
+  .home-calculator-key--equal:hover { background: #3b70ce !important; }
+  .home-calculator-key--clear { background: #6f456d !important; color: #f6d8f4 !important; }
+  .home-calculator-key--clear:hover { background: #85537f !important; }
+  .home-calculator-dialog .text-slate-400 { color: #9aa8b9 !important; }
+  @media (max-width: 480px) {
+    .home-calculator-dialog { padding: 0.8rem !important; }
+    .home-calculator-key { min-height: 3.7rem; font-size: 1.4rem; }
+    .home-calculator-display { min-height: 8rem; font-size: 2rem; }
+  }
+}

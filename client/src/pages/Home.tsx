@@ -112,21 +112,23 @@ function QuickCalculator() {
   const clear = () => setExpression("0");
   const erase = () => setExpression(current => current === "خطأ" || current.length <= 1 ? "0" : current.slice(0, -1));
   const display = expression.replaceAll("*", "×").replaceAll("/", "÷");
-  const keys = ["7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "-", ".", "0", "=", "+"];
+  const press = (key: string) => key === "=" ? calculate() : isOperator(key) ? appendOperator(key) : appendNumber(key);
 
   return <Dialog open={open} onOpenChange={setOpen}>
     <Button type="button" variant="outline" size="icon" onClick={() => setOpen(true)} className="home-calculator-trigger h-10 w-10 rounded-xl border-white/35 bg-white/10 text-white hover:bg-white/18 hover:text-white" aria-label="فتح الآلة الحاسبة" title="آلة حاسبة"><Calculator className="h-4.5 w-4.5" /></Button>
-    <DialogContent className="home-calculator-dialog w-[calc(100vw-2rem)] max-w-sm rounded-2xl border-[#b9d4d9] bg-white p-5 shadow-2xl" dir="rtl">
-      <DialogHeader><DialogTitle className="flex items-center gap-2 text-lg font-black text-[#102a43]"><Calculator className="h-5 w-5 text-[#0d806c]" />آلة حاسبة سريعة</DialogTitle><DialogDescription>للحسابات السريعة أثناء تسجيل الحركات.</DialogDescription></DialogHeader>
-      <output aria-live="polite" className="home-calculator-display mt-4 block min-h-16 break-all rounded-xl border border-[#dce7ee] bg-[#f6fafb] px-4 py-4 text-left font-mono text-2xl font-black tracking-wide text-[#102a43]" dir="ltr">{display}</output>
-      <div className="mt-3 grid grid-cols-4 gap-2">
-        <button type="button" onClick={clear} className="home-calculator-key home-calculator-key--clear" aria-label="مسح العملية">C</button>
-        <button type="button" onClick={erase} className="home-calculator-key" aria-label="حذف الرقم الأخير"><Delete className="h-4 w-4" /></button>
-        <button type="button" onClick={() => appendOperator("÷")} className="home-calculator-key home-calculator-key--operator" aria-label="قسمة">÷</button>
-        <button type="button" onClick={() => appendOperator("×")} className="home-calculator-key home-calculator-key--operator" aria-label="ضرب">×</button>
-        {keys.filter(key => !["÷", "×"].includes(key)).map(key => <button key={key} type="button" onClick={() => key === "=" ? calculate() : isOperator(key) ? appendOperator(key) : appendNumber(key)} className={`home-calculator-key ${isOperator(key) ? "home-calculator-key--operator" : ""} ${key === "=" ? "home-calculator-key--equal" : ""}`}>{key}</button>)}
+    <DialogContent className="home-calculator-dialog w-[calc(100vw-2rem)] max-w-[31rem] rounded-[2rem] border-0 p-4 shadow-2xl sm:p-5" dir="rtl">
+      <div className="home-calculator-handle" aria-hidden="true" />
+      <DialogHeader className="sr-only"><DialogTitle>آلة حاسبة سريعة</DialogTitle><DialogDescription>للحسابات السريعة أثناء تسجيل الحركات.</DialogDescription></DialogHeader>
+      <output aria-live="polite" className="home-calculator-display block min-h-36 break-all rounded-[1.5rem] px-5 py-6 text-left font-mono text-4xl font-black tracking-wide" dir="ltr">{display}</output>
+      <div className="home-calculator-functions mt-3 grid grid-cols-5 gap-2 px-2" dir="ltr">{[")", "!", "^", "π", "√"].map(symbol => <button key={symbol} type="button" className="home-calculator-function" aria-label={`رمز ${symbol}`}>{symbol}</button>)}</div>
+      <div className="mt-2 grid grid-cols-4 gap-2 sm:gap-2.5">
+        <button type="button" onClick={clear} className="home-calculator-key home-calculator-key--clear">AC</button><button type="button" className="home-calculator-key">( )</button><button type="button" className="home-calculator-key">%</button><button type="button" onClick={() => appendOperator("÷")} className="home-calculator-key home-calculator-key--operator">÷</button>
+        {["7", "8", "9"].map(key => <button key={key} type="button" onClick={() => press(key)} className="home-calculator-key">{key}</button>)}<button type="button" onClick={() => appendOperator("×")} className="home-calculator-key home-calculator-key--operator">×</button>
+        {["4", "5", "6"].map(key => <button key={key} type="button" onClick={() => press(key)} className="home-calculator-key">{key}</button>)}<button type="button" onClick={() => appendOperator("-")} className="home-calculator-key home-calculator-key--operator">−</button>
+        {["1", "2", "3"].map(key => <button key={key} type="button" onClick={() => press(key)} className="home-calculator-key">{key}</button>)}<button type="button" onClick={() => appendOperator("+")} className="home-calculator-key home-calculator-key--operator">+</button>
+        <button type="button" onClick={() => press("0")} className="home-calculator-key">0</button><button type="button" onClick={() => press(".")} className="home-calculator-key">.</button><button type="button" onClick={erase} className="home-calculator-key" aria-label="حذف الرقم الأخير"><Delete className="h-5 w-5" /></button><button type="button" onClick={calculate} className="home-calculator-key home-calculator-key--equal">=</button>
       </div>
-      <Button type="button" variant="ghost" onClick={() => { clear(); setOpen(false); }} className="mt-3 w-full rounded-xl text-xs font-bold text-slate-500 hover:bg-[#eef7f7] hover:text-[#0d4f62]"><RotateCcw className="ml-1.5 h-3.5 w-3.5" />مسح وإغلاق</Button>
+      <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="mt-2 w-full rounded-xl text-xs font-bold text-slate-400 hover:bg-white/10 hover:text-white"><RotateCcw className="ml-1.5 h-3.5 w-3.5" />إغلاق</Button>
     </DialogContent>
   </Dialog>;
 }
