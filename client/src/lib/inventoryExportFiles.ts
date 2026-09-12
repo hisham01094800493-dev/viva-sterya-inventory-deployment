@@ -25,12 +25,13 @@ export async function blobToDataUrl(blob: Blob) { return await new Promise<strin
 export async function convertWebpToPng(blob: Blob) { const bitmap = await createImageBitmap(blob); const canvas = document.createElement("canvas"); canvas.width = bitmap.width; canvas.height = bitmap.height; canvas.getContext("2d")?.drawImage(bitmap, 0, 0); bitmap.close(); return await new Promise<Blob>((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error("تعذر تحويل الصورة")), "image/png")); }
 export async function fetchImageAsset(url?: string | null) { if (!url) return null; try { const response = await fetch(url); if (!response.ok) return null; const source = await response.blob(); const isWebp = source.type === "image/webp" || url.toLowerCase().includes(".webp"); const blob = isWebp ? await convertWebpToPng(source) : source; const extension = isWebp ? "png" as const : getExportImageExtension(source.type, url) === "png" ? "png" as const : "jpeg" as const; return { buffer: await blob.arrayBuffer(), dataUrl: await blobToDataUrl(blob), extension }; } catch { return null; } }
 
-// Bundle the Arabic font with the app so PDF generation does not depend on a
-// CDN response or a browser-specific fallback font.
-export const ARABIC_PDF_FONT_URL = "/fonts/NotoNaskhArabic-Regular.ttf";
+// Bundle the font with the app so PDF generation does not depend on a CDN
+// response or a browser-specific fallback font. DejaVu also contains common
+// measurement symbols such as ×, *, +, °, and ±.
+export const ARABIC_PDF_FONT_URL = "/fonts/DejaVuSans.ttf";
 let arabicFontDataPromise: Promise<string | null> | null = null;
 const arabicPdfDocs = new WeakSet<object>();
-const PDF_FONT_NAME = "NotoNaskhArabic";
+const PDF_FONT_NAME = "DejaVuSans";
 
 async function fetchArabicFontData() {
   if (!arabicFontDataPromise) arabicFontDataPromise = fetch(ARABIC_PDF_FONT_URL).then(async response => { if (!response.ok) return null; const contentType = response.headers.get("content-type")?.toLowerCase() ?? ""; if (contentType.includes("image/") || contentType.includes("text/html")) return null; return response.arrayBuffer(); }).then(buffer => buffer ? Array.from(new Uint8Array(buffer), byte => String.fromCharCode(byte)).join("") : null).then(binary => binary ? btoa(binary) : null).catch(() => null);
@@ -46,9 +47,9 @@ export async function configureArabicPdf(doc: jsPDF) {
   const fontData = await fetchArabicFontData();
   if (fontData) {
     try {
-      doc.addFileToVFS("NotoNaskhArabic-Regular.ttf", fontData);
-      doc.addFont("NotoNaskhArabic-Regular.ttf", PDF_FONT_NAME, "normal");
-      doc.addFont("NotoNaskhArabic-Regular.ttf", PDF_FONT_NAME, "bold");
+      doc.addFileToVFS("DejaVuSans.ttf", fontData);
+      doc.addFont("DejaVuSans.ttf", PDF_FONT_NAME, "normal");
+      doc.addFont("DejaVuSans.ttf", PDF_FONT_NAME, "bold");
       doc.setFont(PDF_FONT_NAME, "normal");
       arabicPdfDocs.add(doc);
     } catch {
