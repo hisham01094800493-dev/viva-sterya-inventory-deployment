@@ -6,35 +6,46 @@ export function getCompressionDimensions(width: number, height: number, maxDimen
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
-function blobToDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("تعذر قراءة الصورة المضغوطة"));
-    reader.readAsDataURL(blob);
-  });
+/**
+ * FileReader is unreliable for some large camera blobs on mobile browsers and
+ * may emit a misleading "read failed" error after canvas compression. Reading
+ * the bytes directly avoids that intermittent failure and works on desktop and
+ * mobile browsers alike.
+ */
+async function blobToDataUrl(blob: Blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...Array.from(bytes.subarray(offset, Math.min(offset + chunkSize, bytes.length))));
+  }
+  return `data:${blob.type || "application/octet-stream"};base64,${btoa(binary)}`;
 }
 
 export function resolveImageContentType(file: Pick<File, "type" | "name">): ImageContentType | null {
-  if (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp") return file.type;
+  if (file.type === "image/jpeg" || file.type === "image/jpg") return "image/jpeg";
+  if (file.type === "image/png") return "image/png";
+  if (file.type === "image/webp") return "image/webp";
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
   if (extension === "png") return "image/png";
   if (extension === "webp") return "image/webp";
+  if (file.type.startsWith("image/")) return "image/jpeg";
   return null;
 }
 
 async function decodeImage(file: File): Promise<{ source: CanvasImageSource; width: number; height: number; close?: () => void }> {
   try {
     const bitmap = await createImageBitmap(file);
+    if (!bitmap.width || !bitmap.height) throw new Error("empty image");
     return { source: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close() };
   } catch {
     const url = URL.createObjectURL(file);
     try {
       const image = await new Promise<HTMLImageElement>((resolve, reject) => {
         const element = new Image();
-        element.onload = () => resolve(element);
-        element.onerror = () => reject(new Error("تعذر فك ترميز الصورة. استخدم JPG أو PNG أو WEBP."));
+        element.onload = () => element.naturalWidth && element.naturalHeight ? resolve(element) : reject(new Error("empty image"));
+        element.onerror = () => reject(new Error("decode failed"));
         element.src = url;
       });
       return { source: image, width: image.naturalWidth, height: image.naturalHeight, close: () => URL.revokeObjectURL(url) };
@@ -52,8 +63,10 @@ export async function compressImageFile(file: File, options: { maxDimension?: nu
   try {
     decoded = await decodeImage(file);
   } catch (decodeError) {
-    if (file.size > 5 * 1024 * 1024) throw decodeError;
-    return { dataBase64: await blobToDataUrl(file), contentType: originalContentType, fileName: file.name || "permit-image", originalSize: file.size, compressedSize: file.size };
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    const browserSafeOriginal = ["jpg", "jpeg", "png", "webp"].includes(extension ?? "") || ["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(file.type);
+    if (!browserSafeOriginal || file.size > 5 * 1024 * 1024) throw decodeError;
+    return { dataBase64: await blobToDataUrl(file), contentType: originalContentType, fileName: file.name || "image", originalSize: file.size, compressedSize: file.size };
   }
   try {
     const dimensions = getCompressionDimensions(decoded.width, decoded.height, options.maxDimension ?? 1600);
