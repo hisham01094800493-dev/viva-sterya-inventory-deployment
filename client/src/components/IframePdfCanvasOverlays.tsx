@@ -19,15 +19,6 @@ export default function IframePdfCanvasOverlays() {
   useEffect(() => {
     const mounted = new Map<HTMLIFrameElement, MountedOverlay>();
     const scan = () => {
-      // Desktop Chromium's native PDF renderer handles embedded Arabic fonts
-      // correctly. The PDF.js canvas overlay can substitute a fallback font
-      // on desktop and turn Arabic text into unreadable Latin glyphs, while
-      // the mobile layout benefits from the custom paging/zoom controls.
-      if (!window.matchMedia("(max-width: 767px)").matches) {
-        Array.from(mounted.values()).forEach(overlay => { overlay.root.unmount(); overlay.host.remove(); overlay.parent.classList.remove("relative"); });
-        mounted.clear();
-        return;
-      }
       const frames = Array.from(document.querySelectorAll<HTMLIFrameElement>('iframe[title*="PDF"]')).filter(frame => frame.title !== "معاينة نتائج البحث PDF" && Boolean(frame.src));
       for (const frame of frames) {
         if (mounted.has(frame) || !frame.parentElement) continue;
@@ -51,9 +42,7 @@ export default function IframePdfCanvasOverlays() {
     const observer = new MutationObserver(scan);
     observer.observe(document.body, { childList: true, subtree: true });
     scan();
-    const media = window.matchMedia("(max-width: 767px)");
-    media.addEventListener("change", scan);
-    return () => { observer.disconnect(); media.removeEventListener("change", scan); Array.from(mounted.values()).forEach(overlay => { overlay.root.unmount(); overlay.host.remove(); overlay.parent.classList.remove("relative"); }); };
+    return () => { observer.disconnect(); Array.from(mounted.values()).forEach(overlay => { overlay.root.unmount(); overlay.host.remove(); overlay.parent.classList.remove("relative"); }); };
   }, []);
   return null;
 }
