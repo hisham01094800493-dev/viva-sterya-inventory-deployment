@@ -64,7 +64,7 @@ function GoogleSearchButton() {
     window.localStorage.setItem("smart-inventory-google-search-query", value);
     const url = new URL("https://www.google.com/search");
     url.searchParams.set("q", value);
-    window.location.assign(url.toString());
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
   };
   useEffect(() => {
     if (!open) return;
