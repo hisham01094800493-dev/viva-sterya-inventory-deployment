@@ -202,10 +202,10 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
               <h1 className="text-lg font-black text-[#102a43]">{activeMenuItem.label}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-1.5 rounded-2xl border border-[#dce7ee] bg-white/75 p-1 shadow-sm" aria-label="أدوات البحث"><VoiceSearchButton /><GoogleSearchButton /></div>
-            <div className="rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500">نظام متصل • البيانات محفوظة</div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0d4f62] text-xs font-black text-white">{user.name?.charAt(0) ?? "م"}</div>
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
+            <div className="flex shrink-0 items-center gap-0.5 rounded-xl border border-[#dce7ee] bg-white/75 p-0.5 shadow-sm sm:gap-1.5 sm:rounded-2xl sm:p-1" aria-label="أدوات البحث"><div className="[&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg sm:[&_button]:h-9 sm:[&_button]:w-9"><VoiceSearchButton /></div><div className="[&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg sm:[&_button]:h-9 sm:[&_button]:w-9"><GoogleSearchButton /></div></div>
+            <div className="hidden rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500 sm:block">نظام متصل • البيانات محفوظة</div>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0d4f62] text-xs font-black text-white sm:h-9 sm:w-9">{user.name?.charAt(0) ?? "م"}</div>
           </div>
         </header>
         <main className="min-h-[calc(100vh-4rem)] w-full min-w-0 overflow-x-hidden px-4 py-6 md:px-8 md:py-8">{children}</main>

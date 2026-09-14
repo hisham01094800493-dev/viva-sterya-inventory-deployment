@@ -486,8 +486,8 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
               <h1 className="text-lg font-black text-[#102a43]" style={{color: '#036fd3'}}>{activeMenuItem.label}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 rounded-2xl border border-[#dce7ee] bg-white/75 p-1 shadow-sm" aria-label="أدوات البحث"><div className="rounded-xl bg-red-50 [&_button]:border-red-200 [&_button]:bg-red-50 [&_button]:text-red-600 [&_button]:hover:bg-red-100"><GlobalVoiceSearch /></div><GoogleSearchButton /></div>
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
+            <div className="flex shrink-0 items-center gap-0.5 rounded-xl border border-[#dce7ee] bg-white/75 p-0.5 shadow-sm sm:gap-1.5 sm:rounded-2xl sm:p-1" aria-label="أدوات البحث"><div className="rounded-lg bg-red-50 [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg [&_button]:border-red-200 [&_button]:bg-red-50 [&_button]:text-red-600 [&_button]:hover:bg-red-100 sm:rounded-xl sm:[&_button]:h-9 sm:[&_button]:w-9"><GlobalVoiceSearch /></div><div className="[&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg sm:[&_button]:h-9 sm:[&_button]:w-9"><GoogleSearchButton /></div></div>
             <NotificationBell chatEnabled={chatEnabled} />
             {isMovementPage && canViewMovementFinancialDetails ? <Button type="button" variant="outline" size="sm" onClick={() => void toggleMovementFinancialDetails()} disabled={updatePreferences.isPending || onboardingPreferences.isLoading} aria-pressed={showMovementFinancialDetails} className="movement-financial-toggle inline-flex rounded-xl px-2 text-[10px] font-black sm:px-3 sm:text-xs">{showMovementFinancialDetails ? "إخفاء التفاصيل المالية" : "إظهار التفاصيل المالية"}</Button> : null}
             <div className="hidden rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500 sm:block" style={{color: '#05524d'}}>نظام Smart Inventory • البيانات محفوظة</div>
