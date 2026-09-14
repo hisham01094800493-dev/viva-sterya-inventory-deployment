@@ -58,6 +58,7 @@ import { inventoryQueryOptions } from "@/lib/queryOptions";
 import { findNewUnreadNotification, formatIncomingNotification, getNotificationTone, getSeenNotificationIds, rememberUnreadNotificationIds } from "@/lib/notificationCenter";
 import { enableNotificationAudioPreference, playNotificationTone, unlockNotificationAudio } from "@/lib/notificationAudio";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
+import { GlobalVoiceSearch } from "./GlobalVoiceSearch";
 import PwaVersionCard from "./PwaVersionCard";
 import ChatFloatingBubble from "./ChatFloatingBubble";
 import { OnboardingTour } from "./OnboardingTour";
@@ -486,6 +487,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 rounded-2xl border border-[#dce7ee] bg-white/75 p-1 shadow-sm" aria-label="أدوات البحث"><div className="rounded-xl bg-red-50 [&_button]:border-red-200 [&_button]:bg-red-50 [&_button]:text-red-600 [&_button]:hover:bg-red-100"><GlobalVoiceSearch /></div><GoogleSearchButton /></div>
             <NotificationBell chatEnabled={chatEnabled} />
             {isMovementPage && canViewMovementFinancialDetails ? <Button type="button" variant="outline" size="sm" onClick={() => void toggleMovementFinancialDetails()} disabled={updatePreferences.isPending || onboardingPreferences.isLoading} aria-pressed={showMovementFinancialDetails} className="movement-financial-toggle inline-flex rounded-xl px-2 text-[10px] font-black sm:px-3 sm:text-xs">{showMovementFinancialDetails ? "إخفاء التفاصيل المالية" : "إظهار التفاصيل المالية"}</Button> : null}
             <div className="hidden rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500 sm:block" style={{color: '#05524d'}}>نظام Smart Inventory • البيانات محفوظة</div>

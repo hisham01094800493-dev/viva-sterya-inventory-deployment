@@ -1,5 +1,4 @@
-import DashboardLayout, { GoogleSearchButton } from "@/components/DashboardLayout";
-import { GlobalVoiceSearch } from "@/components/GlobalVoiceSearch";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -337,13 +336,6 @@ export default function Home() {
               <p className="text-xs font-black uppercase tracking-[0.28em] text-[#f5c27b]">SMART INVENTORY</p>
               <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">لوحة تشغيل المخزون</h2>
               <p className="mt-2 max-w-xl text-sm leading-6 text-white/70">ملخص اليوم، حركة المخازن، والتنبيهات المهمة في مكان واحد.</p>
-              <div className="mt-4 flex flex-wrap items-center gap-2" aria-label="أدوات البحث السريع">
-                <span className="text-xs font-bold text-white/65">بحث سريع</span>
-                <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 p-1.5 shadow-inner backdrop-blur-sm">
-                  <GlobalVoiceSearch />
-                  <GoogleSearchButton />
-                </div>
-              </div>
             </div>
             <div className="flex flex-col items-start gap-3 md:items-end">
               <button type="button" onClick={() => setAbsenceDetailsOpen(true)} className="w-full max-w-sm rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-right shadow-inner backdrop-blur-sm transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#f5c27b]/70" dir="rtl" aria-label="فتح تفاصيل أيام الغياب"><div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#f5c27b]/20 text-[#f5c27b]"><CalendarCheck className="h-4 w-4" /></span><p className="text-xs font-black text-white">ملخص الغياب</p><span className="mr-auto rounded-full bg-[#f5c27b] px-3 py-1 text-sm font-black text-[#102a43]">{absenceDays} {absenceDays === 1 ? "يوم" : "أيام"}</span></div><p className="mt-2 text-[11px] text-white/60">اضغط لعرض تفاصيل التواريخ المسجلة</p></button>

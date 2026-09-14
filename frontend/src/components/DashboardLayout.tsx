@@ -8,6 +8,7 @@ import {
   FileBarChart,
   LayoutDashboard,
   LogOut,
+  Mic,
   PanelRight,
   Package,
   Search,
@@ -76,6 +77,21 @@ function GoogleSearchButton() {
     <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} className="inline-flex gap-1.5 rounded-xl border-[#b8dce2] bg-white/80 px-2 text-[10px] font-black text-[#075b68] sm:px-3 sm:text-xs" title="البحث في Google"><Search className="h-4 w-4" /><span className="hidden sm:inline">بحث Google</span></Button>
     <Dialog open={open} onOpenChange={setOpen}><DialogContent dir="rtl" className="flex min-h-[100dvh] w-screen max-w-none flex-col items-center justify-center rounded-none border-0 bg-white p-5 sm:min-h-0 sm:h-[560px] sm:w-[min(92vw,920px)] sm:rounded-[2rem] sm:border sm:border-[#e2e8f0] sm:p-12"><div className="absolute right-4 top-4 flex items-center gap-2 sm:right-6 sm:top-6"><Button type="button" variant="outline" size="icon" onClick={close} className="h-9 w-9 rounded-xl border-[#efb8b8] text-red-700" aria-label="إغلاق البحث"><X className="h-4 w-4" /></Button></div><div className="w-full max-w-3xl text-center"><div className="mb-8 select-none text-5xl font-medium tracking-[-0.08em] text-[#4285f4] sm:text-7xl"><span>G</span><span className="text-[#ea4335]">o</span><span className="text-[#fbbc05]">o</span><span className="text-[#4285f4]">g</span><span className="text-[#34a853]">l</span><span className="text-[#ea4335]">e</span></div><div className="flex h-14 items-center gap-3 rounded-full border border-[#dfe1e5] bg-white px-5 shadow-[0_1px_6px_rgba(32,33,36,.18)] transition focus-within:shadow-[0_1px_10px_rgba(32,33,36,.28)]"><Search className="h-5 w-5 shrink-0 text-slate-400" /><input autoFocus value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") submit(); }} placeholder="ابحث في Google" className="min-w-0 flex-1 bg-transparent text-base text-slate-700 outline-none placeholder:text-slate-400" aria-label="البحث في Google" /></div><div className="mt-7 flex flex-wrap justify-center gap-3"><Button type="button" onClick={submit} className="h-11 rounded-lg bg-[#f8f9fa] px-6 text-sm font-medium text-[#202124] shadow-sm hover:border-[#dadce0] hover:bg-[#f8f9fa]">بحث Google</Button><Button type="button" onClick={() => { setQuery(""); window.localStorage.removeItem("smart-inventory-google-search-query"); }} className="h-11 rounded-lg bg-[#f8f9fa] px-6 text-sm font-medium text-[#202124] shadow-sm hover:border-[#dadce0] hover:bg-[#f8f9fa]">مسح</Button></div><p className="mt-8 text-xs text-slate-400">اضغط Enter أو زر بحث Google لفتح صفحة Google الطبيعية.</p></div></DialogContent></Dialog>
   </>;
+}
+
+function VoiceSearchButton() {
+  const [listening, setListening] = useState(false);
+  const startVoiceSearch = () => {
+    const SpeechRecognition = (window as unknown as { SpeechRecognition?: new () => { lang: string; start: () => void; onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null; onend: (() => void) | null } }).SpeechRecognition;
+    if (!SpeechRecognition) { window.alert("البحث الصوتي غير مدعوم في هذا المتصفح"); return; }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "ar-EG";
+    recognition.onresult = event => { const value = event.results[0]?.[0]?.transcript?.trim(); if (value) { const url = new URL("https://www.google.com/search"); url.searchParams.set("q", value); window.open(url.toString(), "_blank", "noopener,noreferrer"); } };
+    recognition.onend = () => setListening(false);
+    setListening(true);
+    recognition.start();
+  };
+  return <Button type="button" variant="outline" size="icon" onClick={startVoiceSearch} className={`h-9 w-9 rounded-xl border-red-200 bg-red-50 text-red-600 hover:bg-red-100 ${listening ? "animate-pulse" : ""}`} aria-label="البحث الصوتي" title="البحث الصوتي"><Mic className="h-4 w-4" /></Button>;
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -187,7 +203,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <GoogleSearchButton />
+            <div className="flex items-center gap-1.5 rounded-2xl border border-[#dce7ee] bg-white/75 p-1 shadow-sm" aria-label="أدوات البحث"><VoiceSearchButton /><GoogleSearchButton /></div>
             <div className="rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500">نظام متصل • البيانات محفوظة</div>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0d4f62] text-xs font-black text-white">{user.name?.charAt(0) ?? "م"}</div>
           </div>
