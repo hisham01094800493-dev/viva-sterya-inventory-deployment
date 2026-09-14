@@ -83,76 +83,25 @@ export function snapQuickActionsToNearestEdge(position: { x: number; y: number }
 
 function GoogleSearchButton() {
   const [open, setOpen] = useState(false);
-  const [widgetReady, setWidgetReady] = useState(false);
-  const [queryText, setQueryText] = useState("");
-  const [filter, setFilter] = useState("all");
-  const searchRootRef = useRef<HTMLDivElement>(null);
-  const searchConfig = trpc.webSearch.config.useQuery(undefined, { enabled: open });
-  const closeSearch = () => setOpen(false);
-  const focusSearch = () => { window.setTimeout(() => searchRootRef.current?.querySelector<HTMLInputElement>("input.gsc-input")?.focus(), 0); };
-  const runSearch = () => {
-    const input = searchRootRef.current?.querySelector<HTMLInputElement>("input.gsc-input");
-    if (!input || input.value.trim().length < 2) { toast.error("اكتب عبارة بحث من كلمتين على الأقل"); focusSearch(); return; }
-    const query = input.value.trim().replace(/\s+(أخبار|صور|فيديوهات|مواقع عربية)$/i, "");
-    const filterLabel = filter === "news" ? "أخبار" : filter === "images" ? "صور" : filter === "videos" ? "فيديوهات" : filter === "arabic" ? "مواقع عربية" : "";
-    setQueryText(query);
-    window.localStorage.setItem("smart-inventory-google-search-query", query);
-    const googleUrl = new URL("https://www.google.com/search");
-    googleUrl.searchParams.set("q", filterLabel ? `${query} ${filterLabel}` : query);
-    window.location.assign(googleUrl.toString());
+  const [query, setQuery] = useState(() => window.localStorage.getItem("smart-inventory-google-search-query") ?? "");
+  const close = () => setOpen(false);
+  const submit = () => {
+    const value = query.trim();
+    if (value.length < 2) return;
+    window.localStorage.setItem("smart-inventory-google-search-query", value);
+    const url = new URL("https://www.google.com/search");
+    url.searchParams.set("q", value);
+    window.location.assign(url.toString());
   };
-  const clearSearch = () => { const input = searchRootRef.current?.querySelector<HTMLInputElement>("input.gsc-input"); if (input) { input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); } setQueryText(""); window.localStorage.removeItem("smart-inventory-google-search-query"); focusSearch(); };
   useEffect(() => {
     if (!open) return;
-    const onEscape = (event: KeyboardEvent) => { if (event.key === "Escape") closeSearch(); };
-    window.addEventListener("keydown", onEscape);
-    return () => window.removeEventListener("keydown", onEscape);
-  }, [open]);
-  useEffect(() => {
-    if (!open || !searchConfig.data?.searchEngineId || document.querySelector("script[data-smart-inventory-google-cse]") || document.querySelector("script[src^=\"https://cse.google.com/cse.js\"]")) return;
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = `https://cse.google.com/cse.js?cx=${encodeURIComponent(searchConfig.data.searchEngineId)}`;
-    script.dataset.smartInventoryGoogleCse = "true";
-    document.head.appendChild(script);
-  }, [open, searchConfig.data?.searchEngineId]);
-  useEffect(() => {
-    if (!open || !searchConfig.data?.searchEngineId || !searchRootRef.current) return;
-    const root = searchRootRef.current;
-    const restoreQuery = () => {
-      const input = root.querySelector<HTMLInputElement>("input.gsc-input");
-      if (!input) return;
-      setWidgetReady(true);
-      const savedQuery = window.localStorage.getItem("smart-inventory-google-search-query");
-      if (savedQuery && !input.value) {
-        input.value = savedQuery;
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-    };
-    const observer = new MutationObserver(restoreQuery);
-    observer.observe(root, { childList: true, subtree: true });
-    restoreQuery();
-    return () => observer.disconnect();
-  }, [open, searchConfig.data?.searchEngineId]);
-  useEffect(() => {
-    if (!open || !searchRootRef.current) return;
-    const root = searchRootRef.current;
-    const rememberQueryAndOpenSafely = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      const input = target.closest(".gsc-search-box")?.querySelector<HTMLInputElement>("input.gsc-input");
-      if (input?.value.trim()) window.localStorage.setItem("smart-inventory-google-search-query", input.value.trim());
-      const link = target.closest<HTMLAnchorElement>(".gsc-result a.gs-title, .gsc-result a.gs-visibleUrl");
-      if (!link?.href) return;
-      event.preventDefault();
-      event.stopPropagation();
-      window.open(link.href, "_blank", "noopener,noreferrer");
-    };
-    root.addEventListener("click", rememberQueryAndOpenSafely, true);
-    return () => root.removeEventListener("click", rememberQueryAndOpenSafely, true);
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [open]);
   return <>
     <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} className="inline-flex gap-1.5 rounded-xl border-[#b8dce2] bg-white/80 px-2 text-[10px] font-black text-[#075b68] sm:px-3 sm:text-xs" title="البحث في Google"><Search className="h-4 w-4" /><span className="hidden sm:inline">بحث Google</span></Button>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent dir="rtl" className="flex h-[100dvh] w-screen max-w-none flex-col rounded-none border-0 bg-[#fbffff] p-0 sm:h-[94vh] sm:w-[96vw] sm:max-w-[1180px] sm:rounded-[2rem] sm:border sm:border-[#cfe7ea]"><DialogHeader className="sticky top-0 z-10 flex-row items-center justify-between border-b border-[#dcecef] bg-[#fbffff]/95 px-4 py-3 backdrop-blur sm:px-7 sm:py-4"><DialogTitle className="flex items-center gap-2 text-base text-[#075b68] sm:text-xl"><Search className="h-5 w-5" /> البحث في Google داخل التطبيق</DialogTitle><div className="flex items-center gap-1.5 sm:gap-2"><Button type="button" variant="outline" size="sm" onClick={focusSearch} className="h-9 rounded-xl border-[#b8dce2] px-2.5 text-xs font-black text-[#075b68] sm:h-10 sm:px-4"><Search className="ml-1 h-4 w-4" /> بحث</Button><Button type="button" variant="outline" size="sm" onClick={closeSearch} className="h-9 rounded-xl border-[#b8dce2] px-2.5 text-xs font-black text-[#075b68] sm:h-10 sm:px-4"><ArrowLeft className="ml-1 h-4 w-4" /> رجوع</Button><Button type="button" variant="outline" size="sm" onClick={closeSearch} className="h-9 rounded-xl border-[#efb8b8] px-2.5 text-xs font-black text-red-700 sm:h-10 sm:px-3" aria-label="إغلاق البحث" title="إغلاق"><X className="h-4 w-4 sm:ml-1" /><span className="hidden sm:inline">إغلاق</span></Button></div></DialogHeader><div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-7 sm:py-6">{searchConfig.isLoading ? <div className="mx-auto max-w-5xl space-y-4 rounded-2xl border border-[#dcecef] bg-white p-5 shadow-sm"><div className="h-12 animate-pulse rounded-xl bg-[#e7f2f3]" /><div className="h-24 animate-pulse rounded-xl bg-[#f0f6f7]" /><div className="h-24 animate-pulse rounded-xl bg-[#f0f6f7]" /><p className="text-center text-sm text-slate-500">جارٍ تجهيز البحث...</p></div> : searchConfig.data?.searchEngineId ? <div ref={searchRootRef} className="mx-auto min-h-[70vh] w-full max-w-5xl rounded-2xl border border-[#dcecef] bg-white p-3 shadow-sm sm:p-6"><div className="mb-3 flex items-center justify-between rounded-xl bg-[#eff8f8] px-3 py-2 text-xs font-bold text-[#075b68]"><span>{widgetReady ? "اكتب عبارة البحث ثم اضغط بحث" : "جارٍ تحميل محرك البحث..."}</span><span className="text-slate-400">اضغط Esc للإغلاق</span></div><div className="gcse-search" /><div className="mt-4 rounded-2xl border border-[#dcecef] bg-[#f8fcfc] p-3"><div className="flex flex-wrap items-center gap-2"><select value={filter} onChange={event => setFilter(event.target.value)} className="h-10 rounded-xl border border-[#b8dce2] bg-white px-3 text-xs font-bold text-[#075b68] outline-none"><option value="all">كل النتائج</option><option value="arabic">مواقع عربية</option><option value="news">أخبار</option><option value="images">صور</option><option value="videos">فيديوهات</option></select><Button type="button" onClick={runSearch} className="h-10 flex-1 rounded-xl bg-[#0d7180] text-xs font-black text-white sm:flex-none sm:px-8"><Search className="ml-1 h-4 w-4" /> بحث داخل التطبيق</Button><Button type="button" variant="outline" onClick={clearSearch} className="h-10 rounded-xl border-[#b8dce2] px-4 text-xs font-bold text-[#075b68]">مسح</Button></div><a href={queryText ? `https://www.google.com/search?q=${encodeURIComponent(queryText)}` : "https://www.google.com/"} target="_blank" rel="noreferrer" className="mt-3 flex items-center justify-center rounded-xl border border-[#b8dce2] bg-white px-3 py-2 text-xs font-bold text-[#075b68] transition hover:bg-[#eff8f8]">{queryText ? `البحث عن «${queryText}» على Google` : "فتح Google للبحث الكامل"}</a><p className="mt-2 text-[11px] text-slate-500">اختر نوع النتائج ثم اضغط زر البحث أسفل مربع البحث.</p></div><p className="mt-4 text-center text-xs text-slate-400">اضغط على أي نتيجة لفتحها في تبويب جديد.</p></div> : <div className="rounded-xl bg-red-50 p-4 text-center text-sm font-bold text-red-700">لم يتم إعداد معرّف محرك البحث في إعدادات التطبيق.</div>}</div></DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent dir="rtl" className="flex min-h-[100dvh] w-screen max-w-none flex-col items-center justify-center rounded-none border-0 bg-white p-5 sm:min-h-0 sm:h-[560px] sm:w-[min(92vw,920px)] sm:rounded-[2rem] sm:border sm:border-[#e2e8f0] sm:p-12"><div className="absolute right-4 top-4 flex items-center gap-2 sm:right-6 sm:top-6"><Button type="button" variant="outline" size="sm" onClick={close} className="h-9 rounded-xl border-[#d8e3e8] px-3 text-xs font-bold text-[#075b68]"><ArrowLeft className="ml-1 h-4 w-4" /> رجوع</Button><Button type="button" variant="outline" size="icon" onClick={close} className="h-9 w-9 rounded-xl border-[#efb8b8] text-red-700" aria-label="إغلاق البحث"><X className="h-4 w-4" /></Button></div><div className="w-full max-w-3xl text-center"><div className="mb-8 select-none text-5xl font-medium tracking-[-0.08em] text-[#4285f4] sm:text-7xl"><span>G</span><span className="text-[#ea4335]">o</span><span className="text-[#fbbc05]">o</span><span className="text-[#4285f4]">g</span><span className="text-[#34a853]">l</span><span className="text-[#ea4335]">e</span></div><div className="flex h-14 items-center gap-3 rounded-full border border-[#dfe1e5] bg-white px-5 shadow-[0_1px_6px_rgba(32,33,36,.18)] transition focus-within:shadow-[0_1px_10px_rgba(32,33,36,.28)]"><Search className="h-5 w-5 shrink-0 text-slate-400" /><input autoFocus value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") submit(); }} placeholder="ابحث في Google" className="min-w-0 flex-1 bg-transparent text-base text-slate-700 outline-none placeholder:text-slate-400" aria-label="البحث في Google" /></div><div className="mt-7 flex flex-wrap justify-center gap-3"><Button type="button" onClick={submit} className="h-11 rounded-lg bg-[#f8f9fa] px-6 text-sm font-medium text-[#202124] shadow-sm hover:border-[#dadce0] hover:bg-[#f8f9fa]">بحث Google</Button><Button type="button" onClick={() => { setQuery(""); window.localStorage.removeItem("smart-inventory-google-search-query"); }} className="h-11 rounded-lg bg-[#f8f9fa] px-6 text-sm font-medium text-[#202124] shadow-sm hover:border-[#dadce0] hover:bg-[#f8f9fa]">مسح</Button></div><p className="mt-8 text-xs text-slate-400">اضغط Enter أو زر بحث Google لفتح صفحة Google الطبيعية.</p></div></DialogContent></Dialog>
   </>;
 }
 
