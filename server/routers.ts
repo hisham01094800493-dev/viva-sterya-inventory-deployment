@@ -114,6 +114,7 @@ import {
   listBackupVerificationRuns,
   runLatestBackupVerification,
   runIsolatedFullBackupRestore,
+  getNextWeeklyBackupExecution,
   saveBackupVerificationSchedule,
   cleanupExpiredBackupRecords,
   sendBackupEmailTest,
@@ -540,6 +541,14 @@ export const appRouter = router({
     backupVerificationSetSchedule: adminProcedure.input(z.object({ enabled: z.boolean(), cronExpression: z.string().trim().regex(/^\S+(?:\s+\S+){5}$/, "صيغة الجدولة يجب أن تحتوي 6 حقول").default("0 0 2 * * 0") })).mutation(async ({ input, ctx }) => {
       const config = await safe(() => getBackupVerificationConfig());
       if (!input.enabled && !config?.scheduleCronTaskUid) return { config: null, nextExecutionAt: null };
+      const localSchedule = Boolean(config?.scheduleCronTaskUid?.startsWith("local:")) || !process.env.BUILT_IN_FORGE_API_URL || !process.env.BUILT_IN_FORGE_API_KEY;
+      if (localSchedule) {
+        const taskUid = config?.scheduleCronTaskUid?.startsWith("local:") ? config.scheduleCronTaskUid : `local:backup-restore:${ctx.user.id}`;
+        const nextExecutionAt = input.enabled ? getNextWeeklyBackupExecution() : null;
+        const saved = await safe(() => saveBackupVerificationSchedule({ taskUid, cronExpression: input.cronExpression, nextExecutionAt, enabled: input.enabled }));
+        await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: input.enabled ? "enable_restore_verification_schedule" : "disable_restore_verification_schedule", entity: "backup", details: { taskUid, cronExpression: input.cronExpression, nextExecutionAt } });
+        return { config: saved, nextExecutionAt };
+      }
       const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
       const job = config?.scheduleCronTaskUid
         ? await updateHeartbeatJob(config.scheduleCronTaskUid, { cron: input.cronExpression, path: "/api/scheduled/backup-restore-verification", method: "POST", description: "اختبار أسبوعي آمن لاستعادة أحدث نسخة احتياطية", enable: input.enabled }, sessionToken)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBackupVerificationFailureNotification, buildScheduledBackupFailureEmail, collectBackupAssetReferences, getBackupRestoreCoverage, getExpiredBackupRecordIds, getRestoreTestDatabaseName, normalizeBackupRow, validateBackupSnapshot } from "./db";
+import { buildBackupVerificationFailureNotification, buildScheduledBackupFailureEmail, collectBackupAssetReferences, getBackupRestoreCoverage, getExpiredBackupRecordIds, getNextWeeklyBackupExecution, getRestoreTestDatabaseName, normalizeBackupRow, validateBackupSnapshot } from "./db";
 
 describe("backup restore coverage", () => {
   it("reports all backup tables handled by the operational restore path", () => {
@@ -61,6 +61,10 @@ describe("backup restore coverage", () => {
   it("derives a dedicated and safe database name for full isolated restore", () => {
     expect(getRestoreTestDatabaseName("QMSWzgs2nvjUBG5BrRAQhD")).toBe("QMSWzgs2nvjUBG5BrRAQhD_restore_test");
     expect(() => getRestoreTestDatabaseName("production; DROP DATABASE")).toThrow("اسم قاعدة بيانات الإنتاج غير صالح");
+  });
+
+  it("schedules the next local weekly check for Sunday at 02:00 UTC", () => {
+    expect(getNextWeeklyBackupExecution(new Date("2026-09-14T05:00:00.000Z")).toISOString()).toBe("2026-09-20T02:00:00.000Z");
   });
 
   it("expires only records beyond 30 days while always preserving the newest backup", () => {

@@ -2065,6 +2065,27 @@ export async function saveBackupVerificationSchedule(input: { taskUid: string; c
   return (await db.select().from(backupVerificationConfigs).where(eq(backupVerificationConfigs.id, id)).limit(1))[0];
 }
 
+export function getNextWeeklyBackupExecution(from = new Date()) {
+  const next = new Date(from);
+  next.setUTCHours(2, 0, 0, 0);
+  const daysUntilSunday = (7 - next.getUTCDay()) % 7;
+  next.setUTCDate(next.getUTCDate() + daysUntilSunday);
+  if (next.getTime() <= from.getTime()) next.setUTCDate(next.getUTCDate() + 7);
+  return next;
+}
+
+export async function runDueLocalBackupVerification() {
+  const config = await getBackupVerificationConfig();
+  if (!config?.isEnabled || !config.nextExecutionAt || config.nextExecutionAt.getTime() > Date.now()) return { ran: false };
+  const db = await requireDb();
+  try {
+    const result = await runLatestBackupVerification("scheduled");
+    return { ran: true, result };
+  } finally {
+    await db.update(backupVerificationConfigs).set({ nextExecutionAt: getNextWeeklyBackupExecution() }).where(eq(backupVerificationConfigs.id, config.id));
+  }
+}
+
 export async function getBackupSnapshotFromRecord(id: number) {
   const db = await requireDb();
   const rows = await db.select().from(backupRecords).where(eq(backupRecords.id, id)).limit(1);

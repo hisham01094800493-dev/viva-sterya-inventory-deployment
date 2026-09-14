@@ -7,6 +7,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { createBackupRestoreVerificationHandler, createInventoryReportHandler } from "../scheduled";
+import { runDueLocalBackupVerification } from "../db";
 import { registerMigrationImportRoutes } from "../migrationImport";
 import { serveStatic, setupVite } from "./vite";
 
@@ -45,6 +46,14 @@ async function startServer() {
 
   server.listen(port, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${port}/`);
+    let checkingLocalBackupSchedule = false;
+    const checkLocalBackupSchedule = async () => {
+      if (checkingLocalBackupSchedule) return;
+      checkingLocalBackupSchedule = true;
+      try { await runDueLocalBackupVerification(); } catch (error) { console.error("[LocalBackupSchedule] failed", error); } finally { checkingLocalBackupSchedule = false; }
+    };
+    void checkLocalBackupSchedule();
+    setInterval(() => { void checkLocalBackupSchedule(); }, 60_000);
   });
 }
 
