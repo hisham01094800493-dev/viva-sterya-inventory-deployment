@@ -128,6 +128,8 @@ import { uploadCompanyLogo } from "./companyLogoUpload";
 import { uploadDocumentImage } from "./documentImageUpload";
 import { createHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
 
+const DEFAULT_GOOGLE_SEARCH_ENGINE_ID = "01b5a823a6a9140c6";
+
 function rethrowInventoryError(error: unknown): never {
   if (error instanceof InventoryError) {
     const code =
@@ -558,7 +560,7 @@ export const appRouter = router({
   }),
   webSearch: router({
     config: protectedProcedure.query(() => ({
-      searchEngineId: process.env.GOOGLE_SEARCH_ENGINE_ID?.trim() ?? "",
+      searchEngineId: process.env.GOOGLE_SEARCH_ENGINE_ID?.trim() || DEFAULT_GOOGLE_SEARCH_ENGINE_ID,
     })),
     query: protectedProcedure
       .input(z.object({ query: z.string().trim().min(2).max(160) }))
