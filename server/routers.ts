@@ -562,7 +562,7 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const apiKey = process.env.GOOGLE_SEARCH_API_KEY?.trim();
         const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID?.trim();
-        if (!apiKey || !searchEngineId) throw new Error("لم يتم إعداد خدمة البحث بعد. أضف GOOGLE_SEARCH_API_KEY و GOOGLE_SEARCH_ENGINE_ID في Railway.");
+        if (!apiKey || !searchEngineId) throw new Error("البحث داخل البرنامج غير مفعّل بعد. أضف GOOGLE_SEARCH_API_KEY و GOOGLE_SEARCH_ENGINE_ID إلى إعدادات النشر.");
         const url = new URL("https://www.googleapis.com/customsearch/v1");
         url.searchParams.set("key", apiKey);
         url.searchParams.set("cx", searchEngineId);
@@ -570,7 +570,13 @@ export const appRouter = router({
         url.searchParams.set("num", "8");
         const response = await fetch(url);
         const payload = await response.json().catch(() => null) as { items?: Array<{ title?: string; link?: string; snippet?: string }>; error?: { message?: string } } | null;
-        if (!response.ok) throw new Error(payload?.error?.message || "تعذر الاتصال بخدمة بحث Google.");
+        if (!response.ok) {
+          const googleMessage = payload?.error?.message || "تعذر الاتصال بخدمة بحث Google.";
+          if (response.status === 403 && googleMessage.toLowerCase().includes("custom search json api")) {
+            throw new Error("مفتاح Google موجود، لكن مشروع Google Cloud لا يملك صلاحية Custom Search JSON API. فعّل الواجهة للمشروع المرتبط بالمفتاح أو استخدم مفتاحًا من مشروع مفعّلة عليه.");
+          }
+          throw new Error(googleMessage);
+        }
         return (payload?.items ?? []).map(item => ({ title: item.title || "نتيجة بحث", link: item.link || "", snippet: item.snippet || "" })).filter(item => item.link);
       }),
   }),
