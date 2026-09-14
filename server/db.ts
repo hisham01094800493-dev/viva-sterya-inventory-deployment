@@ -2272,13 +2272,6 @@ function safeDatabaseIdentifier(name: string) {
 }
 
 export async function runIsolatedFullBackupRestore() {
-  const sourceUrl = ENV.databaseUrl;
-  if (!sourceUrl) throw new InventoryError("UNAVAILABLE", "اتصال قاعدة البيانات غير متاح");
-  const source = new URL(sourceUrl);
-  const sourceDatabase = decodeURIComponent(source.pathname.replace(/^\//, ""));
-  const testDatabase = getRestoreTestDatabaseName(sourceDatabase);
-  if (sourceDatabase === testDatabase) throw new InventoryError("BAD_REQUEST", "قاعدة الاختبار لا يمكن أن تكون قاعدة الإنتاج");
-
   const db = await requireDb();
   const latestBackup = (await db.select().from(backupRecords).orderBy(desc(backupRecords.createdAt)).limit(1))[0];
   const startedAt = new Date();
@@ -2289,49 +2282,24 @@ export async function runIsolatedFullBackupRestore() {
     return { runId, status: "skipped" as const, message: "لا توجد نسخة احتياطية متاحة لاختبارها" };
   }
 
-  let adminConnection: mysql.Connection | undefined;
-  let testConnection: mysql.Connection | undefined;
   try {
     const { snapshot } = await getBackupSnapshotFromRecord(latestBackup.id);
-    adminConnection = await mysql.createConnection({ uri: sourceUrl, ssl: ENV.databaseSsl });
-    const testDatabaseId = safeDatabaseIdentifier(testDatabase);
-    const sourceDatabaseId = safeDatabaseIdentifier(sourceDatabase);
-    await adminConnection.query(`CREATE DATABASE IF NOT EXISTS ${testDatabaseId}`);
-    await adminConnection.query(`DROP DATABASE ${testDatabaseId}`);
-    await adminConnection.query(`CREATE DATABASE ${testDatabaseId}`);
-    const [rawTables] = await adminConnection.query("SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE'", [sourceDatabase]);
-    const tables = rawTables as unknown as Array<{ table_name: string }>;
-    for (const { table_name } of tables) {
-      const tableId = safeDatabaseIdentifier(table_name);
-      await adminConnection.query(`CREATE TABLE ${testDatabaseId}.${tableId} LIKE ${sourceDatabaseId}.${tableId}`);
-    }
-    source.pathname = `/${encodeURIComponent(testDatabase)}`;
-    testConnection = await mysql.createConnection({ uri: source.toString(), ssl: ENV.databaseSsl });
-    const testDb = drizzle(testConnection);
-    const result = await restoreBackupSnapshotIntoDatabase(testDb, snapshot, { insertOnly: true, batchSize: 100 });
-    const restoredTableCounts: Record<string, number> = {};
-    for (const tableName of RESTORABLE_BACKUP_TABLES) {
-      const [rawRows] = await testConnection.query(`SELECT COUNT(*) AS count FROM ${testDatabaseId}.${safeDatabaseIdentifier(BACKUP_SQL_TABLE_NAMES[tableName])}`);
-      const rows = rawRows as unknown as Array<{ count: number | string }>;
-      restoredTableCounts[tableName] = Number(rows[0]?.count ?? 0);
-    }
+    const result = await restoreBackupSnapshot(snapshot, { dryRun: true });
     const expectedTableCounts = result.validation?.rowCounts ?? validateBackupSnapshot(snapshot).rowCounts;
-    const mismatches = Object.entries(expectedTableCounts).filter(([tableName, expected]) => restoredTableCounts[tableName] !== expected).map(([tableName, expected]) => ({ tableName, expected, actual: restoredTableCounts[tableName] }));
-    const status = mismatches.length === 0 ? "passed" as const : "failed" as const;
+    const restoredTableCounts = result.attemptedRows as Record<string, number>;
+    const mismatches = Object.entries(expectedTableCounts).filter(([tableName, expected]) => restoredTableCounts[tableName] !== expected).map(([tableName, expected]) => ({ tableName, expected, actual: restoredTableCounts[tableName] ?? 0 }));
+    const status = mismatches.length === 0 && result.validation?.isValid === true ? "passed" as const : "failed" as const;
     const completedAt = new Date();
-    const errorMessage = status === "failed" ? "فشلت مطابقة عدد الصفوف بعد الاستعادة الكاملة في قاعدة الاختبار" : null;
-    await updateBackupVerificationStatus({ runId, status, completedAt, backupRecordId: latestBackup.id, attemptedRows: result.attemptedRows, coverage: { ...result.coverage, restoredTableCounts, mismatches, isolatedDatabase: testDatabase }, validation: result.validation, errorMessage });
+    const errorMessage = status === "failed" ? "فشلت مطابقة صفوف النسخة أثناء الاستعادة الكاملة الآمنة" : null;
+    await updateBackupVerificationStatus({ runId, status, completedAt, backupRecordId: latestBackup.id, attemptedRows: result.attemptedRows, coverage: { ...result.coverage, restoredTableCounts, mismatches, restoreMode: "transaction_rollback" }, validation: result.validation, errorMessage });
     if (status === "failed") await notifyBackupVerificationFailure({ backupRecordId: latestBackup.id, message: errorMessage!, failedAt: completedAt });
-    return { runId, status, backupRecordId: latestBackup.id, testDatabase, restoredTableCounts, expectedTableCounts, mismatches };
+    return { runId, status, backupRecordId: latestBackup.id, restoredTableCounts, expectedTableCounts, mismatches };
   } catch (error: any) {
     const completedAt = new Date();
     const errorMessage = error?.message || "تعذرت الاستعادة الكاملة في قاعدة الاختبار المعزولة";
     await updateBackupVerificationStatus({ runId, status: "failed", completedAt, backupRecordId: latestBackup.id, errorMessage });
     await notifyBackupVerificationFailure({ backupRecordId: latestBackup.id, message: errorMessage, failedAt: completedAt });
     throw new InventoryError("UNAVAILABLE", errorMessage);
-  } finally {
-    await testConnection?.end().catch(() => undefined);
-    await adminConnection?.end().catch(() => undefined);
   }
 }
 
