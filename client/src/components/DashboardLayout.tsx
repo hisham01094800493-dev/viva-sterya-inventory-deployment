@@ -95,11 +95,11 @@ function GoogleSearchButton() {
     if (!input || input.value.trim().length < 2) { toast.error("اكتب عبارة بحث من كلمتين على الأقل"); focusSearch(); return; }
     const query = input.value.trim().replace(/\s+(أخبار|صور|فيديوهات|مواقع عربية)$/i, "");
     const filterLabel = filter === "news" ? "أخبار" : filter === "images" ? "صور" : filter === "videos" ? "فيديوهات" : filter === "arabic" ? "مواقع عربية" : "";
-    input.value = filterLabel ? `${query} ${filterLabel}` : query;
     setQueryText(query);
     window.localStorage.setItem("smart-inventory-google-search-query", query);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    searchRootRef.current?.querySelector<HTMLButtonElement>("button.gsc-search-button-v2")?.click();
+    const googleUrl = new URL("https://www.google.com/search");
+    googleUrl.searchParams.set("q", filterLabel ? `${query} ${filterLabel}` : query);
+    window.location.assign(googleUrl.toString());
   };
   const clearSearch = () => { const input = searchRootRef.current?.querySelector<HTMLInputElement>("input.gsc-input"); if (input) { input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); } setQueryText(""); window.localStorage.removeItem("smart-inventory-google-search-query"); focusSearch(); };
   useEffect(() => {
