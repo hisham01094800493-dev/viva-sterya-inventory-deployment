@@ -81,12 +81,18 @@ export function snapQuickActionsToNearestEdge(position: { x: number; y: number }
 
 function GoogleSearchButton() {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const search = trpc.webSearch.query.useMutation();
-  const submit = () => { const value = query.trim(); if (value.length < 2) { toast.error("اكتب كلمتين على الأقل للبحث"); return; } search.mutate({ query: value }); };
+  const searchConfig = trpc.webSearch.config.useQuery(undefined, { enabled: open });
+  useEffect(() => {
+    if (!open || !searchConfig.data?.searchEngineId || document.querySelector("script[data-smart-inventory-google-cse]") || document.querySelector("script[src^=\"https://cse.google.com/cse.js\"]")) return;
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `https://cse.google.com/cse.js?cx=${encodeURIComponent(searchConfig.data.searchEngineId)}`;
+    script.dataset.smartInventoryGoogleCse = "true";
+    document.head.appendChild(script);
+  }, [open, searchConfig.data?.searchEngineId]);
   return <>
     <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} className="inline-flex gap-1.5 rounded-xl border-[#b8dce2] bg-white/80 px-2 text-[10px] font-black text-[#075b68] sm:px-3 sm:text-xs" title="البحث في Google"><Search className="h-4 w-4" /><span className="hidden sm:inline">بحث Google</span></Button>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent dir="rtl" className="max-w-2xl border-[#cfe7ea] bg-[#fbffff]"><DialogHeader><DialogTitle className="flex items-center gap-2 text-[#075b68]"><Search className="h-5 w-5" /> البحث في Google داخل التطبيق</DialogTitle></DialogHeader><div className="flex gap-2"><Input autoFocus value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") submit(); }} placeholder="اكتب ما تريد البحث عنه..." className="h-11 rounded-xl" /><Button type="button" onClick={submit} disabled={search.isPending} className="h-11 shrink-0 rounded-xl bg-[#0d7180] px-5">{search.isPending ? "جارٍ البحث..." : "بحث"}</Button></div>{search.isError ? <p className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{search.error.message}</p> : null}{!search.isPending && search.isSuccess && !search.data.length ? <p className="py-8 text-center text-sm text-slate-500">لم تظهر نتائج لهذا البحث.</p> : null}<div className="max-h-[55vh] space-y-3 overflow-y-auto">{search.data?.map(result => <div key={result.link} className="rounded-2xl border border-[#dcecef] bg-white p-4 text-right shadow-sm"><h3 className="font-black text-[#075b68]">{result.title}</h3><p className="mt-1 text-xs leading-6 text-slate-600">{result.snippet}</p><p dir="ltr" className="mt-2 truncate text-[10px] text-slate-400">{result.link}</p></div>)}</div></DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent dir="rtl" className="max-w-2xl border-[#cfe7ea] bg-[#fbffff]"><DialogHeader><DialogTitle className="flex items-center gap-2 text-[#075b68]"><Search className="h-5 w-5" /> البحث في Google داخل التطبيق</DialogTitle></DialogHeader>{searchConfig.isLoading ? <p className="py-8 text-center text-sm text-slate-500">جارٍ تجهيز البحث...</p> : searchConfig.data?.searchEngineId ? <div className="max-h-[65vh] overflow-y-auto"><div className="gcse-search" /></div> : <p className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">لم يتم إعداد معرّف محرك البحث في إعدادات التطبيق.</p>}</DialogContent></Dialog>
   </>;
 }
 

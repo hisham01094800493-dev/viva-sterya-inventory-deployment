@@ -557,6 +557,9 @@ export const appRouter = router({
     recordShare: protectedProcedure.input(z.object({ fileType: z.enum(["pdf", "excel"]), reportTitle: z.string().trim().min(1).max(255), fileName: z.string().trim().min(1).max(255), channel: z.enum(["native", "whatsapp", "email"]), status: z.enum(["shared", "cancelled", "unsupported", "failed"]) })).mutation(({ ctx, input }) => safe(() => createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "share_report", entity: input.fileType, entityId: input.fileName, details: { reportTitle: input.reportTitle, fileName: input.fileName, channel: input.channel, status: input.status } }))),
   }),
   webSearch: router({
+    config: protectedProcedure.query(() => ({
+      searchEngineId: process.env.GOOGLE_SEARCH_ENGINE_ID?.trim() ?? "",
+    })),
     query: protectedProcedure
       .input(z.object({ query: z.string().trim().min(2).max(160) }))
       .mutation(async ({ input }) => {
