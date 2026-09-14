@@ -556,6 +556,24 @@ export const appRouter = router({
   activity: router({
     recordShare: protectedProcedure.input(z.object({ fileType: z.enum(["pdf", "excel"]), reportTitle: z.string().trim().min(1).max(255), fileName: z.string().trim().min(1).max(255), channel: z.enum(["native", "whatsapp", "email"]), status: z.enum(["shared", "cancelled", "unsupported", "failed"]) })).mutation(({ ctx, input }) => safe(() => createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "share_report", entity: input.fileType, entityId: input.fileName, details: { reportTitle: input.reportTitle, fileName: input.fileName, channel: input.channel, status: input.status } }))),
   }),
+  webSearch: router({
+    query: protectedProcedure
+      .input(z.object({ query: z.string().trim().min(2).max(160) }))
+      .mutation(async ({ input }) => {
+        const apiKey = process.env.GOOGLE_SEARCH_API_KEY?.trim();
+        const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID?.trim();
+        if (!apiKey || !searchEngineId) throw new Error("لم يتم إعداد خدمة البحث بعد. أضف GOOGLE_SEARCH_API_KEY و GOOGLE_SEARCH_ENGINE_ID في Railway.");
+        const url = new URL("https://www.googleapis.com/customsearch/v1");
+        url.searchParams.set("key", apiKey);
+        url.searchParams.set("cx", searchEngineId);
+        url.searchParams.set("q", input.query);
+        url.searchParams.set("num", "8");
+        const response = await fetch(url);
+        const payload = await response.json().catch(() => null) as { items?: Array<{ title?: string; link?: string; snippet?: string }>; error?: { message?: string } } | null;
+        if (!response.ok) throw new Error(payload?.error?.message || "تعذر الاتصال بخدمة بحث Google.");
+        return (payload?.items ?? []).map(item => ({ title: item.title || "نتيجة بحث", link: item.link || "", snippet: item.snippet || "" })).filter(item => item.link);
+      }),
+  }),
   permissions: router({
     mine: protectedProcedure.query(({ ctx }) => safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role))),
     list: adminProcedure.query(() => safe(() => listManagedUserPermissions())),

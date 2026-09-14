@@ -5,6 +5,7 @@ import {
   ArrowLeftRight,
   ArrowUpFromLine,
   BellRing,
+  Search,
   MessageCircle,
   ClipboardCheck,
   FileBarChart,
@@ -49,6 +50,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { inventoryQueryOptions } from "@/lib/queryOptions";
 import { findNewUnreadNotification, formatIncomingNotification, getNotificationTone, getSeenNotificationIds, rememberUnreadNotificationIds } from "@/lib/notificationCenter";
@@ -74,6 +77,17 @@ export function snapQuickActionsToNearestEdge(position: { x: number; y: number }
   const bottomY = Math.max(8, viewport.height - buttonSize - 8);
   const edge = clamped.x <= rightX - clamped.x ? "left" : "right";
   return { ...clamped, x: edge === "left" ? 8 : rightX, y: bottomY, edge } as const;
+}
+
+function GoogleSearchButton() {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const search = trpc.webSearch.query.useMutation();
+  const submit = () => { const value = query.trim(); if (value.length < 2) { toast.error("اكتب كلمتين على الأقل للبحث"); return; } search.mutate({ query: value }); };
+  return <>
+    <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} className="inline-flex gap-1.5 rounded-xl border-[#b8dce2] bg-white/80 px-2 text-[10px] font-black text-[#075b68] sm:px-3 sm:text-xs" title="البحث في Google"><Search className="h-4 w-4" /><span className="hidden sm:inline">بحث Google</span></Button>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent dir="rtl" className="max-w-2xl border-[#cfe7ea] bg-[#fbffff]"><DialogHeader><DialogTitle className="flex items-center gap-2 text-[#075b68]"><Search className="h-5 w-5" /> البحث في Google داخل التطبيق</DialogTitle></DialogHeader><div className="flex gap-2"><Input autoFocus value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") submit(); }} placeholder="اكتب ما تريد البحث عنه..." className="h-11 rounded-xl" /><Button type="button" onClick={submit} disabled={search.isPending} className="h-11 shrink-0 rounded-xl bg-[#0d7180] px-5">{search.isPending ? "جارٍ البحث..." : "بحث"}</Button></div>{search.isError ? <p className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{search.error.message}</p> : null}{!search.isPending && search.isSuccess && !search.data.length ? <p className="py-8 text-center text-sm text-slate-500">لم تظهر نتائج لهذا البحث.</p> : null}<div className="max-h-[55vh] space-y-3 overflow-y-auto">{search.data?.map(result => <a key={result.link} href={result.link} target="_blank" rel="noreferrer" className="block rounded-2xl border border-[#dcecef] bg-white p-4 text-right shadow-sm transition hover:border-[#72b9c3] hover:bg-[#f5fcfd]"><h3 className="font-black text-[#075b68]">{result.title}</h3><p className="mt-1 text-xs leading-6 text-slate-600">{result.snippet}</p><p dir="ltr" className="mt-2 truncate text-[10px] text-slate-400">{result.link}</p></a>)}</div></DialogContent></Dialog>
+  </>;
 }
 
 type NavigationItem = { icon: React.ComponentType<{ className?: string }>; label: string; path: string; mobileLabel?: string };
@@ -459,6 +473,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <GoogleSearchButton />
             <GlobalVoiceSearch />
             <NotificationBell chatEnabled={chatEnabled} />
             {isMovementPage && canViewMovementFinancialDetails ? <Button type="button" variant="outline" size="sm" onClick={() => void toggleMovementFinancialDetails()} disabled={updatePreferences.isPending || onboardingPreferences.isLoading} aria-pressed={showMovementFinancialDetails} className="movement-financial-toggle inline-flex rounded-xl px-2 text-[10px] font-black sm:px-3 sm:text-xs">{showMovementFinancialDetails ? "إخفاء التفاصيل المالية" : "إظهار التفاصيل المالية"}</Button> : null}
