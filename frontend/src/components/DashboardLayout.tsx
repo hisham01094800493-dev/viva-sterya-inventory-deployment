@@ -55,7 +55,7 @@ const menuItems = [
 
 const GOOGLE_SEARCH_ENGINE_ID = "01b5a823a6a9140c6";
 
-function GoogleSearchButton() {
+export function GoogleSearchButton() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(() => window.localStorage.getItem("smart-inventory-google-search-query") ?? "");
   const close = () => setOpen(false);
@@ -203,7 +203,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
             </div>
           </div>
           <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
-            <div className="flex shrink-0 items-center gap-0.5 rounded-xl border border-[#dce7ee] bg-white/75 p-0.5 shadow-sm sm:gap-1.5 sm:rounded-2xl sm:p-1" aria-label="أدوات البحث"><div className="[&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg sm:[&_button]:h-9 sm:[&_button]:w-9"><VoiceSearchButton /></div><div className="[&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg sm:[&_button]:h-9 sm:[&_button]:w-9"><GoogleSearchButton /></div></div>
+            <div className="flex shrink-0 items-center rounded-xl border border-red-200 bg-red-50/80 p-0.5 shadow-sm sm:rounded-2xl sm:p-1" aria-label="البحث الصوتي"><VoiceSearchButton /></div>
             <div className="hidden rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500 sm:block">نظام متصل • البيانات محفوظة</div>
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0d4f62] text-xs font-black text-white sm:h-9 sm:w-9">{user.name?.charAt(0) ?? "م"}</div>
           </div>

@@ -1,4 +1,4 @@
-import DashboardLayout from "@/components/DashboardLayout";
+import DashboardLayout, { GoogleSearchButton } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -345,6 +345,7 @@ export default function Home() {
                 <Button onClick={() => setLocation("/disbursements")} variant="outline" className="h-10 rounded-xl border-white/25 bg-white/10 px-3.5 text-sm font-bold text-white hover:bg-white/15 hover:text-white"><ArrowUpFromLine className="ml-1.5 h-4 w-4" />إذن صرف</Button>
                 <Button onClick={() => setLocation("/items?create=1")} variant="outline" className="h-10 rounded-xl border-[#f5c27b]/55 bg-[#f5c27b]/15 px-3.5 text-sm font-bold text-white hover:bg-[#f5c27b]/25 hover:text-white"><Boxes className="ml-1.5 h-4 w-4" />إضافة صنف جديد</Button>
                 <QuickCalculator />
+                <div className="flex items-center gap-2 rounded-xl border border-[#7dd3fc]/45 bg-[#0369a1]/25 px-2 py-1.5 text-white"><GoogleSearchButton /><span className="hidden text-xs font-black sm:inline">بحث Google</span></div>
               </div>}
             </div>
           </div>
