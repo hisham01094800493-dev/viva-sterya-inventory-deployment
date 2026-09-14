@@ -2236,6 +2236,29 @@ export async function restoreBackupSnapshot(snapshot: any, options: { dryRun?: b
 }
 
 const RESTORE_TEST_DATABASE_SUFFIX = "_restore_test";
+const BACKUP_SQL_TABLE_NAMES: Record<typeof RESTORABLE_BACKUP_TABLES[number], string> = {
+  users: "users",
+  warehouses: "warehouses",
+  suppliers: "suppliers",
+  customers: "customers",
+  items: "items",
+  itemWarehouseBalances: "item_warehouse_balances",
+  additions: "additions",
+  disbursements: "disbursements",
+  transfers: "transfers",
+  settings: "settings",
+  userPreferences: "user_preferences",
+  userPermissions: "user_permissions",
+  auditLogs: "audit_logs",
+  loginAuditLogs: "login_audit_logs",
+  securityNotifications: "security_notifications",
+  notifications: "notifications",
+  chatConversations: "chat_conversations",
+  chatMembers: "chat_members",
+  chatMessages: "chat_messages",
+  chatMessageReceipts: "chat_message_receipts",
+  revokedSessions: "revoked_sessions",
+};
 
 export function getRestoreTestDatabaseName(sourceDatabase: string) {
   const source = sourceDatabase.trim();
@@ -2288,7 +2311,7 @@ export async function runIsolatedFullBackupRestore() {
     const result = await restoreBackupSnapshotIntoDatabase(testDb, snapshot, { insertOnly: true, batchSize: 100 });
     const restoredTableCounts: Record<string, number> = {};
     for (const tableName of RESTORABLE_BACKUP_TABLES) {
-      const [rawRows] = await testConnection.query(`SELECT COUNT(*) AS count FROM ${testDatabaseId}.${safeDatabaseIdentifier(tableName === "userPreferences" ? "user_preferences" : tableName === "userPermissions" ? "user_permissions" : tableName === "auditLogs" ? "audit_logs" : tableName === "loginAuditLogs" ? "login_audit_logs" : tableName === "securityNotifications" ? "security_notifications" : tableName === "revokedSessions" ? "revoked_sessions" : tableName)}`);
+      const [rawRows] = await testConnection.query(`SELECT COUNT(*) AS count FROM ${testDatabaseId}.${safeDatabaseIdentifier(BACKUP_SQL_TABLE_NAMES[tableName])}`);
       const rows = rawRows as unknown as Array<{ count: number | string }>;
       restoredTableCounts[tableName] = Number(rows[0]?.count ?? 0);
     }
