@@ -2,6 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import {
   ArrowDownToLine,
+  ArrowLeft,
   ArrowLeftRight,
   ArrowUpFromLine,
   BellRing,
@@ -10,9 +11,12 @@ import {
   LogOut,
   PanelRight,
   Package,
+  Search,
   Settings2,
+  X,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -34,6 +38,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 
 const menuItems = [
@@ -46,6 +51,61 @@ const menuItems = [
   { icon: FileBarChart, label: "التقارير", path: "/reports" },
   { icon: Settings2, label: "الإعدادات", path: "/settings" },
 ];
+
+const GOOGLE_SEARCH_ENGINE_ID = "01b5a823a6a9140c6";
+
+function GoogleSearchButton() {
+  const [open, setOpen] = useState(false);
+  const [ready, setReady] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const close = () => setOpen(false);
+  const focusSearch = () => window.setTimeout(() => rootRef.current?.querySelector<HTMLInputElement>("input.gsc-input")?.focus(), 0);
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+  useEffect(() => {
+    if (!open || document.querySelector("script[data-smart-inventory-render-cse]")) return;
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `https://cse.google.com/cse.js?cx=${GOOGLE_SEARCH_ENGINE_ID}`;
+    script.dataset.smartInventoryRenderCse = "true";
+    document.head.appendChild(script);
+  }, [open]);
+  useEffect(() => {
+    if (!open || !rootRef.current) return;
+    const root = rootRef.current;
+    const observer = new MutationObserver(() => {
+      const input = root.querySelector<HTMLInputElement>("input.gsc-input");
+      if (input) {
+        setReady(true);
+        const saved = window.localStorage.getItem("smart-inventory-google-search-query");
+        if (saved && !input.value) input.value = saved;
+      }
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [open]);
+  useEffect(() => {
+    if (!open || !rootRef.current) return;
+    const root = rootRef.current;
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const input = target.closest(".gsc-search-box")?.querySelector<HTMLInputElement>("input.gsc-input");
+      if (input?.value.trim()) window.localStorage.setItem("smart-inventory-google-search-query", input.value.trim());
+      const link = target.closest<HTMLAnchorElement>(".gsc-result a.gs-title, .gsc-result a.gs-visibleUrl");
+      if (link?.href) { event.preventDefault(); event.stopPropagation(); window.open(link.href, "_blank", "noopener,noreferrer"); }
+    };
+    root.addEventListener("click", onClick, true);
+    return () => root.removeEventListener("click", onClick, true);
+  }, [open]);
+  return <>
+    <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} className="inline-flex gap-1.5 rounded-xl border-[#b8dce2] bg-white/80 px-2 text-[10px] font-black text-[#075b68] sm:px-3 sm:text-xs" title="البحث في Google"><Search className="h-4 w-4" /><span className="hidden sm:inline">بحث Google</span></Button>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent dir="rtl" className="flex h-[100dvh] w-screen max-w-none flex-col rounded-none border-0 bg-[#fbffff] p-0 sm:h-[94vh] sm:w-[96vw] sm:max-w-[1180px] sm:rounded-[2rem] sm:border sm:border-[#cfe7ea]"><DialogHeader className="sticky top-0 z-10 flex-row items-center justify-between border-b border-[#dcecef] bg-[#fbffff]/95 px-4 py-3 backdrop-blur sm:px-7 sm:py-4"><DialogTitle className="flex items-center gap-2 text-base text-[#075b68] sm:text-xl"><Search className="h-5 w-5" /> البحث في Google داخل التطبيق</DialogTitle><div className="flex items-center gap-1.5"><Button type="button" variant="outline" size="sm" onClick={focusSearch} className="h-9 rounded-xl border-[#b8dce2] px-2.5 text-xs font-black text-[#075b68]"><Search className="ml-1 h-4 w-4" /> بحث</Button><Button type="button" variant="outline" size="sm" onClick={close} className="h-9 rounded-xl border-[#b8dce2] px-2.5 text-xs font-black text-[#075b68]"><ArrowLeft className="ml-1 h-4 w-4" /> رجوع</Button><Button type="button" variant="outline" size="sm" onClick={close} className="h-9 rounded-xl border-[#efb8b8] px-2.5 text-xs font-black text-red-700" aria-label="إغلاق البحث"><X className="h-4 w-4" /><span className="hidden sm:inline">إغلاق</span></Button></div></DialogHeader><div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-7 sm:py-6"><div ref={rootRef} className="mx-auto min-h-[70vh] w-full max-w-5xl rounded-2xl border border-[#dcecef] bg-white p-3 shadow-sm sm:p-6"><div className="mb-3 flex items-center justify-between rounded-xl bg-[#eff8f8] px-3 py-2 text-xs font-bold text-[#075b68]"><span>{ready ? "اكتب عبارة البحث ثم اضغط بحث" : "جارٍ تحميل محرك البحث..."}</span><span className="text-slate-400">اضغط Esc للإغلاق</span></div><div className="gcse-search" /><p className="mt-4 text-center text-xs text-slate-400">اضغط على أي نتيجة لفتحها في تبويب جديد.</p></div></div></DialogContent></Dialog>
+  </>;
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { loading, user } = useAuth();
@@ -155,7 +215,8 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
               <h1 className="text-lg font-black text-[#102a43]">{activeMenuItem.label}</h1>
             </div>
           </div>
-          <div className="hidden items-center gap-3 sm:flex">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <GoogleSearchButton />
             <div className="rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500">نظام متصل • البيانات محفوظة</div>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0d4f62] text-xs font-black text-white">{user.name?.charAt(0) ?? "م"}</div>
           </div>
