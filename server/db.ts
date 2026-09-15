@@ -45,6 +45,7 @@ import { sendConfiguredEmail } from "./email";
 import { DEFAULT_QUICK_ACTIONS, normalizeQuickActions, normalizeReportColumnOrder, parseQuickActions, type ReportColumnOrder } from "@shared/userPreferences";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: mysql.Pool | null = null;
 
 export class InventoryError extends Error {
   constructor(
@@ -66,7 +67,7 @@ export async function getDb() {
       const databaseUrl = new URL(ENV.databaseUrl);
       const ipv4 = await dns.lookup(databaseUrl.hostname, { family: 4 });
       const ssl = ENV.databaseSsl ? { ...ENV.databaseSsl, servername: databaseUrl.hostname } : undefined;
-      _db = drizzle(mysql.createPool({
+      _pool = mysql.createPool({
         host: ipv4.address,
         port: databaseUrl.port ? Number(databaseUrl.port) : 3306,
         user: decodeURIComponent(databaseUrl.username),
@@ -75,7 +76,8 @@ export async function getDb() {
         ssl,
         connectionLimit: 5,
         enableKeepAlive: true,
-      }) as any);
+      });
+      _db = drizzle(_pool as any);
       // Ensure this feature works even when the host skips Drizzle migrations.
       await _db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS user_absences (
         id int AUTO_INCREMENT NOT NULL, user_id int NOT NULL, start_date varchar(10) NOT NULL, days int NOT NULL,
@@ -108,6 +110,20 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+export async function checkDatabaseReadiness() {
+  const db = await getDb();
+  if (!db || !_pool) return false;
+  await _pool.query("SELECT 1");
+  return true;
+}
+
+export async function closeDatabasePool() {
+  const pool = _pool;
+  _pool = null;
+  _db = null;
+  if (pool) await pool.end();
 }
 
 async function requireDb() {
@@ -2140,13 +2156,26 @@ export function getNextWeeklyBackupExecution(from = new Date()) {
   return next;
 }
 
+export async function runScheduledBackupVerification() {
+  await requireDb();
+  if (!_pool) throw new InventoryError("UNAVAILABLE", "اتصال قاعدة البيانات غير متاح");
+  const [rows] = await _pool.query("SELECT GET_LOCK('smart_inventory_backup_verification', 0) AS acquired") as any;
+  if (Number(rows?.[0]?.acquired ?? 0) !== 1) return { status: "skipped" as const, message: "يوجد اختبار نسخ احتياطي قيد التنفيذ بالفعل" };
+  try {
+    const backup = await createBackupRecord({ backupType: "scheduled" });
+    const result = await runIsolatedFullBackupRestore();
+    return { ...result, backupRecordId: backup.record.id };
+  } finally {
+    await _pool.query("SELECT RELEASE_LOCK('smart_inventory_backup_verification')");
+  }
+}
+
 export async function runDueLocalBackupVerification() {
   const config = await getBackupVerificationConfig();
   if (!config?.isEnabled || !config.nextExecutionAt || config.nextExecutionAt.getTime() > Date.now()) return { ran: false };
   const db = await requireDb();
   try {
-    await createBackupRecord({ backupType: "scheduled" });
-    const result = await runIsolatedFullBackupRestore();
+    const result = await runScheduledBackupVerification();
     return { ran: true, result };
   } finally {
     await db.update(backupVerificationConfigs).set({ nextExecutionAt: getNextWeeklyBackupExecution() }).where(eq(backupVerificationConfigs.id, config.id));

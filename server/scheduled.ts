@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { sdk } from "./_core/sdk";
 import { runInventoryReport } from "./inventoryReports";
-import { createBackupRecord, isBackupVerificationScheduleTask, runIsolatedFullBackupRestore } from "./db";
+import { isBackupVerificationScheduleTask, runScheduledBackupVerification } from "./db";
 
 export function createInventoryReportHandler(kind: "low_stock" | "daily" | "weekly") {
   return async (req: Request, res: Response) => {
@@ -32,9 +32,8 @@ export function createBackupRestoreVerificationHandler() {
       const user = await sdk.authenticateRequest(req);
       if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" });
       if (!(await isBackupVerificationScheduleTask(user.taskUid))) return res.json({ ok: true, skipped: "orphan_or_disabled" });
-      const backup = await createBackupRecord({ backupType: "scheduled" });
-      const result = await runIsolatedFullBackupRestore();
-      return res.json({ ok: result.status === "passed" || result.status === "skipped", taskUid: user.taskUid, ...result, backupRecordId: backup.record.id });
+      const result = await runScheduledBackupVerification();
+      return res.json({ ok: result.status === "passed" || result.status === "skipped", taskUid: user.taskUid, ...result });
     } catch (error: any) {
       console.error("[Scheduled:backup_restore_verification] failed", error);
       return res.status(500).json({

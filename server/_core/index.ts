@@ -7,7 +7,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { createBackupRestoreVerificationHandler, createInventoryReportHandler } from "../scheduled";
-import { runDueLocalBackupVerification } from "../db";
+import { checkDatabaseReadiness, closeDatabasePool, runDueLocalBackupVerification } from "../db";
 import { registerMigrationImportRoutes } from "../migrationImport";
 import { serveStatic, setupVite } from "./vite";
 
@@ -18,6 +18,14 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
+  app.get("/ready", async (_req, res) => {
+    try {
+      await checkDatabaseReadiness();
+      return res.status(200).json({ status: "ready", database: "ok" });
+    } catch (error: any) {
+      return res.status(503).json({ status: "not_ready", database: "unavailable", message: process.env.NODE_ENV === "development" ? error?.message : undefined });
+    }
+  });
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerMigrationImportRoutes(app);
@@ -43,6 +51,18 @@ async function startServer() {
   }
 
   const port = Number(process.env.PORT || 3000);
+  let scheduleTimer: NodeJS.Timeout | undefined;
+  let shuttingDown = false;
+  const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[Shutdown] received ${signal}`);
+    if (scheduleTimer) clearInterval(scheduleTimer);
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await closeDatabasePool();
+  };
+  process.once("SIGTERM", () => { void shutdown("SIGTERM"); });
+  process.once("SIGINT", () => { void shutdown("SIGINT"); });
 
   server.listen(port, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${port}/`);
@@ -53,7 +73,7 @@ async function startServer() {
       try { await runDueLocalBackupVerification(); } catch (error) { console.error("[LocalBackupSchedule] failed", error); } finally { checkingLocalBackupSchedule = false; }
     };
     void checkLocalBackupSchedule();
-    setInterval(() => { void checkLocalBackupSchedule(); }, 60_000);
+    scheduleTimer = setInterval(() => { void checkLocalBackupSchedule(); }, 60_000);
   });
 }
 
