@@ -48,4 +48,18 @@ describe("scheduled backup restore verification", () => {
     expect(state.body).toEqual({ ok: true, taskUid: "cron-backup-check", runId: 7, status: "passed", backupRecordId: 90002 });
     expect(mocks.runScheduledBackupVerification).toHaveBeenCalledWith();
   });
+
+  it("does not expose internal restore errors in production", async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    mocks.authenticateRequest.mockResolvedValue({ isCron: true, taskUid: "cron-backup-check" });
+    mocks.isBackupVerificationScheduleTask.mockResolvedValue(true);
+    mocks.runScheduledBackupVerification.mockRejectedValue(new Error("DATABASE_PASSWORD leaked"));
+    const { state, api } = makeResponse();
+    await createBackupRestoreVerificationHandler()({ originalUrl: "/api/scheduled/backup-restore-verification" } as never, api as never);
+    process.env.NODE_ENV = previousNodeEnv;
+    expect(state.statusCode).toBe(500);
+    expect(state.body).toMatchObject({ error: "تعذر تنفيذ اختبار النسخ والاستعادة" });
+    expect(JSON.stringify(state.body)).not.toContain("DATABASE_PASSWORD leaked");
+  });
 });

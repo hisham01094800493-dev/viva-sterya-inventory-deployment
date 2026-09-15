@@ -16,7 +16,7 @@ export function createInventoryReportHandler(kind: "low_stock" | "daily" | "week
     } catch (error: any) {
       console.error(`[Scheduled:${kind}] failed`, error);
       return res.status(500).json({
-        error: error?.message || "scheduled report failed",
+        error: process.env.NODE_ENV === "development" ? (error?.message || "scheduled report failed") : "تعذر تنفيذ المهمة المجدولة",
         stack: process.env.NODE_ENV === "development" ? error?.stack : undefined,
         context,
         timestamp: new Date().toISOString(),
@@ -37,7 +37,7 @@ export function createBackupRestoreVerificationHandler() {
     } catch (error: any) {
       console.error("[Scheduled:backup_restore_verification] failed", error);
       return res.status(500).json({
-        error: error?.message || "scheduled backup restore verification failed",
+        error: process.env.NODE_ENV === "development" ? (error?.message || "scheduled backup restore verification failed") : "تعذر تنفيذ اختبار النسخ والاستعادة",
         stack: process.env.NODE_ENV === "development" ? error?.stack : undefined,
         context,
         timestamp: new Date().toISOString(),
