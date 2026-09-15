@@ -30,13 +30,14 @@ setDefaultResultOrder("ipv4first");
 async function smtpTransport() {
   const host = process.env.SMTP_HOST?.trim();
   const configuredPort = Number(process.env.SMTP_PORT ?? "587");
-  const port = configuredPort === 465 ? 587 : configuredPort;
+  const port = configuredPort;
+  const secure = port === 465;
   const user = process.env.SMTP_USER?.trim();
   const password = process.env.SMTP_PASSWORD?.replace(/\s+/g, "");
   const from = process.env.SMTP_FROM?.trim() || user;
   if (!host || !user || !password || !from) return null;
   const ipv4 = net.isIP(host) === 4 ? host : (await lookup(host, { family: 4 })).address;
-  return { transport: nodemailer.createTransport({ host: ipv4, port, secure: false, requireTLS: port === 587, auth: { user, pass: password }, tls: { servername: host }, connectionTimeout: 15_000, greetingTimeout: 15_000, socketTimeout: 20_000 }), from };
+  return { transport: nodemailer.createTransport({ host: ipv4, port, secure, requireTLS: port === 587, auth: { user, pass: password }, tls: { servername: host }, connectionTimeout: 15_000, greetingTimeout: 15_000, socketTimeout: 20_000 }), from };
 }
 
 
@@ -83,7 +84,6 @@ export async function sendConfiguredEmail(input: { subject: string; html: string
   await configured.transport.sendMail({ from: configured.from, to: recipients.join(","), subject: input.subject, html: input.html });
   return true;
 }
-
 
 
 
