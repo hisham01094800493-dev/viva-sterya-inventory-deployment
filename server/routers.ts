@@ -436,8 +436,8 @@ export const appRouter = router({
   }),
 
   reports: router({
-    dataset: permissionProcedure("reports").input(z.object({ includeRows: z.boolean().default(false), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), permitSearch: z.string().trim().optional(), incomingFromSearch: z.string().trim().optional(), outgoingToSearch: z.string().trim().optional(), additionPurposeSearch: z.string().trim().optional(), disbursementPurposeSearch: z.string().trim().optional(), returnPurposeSearch: z.string().trim().optional() })).query(({ input }) => safe(() => getReportDataset(input))),
-    inventoryAudit: permissionProcedure("reports").query(() => safe(() => getCompanyInventoryAuditReport())),
+    dataset: permissionProcedure("reports").input(z.object({ includeRows: z.boolean().default(false), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), permitSearch: z.string().trim().optional(), incomingFromSearch: z.string().trim().optional(), outgoingToSearch: z.string().trim().optional(), additionPurposeSearch: z.string().trim().optional(), disbursementPurposeSearch: z.string().trim().optional(), returnPurposeSearch: z.string().trim().optional() })).query(({ input, ctx }) => safe(() => getReportDataset(input, ctx.permissions.allowedWarehouseIds))),
+    inventoryAudit: permissionProcedure("reports").query(({ ctx }) => safe(() => getCompanyInventoryAuditReport(ctx.permissions.allowedWarehouseIds))),
   }),
 
   dashboard: router({
@@ -447,7 +447,7 @@ export const appRouter = router({
         safe(async () => {
           const permissions = await getUserPermissionSettings(ctx.user.id, ctx.user.role);
           const [rows, configuredThreshold] = await Promise.all([
-            getInventoryRows(),
+            getInventoryRows(permissions.allowedWarehouseIds),
             getSettingValue("threshold_percentage", "20"),
           ]);
           const visibleRows = permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows;
@@ -460,9 +460,9 @@ export const appRouter = router({
       safe(async () => {
         const permissions = await getUserPermissionSettings(ctx.user.id, ctx.user.role);
         const [rows, movements, latestPermits, configuredThreshold] = await Promise.all([
-          getInventoryRows(),
-          getRecentMovements(8),
-          getLatestPermitSummaries(),
+          getInventoryRows(permissions.allowedWarehouseIds),
+          getRecentMovements(8, permissions.allowedWarehouseIds),
+          getLatestPermitSummaries(permissions.allowedWarehouseIds),
           getSettingValue("threshold_percentage", "20"),
         ]);
         const visibleRows = permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows;

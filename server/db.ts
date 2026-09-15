@@ -577,11 +577,13 @@ export function buildCompanyInventoryAuditReport(warehouseRows: CompanyInventory
   return { warehouses: normalizedWarehouses, rows, summary: { totalItems: rows.length, totalCompanyBalance: rows.reduce((total, item) => total + item.totalCurrentStock, 0) } };
 }
 
-export async function getCompanyInventoryAuditReport() {
+export async function getCompanyInventoryAuditReport(allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
+  const warehouseWhere = allowedWarehouseIds.length ? inArray(warehouses.id, allowedWarehouseIds) : undefined;
+  const balanceWhere = allowedWarehouseIds.length ? inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds) : undefined;
   const [warehouseRows, sourceRows] = await Promise.all([
-    db.select({ id: warehouses.id, slot: warehouses.slot, name: warehouses.name }).from(warehouses).orderBy(asc(warehouses.slot)),
-    db.select({ itemId: items.id, code: items.code, name: items.name, category: items.category, unit: items.unit, reorderLevel: items.reorderLevel, warehouseId: itemWarehouseBalances.warehouseId, currentStock: itemWarehouseBalances.currentStock }).from(items).leftJoin(itemWarehouseBalances, eq(itemWarehouseBalances.itemId, items.id)).orderBy(asc(items.code)),
+    db.select({ id: warehouses.id, slot: warehouses.slot, name: warehouses.name }).from(warehouses).where(warehouseWhere).orderBy(asc(warehouses.slot)),
+    db.select({ itemId: items.id, code: items.code, name: items.name, category: items.category, unit: items.unit, reorderLevel: items.reorderLevel, warehouseId: itemWarehouseBalances.warehouseId, currentStock: itemWarehouseBalances.currentStock }).from(items).leftJoin(itemWarehouseBalances, eq(itemWarehouseBalances.itemId, items.id)).where(balanceWhere).orderBy(asc(items.code)),
   ]);
   return buildCompanyInventoryAuditReport(warehouseRows, sourceRows);
 }
@@ -1333,7 +1335,7 @@ function normalizeReportAggregate(row: { count?: unknown; quantity?: unknown; va
   return { count: Number(row?.count ?? 0), quantity: Number(row?.quantity ?? 0), value: Number(row?.value ?? 0) };
 }
 
-function reportWhereConditions(input: ReportDatasetInput) {
+function reportWhereConditions(input: ReportDatasetInput, allowedWarehouseIds: number[] = []) {
   const permit = input.permitSearch?.trim();
   const incoming = input.incomingFromSearch?.trim();
   const outgoing = input.outgoingToSearch?.trim();
@@ -1344,6 +1346,11 @@ function reportWhereConditions(input: ReportDatasetInput) {
   const additionsConditions: any[] = [];
   const disbursementsConditions: any[] = [];
   const transfersConditions: any[] = [];
+  if (allowedWarehouseIds.length) {
+    additionsConditions.push(inArray(additions.warehouseId, allowedWarehouseIds));
+    disbursementsConditions.push(inArray(disbursements.warehouseId, allowedWarehouseIds));
+    transfersConditions.push(or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)));
+  }
   if (permit) {
     additionsConditions.push(like(additions.eznNum, `%${permit}%`));
     disbursementsConditions.push(like(disbursements.eznNum, `%${permit}%`));
@@ -1393,9 +1400,9 @@ function reportWhereConditions(input: ReportDatasetInput) {
   };
 }
 
-export async function getReportDataset(input: ReportDatasetInput) {
+export async function getReportDataset(input: ReportDatasetInput, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
-  const { additionsWhere, disbursementsWhere, transfersWhere } = reportWhereConditions(input);
+  const { additionsWhere, disbursementsWhere, transfersWhere } = reportWhereConditions(input, allowedWarehouseIds);
   const returnWhere = transfersWhere ? and(transfersWhere, inArray(transfers.transferType, reportReturnTypes)) : inArray(transfers.transferType, reportReturnTypes);
   const additionRowsPromise = input.includeRows ? db.select().from(additions).where(additionsWhere).orderBy(desc(additions.id)) : Promise.resolve([] as any[]);
   const disbursementRowsPromise = input.includeRows ? db.select().from(disbursements).where(disbursementsWhere).orderBy(desc(disbursements.id)) : Promise.resolve([] as any[]);
@@ -1412,13 +1419,15 @@ export async function getReportDataset(input: ReportDatasetInput) {
     db.select({ partyId: disbursements.customerId, fallbackName: disbursements.destination, count: count(), quantity: sum(disbursements.quantity), value: sum(disbursements.totalValue) }).from(disbursements).where(disbursementsWhere).groupBy(disbursements.customerId, disbursements.destination),
     db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers),
     db.select({ id: customers.id, name: customers.name }).from(customers),
-    db.select({ code: items.code, name: items.name, initialStock: items.initialStock, currentStock: items.currentStock, unitPrice: items.unitPrice }).from(items),
-    db.select({ itemCode: additions.itemCode, quantity: sum(additions.quantity) }).from(additions).groupBy(additions.itemCode),
-    db.select({ itemCode: disbursements.itemCode, quantity: sum(disbursements.quantity) }).from(disbursements).groupBy(disbursements.itemCode),
-    db.select({ itemCode: transfers.itemCode, quantity: sum(transfers.quantity) }).from(transfers).where(inArray(transfers.transferType, reportReturnTypes)).groupBy(transfers.itemCode),
+    allowedWarehouseIds.length
+      ? db.selectDistinct({ code: items.code, name: items.name, initialStock: items.initialStock, currentStock: items.currentStock, unitPrice: items.unitPrice }).from(items).innerJoin(itemWarehouseBalances, eq(itemWarehouseBalances.itemId, items.id)).where(inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds))
+      : db.select({ code: items.code, name: items.name, initialStock: items.initialStock, currentStock: items.currentStock, unitPrice: items.unitPrice }).from(items),
+    db.select({ itemCode: additions.itemCode, quantity: sum(additions.quantity) }).from(additions).where(allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined).groupBy(additions.itemCode),
+    db.select({ itemCode: disbursements.itemCode, quantity: sum(disbursements.quantity) }).from(disbursements).where(allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined).groupBy(disbursements.itemCode),
+    db.select({ itemCode: transfers.itemCode, quantity: sum(transfers.quantity) }).from(transfers).where(allowedWarehouseIds.length ? and(inArray(transfers.transferType, reportReturnTypes), or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds))) : inArray(transfers.transferType, reportReturnTypes)).groupBy(transfers.itemCode),
   ]);
   const optionInput = { ...input, additionPurposeSearch: undefined, disbursementPurposeSearch: undefined, returnPurposeSearch: undefined };
-  const optionWhere = reportWhereConditions(optionInput);
+  const optionWhere = reportWhereConditions(optionInput, allowedWarehouseIds);
   const optionReturnWhere = optionWhere.transfersWhere ? and(optionWhere.transfersWhere, inArray(transfers.transferType, reportReturnTypes)) : inArray(transfers.transferType, reportReturnTypes);
   const [additionPurposeGroups, disbursementPurposeGroups, returnPurposeGroups] = await Promise.all([
     db.select({ value: additions.purpose, count: count() }).from(additions).where(optionWhere.additionsWhere).groupBy(additions.purpose),
@@ -2462,17 +2471,21 @@ export async function upsertSetting(input: { key: string; value: string; descrip
   return rows[0];
 }
 
-export async function getInventoryRows() {
+export async function getInventoryRows(allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
-  return db.select().from(items).orderBy(desc(items.updatedAt));
+  if (!allowedWarehouseIds.length) return db.select().from(items).orderBy(desc(items.updatedAt));
+  return db.select().from(items).where(inArray(items.warehouseId, allowedWarehouseIds)).orderBy(desc(items.updatedAt));
 }
 
-export async function getRecentMovements(limit = 10) {
+export async function getRecentMovements(limit = 10, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
+  const additionWhere = allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined;
+  const disbursementWhere = allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined;
+  const transferWhere = allowedWarehouseIds.length ? or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)) : undefined;
   const [additionRows, disbursementRows, transferRows] = await Promise.all([
-    db.select().from(additions).orderBy(desc(additions.id)).limit(limit),
-    db.select().from(disbursements).orderBy(desc(disbursements.id)).limit(limit),
-    db.select().from(transfers).orderBy(desc(transfers.id)).limit(limit),
+    db.select().from(additions).where(additionWhere).orderBy(desc(additions.id)).limit(limit),
+    db.select().from(disbursements).where(disbursementWhere).orderBy(desc(disbursements.id)).limit(limit),
+    db.select().from(transfers).where(transferWhere).orderBy(desc(transfers.id)).limit(limit),
   ]);
   return {
     additions: additionRows,
@@ -2483,11 +2496,13 @@ export async function getRecentMovements(limit = 10) {
 
 /** Returns the latest permit of each requested movement type by its business date.
  * The id provides a stable tie-breaker when multiple rows belong to the same permit date. */
-export async function getLatestPermitSummaries() {
+export async function getLatestPermitSummaries(allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
+  const additionWhere = allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined;
+  const disbursementWhere = allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined;
   const [additionRows, disbursementRows] = await Promise.all([
-    db.select({ id: additions.id, eznNum: additions.eznNum, date: additions.date }).from(additions).orderBy(desc(additions.date), desc(additions.id)).limit(1),
-    db.select({ id: disbursements.id, eznNum: disbursements.eznNum, date: disbursements.date }).from(disbursements).orderBy(desc(disbursements.date), desc(disbursements.id)).limit(1),
+    db.select({ id: additions.id, eznNum: additions.eznNum, date: additions.date }).from(additions).where(additionWhere).orderBy(desc(additions.date), desc(additions.id)).limit(1),
+    db.select({ id: disbursements.id, eznNum: disbursements.eznNum, date: disbursements.date }).from(disbursements).where(disbursementWhere).orderBy(desc(disbursements.date), desc(disbursements.id)).limit(1),
   ]);
   return { addition: additionRows[0] ?? null, disbursement: disbursementRows[0] ?? null };
 }
