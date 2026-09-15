@@ -1,13 +1,13 @@
 import nodemailer from "nodemailer";
 
 function smtpTransport() {
-  const host = process.env.SMTP_HOST;
+  const host = process.env.SMTP_HOST?.trim();
   const port = Number(process.env.SMTP_PORT ?? "587");
-  const user = process.env.SMTP_USER;
-  const password = process.env.SMTP_PASSWORD;
-  const from = process.env.SMTP_FROM || user;
+  const user = process.env.SMTP_USER?.trim();
+  const password = process.env.SMTP_PASSWORD?.replace(/\s+/g, "");
+  const from = process.env.SMTP_FROM?.trim() || user;
   if (!host || !user || !password || !from) return null;
-  return { transport: nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass: password } }), from };
+  return { transport: nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass: password }, connectionTimeout: 15_000, greetingTimeout: 15_000, socketTimeout: 20_000 }), from };
 }
 
 export async function verifyConfiguredSmtp() {
