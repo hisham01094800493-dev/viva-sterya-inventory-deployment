@@ -588,7 +588,7 @@ export async function getCompanyInventoryAuditReport(allowedWarehouseIds: number
   return buildCompanyInventoryAuditReport(warehouseRows, sourceRows);
 }
 
-export async function listItemsPaged(input: { search?: string; warehouseId?: number; category?: string; stockFilter?: "all" | "low" | "healthy"; sortBy?: "name" | "code" | "stock"; page?: number; pageSize?: number }) {
+export async function listItemsPaged(input: { search?: string; warehouseId?: number; category?: string; stockFilter?: "all" | "low" | "healthy"; sortBy?: "name" | "code" | "stock"; page?: number; pageSize?: number }, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
   const page = Math.max(1, Math.floor(input.page ?? 1));
   const pageSize = Math.min(100, Math.max(10, Math.floor(input.pageSize ?? 24)));
@@ -596,6 +596,7 @@ export async function listItemsPaged(input: { search?: string; warehouseId?: num
   const conditions = [];
   if (normalizedSearch) { const pattern = `%${normalizedSearch}%`; conditions.push(or(like(items.code, pattern), like(items.name, pattern))); }
   if (input.warehouseId) conditions.push(eq(items.warehouseId, input.warehouseId));
+  if (allowedWarehouseIds.length) conditions.push(inArray(items.warehouseId, allowedWarehouseIds));
   if (input.category) conditions.push(input.category === "بدون تصنيف" ? isNull(items.category) : eq(items.category, input.category));
   const lowCondition = or(and(gt(items.reorderLevel, "0"), lte(items.currentStock, items.reorderLevel)), and(lte(items.reorderLevel, "0"), lte(items.currentStock, "0")))!;
   if (input.stockFilter === "low") conditions.push(lowCondition);
@@ -610,9 +611,11 @@ export async function listItemsPaged(input: { search?: string; warehouseId?: num
   return { items: rows, total, page, pageSize, pageCount: Math.max(1, Math.ceil(total / pageSize)) };
 }
 
-export async function listItemCategories() {
+export async function listItemCategories(allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
-  const rows = await db.selectDistinct({ category: items.category }).from(items).orderBy(asc(items.category));
+  const rows = allowedWarehouseIds.length
+    ? await db.selectDistinct({ category: items.category }).from(items).innerJoin(itemWarehouseBalances, eq(itemWarehouseBalances.itemId, items.id)).where(inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds)).orderBy(asc(items.category))
+    : await db.selectDistinct({ category: items.category }).from(items).orderBy(asc(items.category));
   return rows.map(row => row.category || "بدون تصنيف");
 }
 
@@ -622,27 +625,31 @@ export async function getItemById(id: number) {
   return rows[0];
 }
 
-export async function getItemCard(itemId: number) {
+export async function getItemCard(itemId: number, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
-  const itemRows = await db.select().from(items).where(eq(items.id, itemId)).limit(1);
+  const itemWhere = allowedWarehouseIds.length ? and(eq(items.id, itemId), inArray(items.warehouseId, allowedWarehouseIds)) : eq(items.id, itemId);
+  const itemRows = await db.select().from(items).where(itemWhere).limit(1);
   const item = itemRows[0];
   if (!item) return undefined;
+  const additionWhere = allowedWarehouseIds.length ? and(eq(additions.itemCode, item.code), inArray(additions.warehouseId, allowedWarehouseIds)) : eq(additions.itemCode, item.code);
+  const disbursementWhere = allowedWarehouseIds.length ? and(eq(disbursements.itemCode, item.code), inArray(disbursements.warehouseId, allowedWarehouseIds)) : eq(disbursements.itemCode, item.code);
+  const transferWhere = allowedWarehouseIds.length ? and(eq(transfers.itemCode, item.code), or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds))) : eq(transfers.itemCode, item.code);
   const [additionRows, disbursementRows, transferRows] = await Promise.all([
-    db.select().from(additions).where(eq(additions.itemCode, item.code)).orderBy(desc(additions.id)),
-    db.select().from(disbursements).where(eq(disbursements.itemCode, item.code)).orderBy(desc(disbursements.id)),
-    db.select().from(transfers).where(eq(transfers.itemCode, item.code)).orderBy(desc(transfers.id)),
+    db.select().from(additions).where(additionWhere).orderBy(desc(additions.id)),
+    db.select().from(disbursements).where(disbursementWhere).orderBy(desc(disbursements.id)),
+    db.select().from(transfers).where(transferWhere).orderBy(desc(transfers.id)),
   ]);
   const returns = transferRows.filter(row => isReturnTransfer(row.transferType));
   return { item, additions: additionRows, disbursements: disbursementRows, returns, transfers: transferRows };
 }
 
-export async function getMainWarehouseItemCards() {
+export async function getMainWarehouseItemCards(allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
   const warehouseItems = await db.select().from(items).where(eq(items.warehouseId, 1)).orderBy(desc(items.updatedAt));
-  return Promise.all(warehouseItems.map(item => getItemCard(item.id)));
+  return Promise.all(warehouseItems.map(item => getItemCard(item.id, allowedWarehouseIds)));
 }
 
-export async function getWarehouseItemCards(warehouseId: number) {
+export async function getWarehouseItemCards(warehouseId: number, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
   const warehouseItems = await db
     .select({ item: items, warehouseStock: itemWarehouseBalances.currentStock })
@@ -651,7 +658,7 @@ export async function getWarehouseItemCards(warehouseId: number) {
     .where(eq(itemWarehouseBalances.warehouseId, warehouseId))
     .orderBy(desc(items.updatedAt));
   return Promise.all(warehouseItems.map(async row => {
-    const card = await getItemCard(row.item.id);
+    const card = await getItemCard(row.item.id, allowedWarehouseIds);
     return card ? { ...card, item: { ...card.item, currentStock: row.warehouseStock } } : undefined;
   }));
 }
@@ -964,14 +971,15 @@ export async function listAdditionsPaged(input: MovementPageInput, allowedWareho
   return { rows, ...totals, page, pageSize, pageCount: Math.max(1, Math.ceil(totals.total / pageSize)) };
 }
 
-export async function listSupplierAccount(supplierId: number) {
+export async function listSupplierAccount(supplierId: number, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
-  return db.select().from(additions).where(eq(additions.supplierId, supplierId)).orderBy(desc(additions.id));
+  const where = allowedWarehouseIds.length ? and(eq(additions.supplierId, supplierId), inArray(additions.warehouseId, allowedWarehouseIds)) : eq(additions.supplierId, supplierId);
+  return db.select().from(additions).where(where).orderBy(desc(additions.id));
 }
-
-export async function listCustomerAccount(customerId: number) {
+export async function listCustomerAccount(customerId: number, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
-  return db.select().from(disbursements).where(eq(disbursements.customerId, customerId)).orderBy(desc(disbursements.id));
+  const where = allowedWarehouseIds.length ? and(eq(disbursements.customerId, customerId), inArray(disbursements.warehouseId, allowedWarehouseIds)) : eq(disbursements.customerId, customerId);
+  return db.select().from(disbursements).where(where).orderBy(desc(disbursements.id));
 }
 
 export async function createAddition(input: {

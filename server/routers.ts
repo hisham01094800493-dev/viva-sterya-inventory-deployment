@@ -311,21 +311,23 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
         if (input.warehouseId && !canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" });
-        const result = await safe(() => listItemsPaged(input));
+        const result = await safe(() => listItemsPaged(input, permissions.allowedWarehouseIds));
         const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
         return canViewFinancialDetails ? result : { ...result, items: result.items.map(({ unitPrice: _unitPrice, ...item }) => item) };
       }),
-    categories: permissionProcedure("inventory").query(() => safe(() => listItemCategories())),
+    categories: permissionProcedure("inventory").query(({ ctx }) => safe(() => listItemCategories(ctx.permissions.allowedWarehouseIds))),
     getById: permissionProcedure("inventory").input(z.object({ id: z.number().int().positive() })).query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const item = await safe(() => getItemById(input.id)); if (item && !canViewWarehouse(permissions.allowedWarehouseIds, item.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا الصنف" }); return item; }),
     getByCode: permissionProcedure("inventory").input(z.object({ code: z.string().trim().min(1) })).query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const item = await safe(() => getItemByCode(input.code)); if (item && !canViewWarehouse(permissions.allowedWarehouseIds, item.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا الصنف" }); return item; }),
-    card: reportPermissionProcedure("item-card").input(z.object({ id: z.number().int().positive() })).query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const item = await safe(() => getItemById(input.id)); if (item && !canViewWarehouse(permissions.allowedWarehouseIds, item.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا الصنف" }); return safe(() => getItemCard(input.id)); }),
-    mainWarehouseCards: permissionProcedure("inventory").query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); if (permissions.allowedWarehouseIds.length && !permissions.allowedWarehouseIds.includes(1)) return []; return safe(() => getMainWarehouseItemCards()); }),
+    card: reportPermissionProcedure("item-card").input(z.object({ id: z.number().int().positive() })).query(async ({ ctx, input }) => { const permissions = ctx.permissions; const item = await safe(() => getItemById(input.id)); if (item && !canViewWarehouse(permissions.allowedWarehouseIds, item.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا الصنف" }); return safe(() => getItemCard(input.id, permissions.allowedWarehouseIds)); }),
+    mainWarehouseCards: permissionProcedure("inventory").query(async ({ ctx }) => { const permissions = ctx.permissions; if (permissions.allowedWarehouseIds.length && !permissions.allowedWarehouseIds.includes(1)) return []; return safe(() => getMainWarehouseItemCards(permissions.allowedWarehouseIds)); }),
     warehouseCards: permissionProcedure("inventory")
       .input(z.object({ warehouseId: z.number().int().positive() }))
-      .query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); if (!canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" }); return safe(() => getWarehouseItemCards(input.warehouseId)); }),
-    nextCode: protectedProcedure.input(z.object({ warehouseId: z.number().int().positive().nullable().optional() }).optional()).query(({ input }) =>
-      safe(() => suggestNextItemCode(input?.warehouseId)),
-    ),
+      .query(async ({ ctx, input }) => { const permissions = ctx.permissions; if (!canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" }); return safe(() => getWarehouseItemCards(input.warehouseId, permissions.allowedWarehouseIds)); }),
+    nextCode: protectedProcedure.input(z.object({ warehouseId: z.number().int().positive().nullable().optional() }).optional()).query(async ({ ctx, input }) => {
+      const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
+      assertWarehouseAccess(permissions, [input?.warehouseId]);
+      return safe(() => suggestNextItemCode(input?.warehouseId));
+    }),
     uploadImage: writePermissionProcedure("inventory")
       .input(z.object({
         itemId: z.number().int().positive(),
@@ -340,7 +342,7 @@ export const appRouter = router({
       .mutation(({ input, ctx }) => { if (ctx.permissions.allowedWarehouseIds.length) throw new TRPCError({ code: "FORBIDDEN", message: "الاستيراد الجماعي يتطلب صلاحية إدارة جميع المخازن" }); return safe(() => importItems(input.rows)); }),
     importMovements: protectedProcedure
       .input(z.object({ rows: z.array(movementImportRow).min(1).max(5000) }))
-      .mutation(({ input }) => safe(() => importMovements(input.rows))),
+      .mutation(async ({ input, ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); if (permissions.allowedWarehouseIds.length || permissions.readOnly) throw new TRPCError({ code: "FORBIDDEN", message: "استيراد الحركات يتطلب صلاحية إدارة جميع المخازن" }); return safe(() => importMovements(input.rows)); }),
     update: writePermissionProcedure("inventory")
       .input(itemInput.partial().extend({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const existing = await safe(() => getItemById(input.id)); if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "الصنف غير موجود" }); assertWarehouseAccess(ctx.permissions, [existing.warehouseId, input.warehouseId]); const result = await safe(() => updateItem(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "item", entityId: input.id, details: input }); return result; }),
@@ -354,9 +356,9 @@ export const appRouter = router({
       .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
       .query(({ input, ctx }) => safe(() => listAdditions(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds))),
     listPaged: permissionProcedure("additions").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), supplierId: z.number().int().positive().optional() })).query(({ input, ctx }) => safe(() => listAdditionsPaged(input, ctx.permissions.allowedWarehouseIds))),
-    account: protectedProcedure.input(z.object({ supplierId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+    account: reportPermissionProcedure("supplier-account").input(z.object({ supplierId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
-      const rows = await safe(() => listSupplierAccount(input.supplierId));
+      const rows = await safe(() => listSupplierAccount(input.supplierId, permissions.allowedWarehouseIds));
       const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
       return canViewFinancialDetails ? rows : rows.map(({ unitPrice: _unitPrice, totalValue: _totalValue, ...row }) => row);
     }),
@@ -384,9 +386,9 @@ export const appRouter = router({
       .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
       .query(({ input, ctx }) => safe(() => listDisbursements(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds))),
     listPaged: permissionProcedure("disbursements").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), customerId: z.number().int().positive().optional() })).query(({ input, ctx }) => safe(() => listDisbursementsPaged(input, ctx.permissions.allowedWarehouseIds))),
-    account: protectedProcedure.input(z.object({ customerId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+    account: reportPermissionProcedure("customer-account").input(z.object({ customerId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
-      const rows = await safe(() => listCustomerAccount(input.customerId));
+      const rows = await safe(() => listCustomerAccount(input.customerId, permissions.allowedWarehouseIds));
       const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
       return canViewFinancialDetails ? rows : rows.map(({ unitPrice: _unitPrice, totalValue: _totalValue, ...row }) => row);
     }),

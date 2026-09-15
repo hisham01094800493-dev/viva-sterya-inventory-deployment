@@ -4,6 +4,14 @@ import type { TrpcContext } from "./_core/context";
 import { uploadItemImage } from "./itemImageUpload";
 
 vi.mock("./itemImageUpload", () => ({ uploadItemImage: vi.fn() }));
+vi.mock("./db", async () => {
+  const actual = await vi.importActual<typeof import("./db")>("./db");
+  return {
+    ...actual,
+    getUserPermissionSettings: vi.fn().mockResolvedValue({ allowedScreens: ["inventory"], allowedReports: [], allowedWarehouseIds: [], readOnly: false }),
+    getItemById: vi.fn().mockResolvedValue({ id: 7, warehouseId: 1 }),
+  };
+});
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
