@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, gt, gte, inArray, isNull, like, lt, lte, not, or, sql, sum } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
+import dns from "node:dns/promises";
 import {
   additions,
   disbursements,
@@ -55,7 +56,23 @@ export class InventoryError extends Error {
 export async function getDb() {
   if (!_db && ENV.databaseUrl) {
     try {
-      _db = drizzle(mysql.createPool({ uri: ENV.databaseUrl, ssl: ENV.databaseSsl, connectionLimit: 5, enableKeepAlive: true }) as any);
+      // Railway's public hostname may return an IPv6 record first. Render's
+      // network cannot always route IPv6, so resolve an IPv4 address before
+      // opening the pool instead of allowing mysql2 to choose an unreachable
+      // AAAA record and fail with ENETUNREACH.
+      const databaseUrl = new URL(ENV.databaseUrl);
+      const ipv4 = await dns.lookup(databaseUrl.hostname, { family: 4 });
+      const ssl = ENV.databaseSsl ? { ...ENV.databaseSsl, servername: databaseUrl.hostname } : undefined;
+      _db = drizzle(mysql.createPool({
+        host: ipv4.address,
+        port: databaseUrl.port ? Number(databaseUrl.port) : 3306,
+        user: decodeURIComponent(databaseUrl.username),
+        password: decodeURIComponent(databaseUrl.password),
+        database: decodeURIComponent(databaseUrl.pathname.replace(/^\//, "")),
+        ssl,
+        connectionLimit: 5,
+        enableKeepAlive: true,
+      }) as any);
       // Ensure this feature works even when the host skips Drizzle migrations.
       await _db.execute(sql.raw(`CREATE TABLE IF NOT EXISTS user_absences (
         id int AUTO_INCREMENT NOT NULL, user_id int NOT NULL, start_date varchar(10) NOT NULL, days int NOT NULL,
