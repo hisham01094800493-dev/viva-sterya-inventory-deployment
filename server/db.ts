@@ -2341,14 +2341,7 @@ async function restoreBackupSnapshotIntoDatabase(db: any, snapshot: any, options
         }
         for (const row of sampleRows) {
           const normalizedRow = normalizeBackupRow(name, row);
-          // user_permissions has a unique user_id in addition to its primary
-          // key. IDs from the source database are not portable when the test
-          // database already contains a row for the same user. Let MySQL keep
-          // the local auto-increment id and upsert by user_id instead.
-          const portableRow = name === "userPermissions"
-            ? Object.fromEntries(Object.entries(normalizedRow).filter(([key]) => key !== "id"))
-            : normalizedRow;
-          await tx.insert(table).values(portableRow as any).onDuplicateKeyUpdate({ set: portableRow as any });
+          await tx.insert(table).values(normalizedRow as any).onDuplicateKeyUpdate({ set: normalizedRow as any });
         }
       };
       await merge("users", users, tables.users); await merge("warehouses", warehouses, tables.warehouses); await merge("suppliers", suppliers, tables.suppliers); await merge("customers", customers, tables.customers); await merge("items", items, tables.items); await merge("itemWarehouseBalances", itemWarehouseBalances, tables.itemWarehouseBalances); await merge("additions", additions, tables.additions); await merge("disbursements", disbursements, tables.disbursements); await merge("transfers", transfers, tables.transfers); await merge("settings", settings, tables.settings); await merge("userPreferences", userPreferences, tables.userPreferences); await merge("userPermissions", userPermissions, tables.userPermissions); await merge("auditLogs", auditLogs, tables.auditLogs); await merge("loginAuditLogs", loginAuditLogs, tables.loginAuditLogs); await merge("securityNotifications", securityNotifications, tables.securityNotifications); await merge("notifications", notifications, tables.notifications); await merge("chatConversations", chatConversations, tables.chatConversations); await merge("chatMembers", chatMembers, tables.chatMembers); await merge("chatMessages", chatMessages, tables.chatMessages); await merge("chatMessageReceipts", chatMessageReceipts, tables.chatMessageReceipts); await merge("revokedSessions", revokedSessions, tables.revokedSessions);
