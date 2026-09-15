@@ -21,6 +21,7 @@ export async function uploadDocumentImage(input: UploadInput, deps: UploadDeps =
   const raw = input.dataBase64.replace(/^data:[^;]+;base64,/, "");
   const buffer = Buffer.from(raw, "base64");
   if (!buffer.length || buffer.length > 5 * 1024 * 1024) throw new Error("حجم صورة الإذن يجب ألا يتجاوز 5 ميجابايت");
+  if (buffer.toString("base64") !== raw) throw new Error("بيانات المستند غير صالحة");
   const safeName = sanitizeUploadedImageFileName(input.fileName, `permit-${input.movementId}`);
   const uploaded = await deps.put(`movement-documents/${input.movementType}/${input.movementId}/${safeName}`, buffer, input.contentType);
   if (input.movementType === "addition") return deps.saveAddition(input.movementId, uploaded.key, uploaded.url);
