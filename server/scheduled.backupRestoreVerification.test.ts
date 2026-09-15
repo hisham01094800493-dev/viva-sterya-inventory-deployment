@@ -3,11 +3,12 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   authenticateRequest: vi.fn(),
   isBackupVerificationScheduleTask: vi.fn(),
-  runLatestBackupVerification: vi.fn(),
+  createBackupRecord: vi.fn(),
+  runIsolatedFullBackupRestore: vi.fn(),
 }));
 
 vi.mock("./_core/sdk", () => ({ sdk: { authenticateRequest: mocks.authenticateRequest } }));
-vi.mock("./db", () => ({ isBackupVerificationScheduleTask: mocks.isBackupVerificationScheduleTask, runLatestBackupVerification: mocks.runLatestBackupVerification }));
+vi.mock("./db", () => ({ createBackupRecord: mocks.createBackupRecord, isBackupVerificationScheduleTask: mocks.isBackupVerificationScheduleTask, runIsolatedFullBackupRestore: mocks.runIsolatedFullBackupRestore }));
 
 import { createBackupRestoreVerificationHandler } from "./scheduled";
 
@@ -35,17 +36,19 @@ describe("scheduled backup restore verification", () => {
     await createBackupRestoreVerificationHandler()({ originalUrl: "/api/scheduled/backup-restore-verification" } as never, api as never);
     expect(state.statusCode).toBe(200);
     expect(state.body).toEqual({ ok: true, skipped: "orphan_or_disabled" });
-    expect(mocks.runLatestBackupVerification).not.toHaveBeenCalled();
+    expect(mocks.runIsolatedFullBackupRestore).not.toHaveBeenCalled();
   });
 
   it("runs the safe scheduled verification only for the configured task", async () => {
     mocks.authenticateRequest.mockResolvedValue({ isCron: true, taskUid: "cron-backup-check" });
     mocks.isBackupVerificationScheduleTask.mockResolvedValue(true);
-    mocks.runLatestBackupVerification.mockResolvedValue({ runId: 7, status: "passed", backupRecordId: 90001 });
+    mocks.createBackupRecord.mockResolvedValue({ record: { id: 90002 } });
+    mocks.runIsolatedFullBackupRestore.mockResolvedValue({ runId: 7, status: "passed", backupRecordId: 90001 });
     const { state, api } = makeResponse();
     await createBackupRestoreVerificationHandler()({ originalUrl: "/api/scheduled/backup-restore-verification" } as never, api as never);
     expect(state.statusCode).toBe(200);
-    expect(state.body).toEqual({ ok: true, taskUid: "cron-backup-check", runId: 7, status: "passed", backupRecordId: 90001 });
-    expect(mocks.runLatestBackupVerification).toHaveBeenCalledWith("scheduled");
+    expect(state.body).toEqual({ ok: true, taskUid: "cron-backup-check", backupRecordId: 90002, runId: 7, status: "passed" });
+    expect(mocks.createBackupRecord).toHaveBeenCalledWith({ backupType: "scheduled" });
+    expect(mocks.runIsolatedFullBackupRestore).toHaveBeenCalledWith();
   });
 });

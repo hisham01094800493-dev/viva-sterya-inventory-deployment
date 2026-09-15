@@ -1,6 +1,9 @@
 import { and, asc, count, desc, eq, gt, gte, inArray, isNull, like, lt, lte, not, or, sql, sum } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { createHash } from "node:crypto";
 import dns from "node:dns/promises";
 import {
   additions,
@@ -1925,10 +1928,11 @@ export async function exportBackupSnapshot() {
 export async function createBackupRecord(input: { userId?: number; userName?: string | null; backupType?: string }) {
   const snapshot = await exportBackupSnapshot();
   const payload = JSON.stringify(snapshot);
+  const payloadSha256 = createHash("sha256").update(payload, "utf8").digest("hex");
   const fileName = `smart-inventory-backup-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
   const uploaded = await storagePut(`smart-inventory/backups/${fileName}`, Buffer.from(payload, "utf8"), "application/json");
   const db = await requireDb();
-  const summary = { items: snapshot.tables.items.length, additions: snapshot.tables.additions.length, disbursements: snapshot.tables.disbursements.length, transfers: snapshot.tables.transfers.length, suppliers: snapshot.tables.suppliers.length, customers: snapshot.tables.customers.length, assets: snapshot.assets.length };
+  const summary = { items: snapshot.tables.items.length, additions: snapshot.tables.additions.length, disbursements: snapshot.tables.disbursements.length, transfers: snapshot.tables.transfers.length, suppliers: snapshot.tables.suppliers.length, customers: snapshot.tables.customers.length, assets: snapshot.assets.length, payloadSha256 };
   const result = await db.insert(backupRecords).values({ fileKey: uploaded.key, fileUrl: uploaded.url, fileName, fileSize: Buffer.byteLength(payload), backupType: input.backupType ?? "manual", summary: JSON.stringify(summary), createdBy: input.userId ?? null, createdByName: input.userName ?? null });
   const id = resultInsertId(result);
   await cleanupExpiredBackupRecords({ retentionDays: 30 });
@@ -2141,7 +2145,8 @@ export async function runDueLocalBackupVerification() {
   if (!config?.isEnabled || !config.nextExecutionAt || config.nextExecutionAt.getTime() > Date.now()) return { ran: false };
   const db = await requireDb();
   try {
-    const result = await runLatestBackupVerification("scheduled");
+    await createBackupRecord({ backupType: "scheduled" });
+    const result = await runIsolatedFullBackupRestore();
     return { ran: true, result };
   } finally {
     await db.update(backupVerificationConfigs).set({ nextExecutionAt: getNextWeeklyBackupExecution() }).where(eq(backupVerificationConfigs.id, config.id));
@@ -2157,6 +2162,12 @@ export async function getBackupSnapshotFromRecord(id: number) {
   const response = await fetch(signedUrl);
   if (!response.ok) throw new InventoryError("UNAVAILABLE", "تعذر قراءة ملف النسخة الاحتياطية");
   const snapshot = await response.json();
+  let expectedSha256: unknown = null;
+  try { expectedSha256 = record.summary ? JSON.parse(record.summary).payloadSha256 : null; } catch { expectedSha256 = null; }
+  if (typeof expectedSha256 === "string") {
+    const actualSha256 = createHash("sha256").update(JSON.stringify(snapshot), "utf8").digest("hex");
+    if (actualSha256 !== expectedSha256) throw new InventoryError("CONFLICT", "فشل التحقق من سلامة ملف النسخة الاحتياطية");
+  }
   return { record, snapshot };
 }
 
@@ -2354,6 +2365,52 @@ function safeDatabaseIdentifier(name: string) {
   return `\`${name}\``;
 }
 
+function getDatabaseConnectionOptions(database?: string) {
+  if (!ENV.databaseUrl) throw new InventoryError("UNAVAILABLE", "رابط قاعدة البيانات غير مهيأ");
+  const url = new URL(ENV.databaseUrl);
+  return {
+    host: url.hostname,
+    port: url.port ? Number(url.port) : 3306,
+    user: decodeURIComponent(url.username),
+    password: decodeURIComponent(url.password),
+    database,
+    ssl: ENV.databaseSsl ? { ...ENV.databaseSsl, servername: url.hostname } : undefined,
+    multipleStatements: true,
+  };
+}
+
+async function createIsolatedRestoreDatabase(databaseName: string) {
+  const sourceUrl = new URL(ENV.databaseUrl!);
+  const ipv4 = await dns.lookup(sourceUrl.hostname, { family: 4 });
+  const admin = await mysql.createConnection({ ...getDatabaseConnectionOptions(), host: ipv4.address });
+  const identifier = safeDatabaseIdentifier(databaseName);
+  try {
+    await admin.query(`DROP DATABASE IF EXISTS ${identifier}`);
+    await admin.query(`CREATE DATABASE ${identifier}`);
+  } finally {
+    await admin.end();
+  }
+  const pool = mysql.createPool({ ...getDatabaseConnectionOptions(databaseName), host: ipv4.address, connectionLimit: 2 });
+  const migrationDirectory = path.resolve(process.cwd(), "drizzle");
+  const migrationFiles = (await fs.readdir(migrationDirectory)).filter(file => /^\d+_.*\.sql$/.test(file)).sort();
+  if (!migrationFiles.length) {
+    await pool.end();
+    throw new InventoryError("UNAVAILABLE", "لم يتم العثور على migrations لإنشاء قاعدة الاستعادة");
+  }
+  try {
+    for (const file of migrationFiles) {
+      const sqlText = await fs.readFile(path.join(migrationDirectory, file), "utf8");
+      for (const statement of sqlText.split(/--> statement-breakpoint\s*/).map(part => part.trim()).filter(Boolean)) await pool.query(statement);
+    }
+  } catch (error) {
+    await pool.end();
+    const cleanup = await mysql.createConnection({ ...getDatabaseConnectionOptions(), host: ipv4.address });
+    try { await cleanup.query(`DROP DATABASE IF EXISTS ${identifier}`); } finally { await cleanup.end(); }
+    throw error;
+  }
+  return { db: drizzle(pool) as any, pool };
+}
+
 export async function runIsolatedFullBackupRestore() {
   const db = await requireDb();
   const latestBackup = (await db.select().from(backupRecords).orderBy(desc(backupRecords.createdAt)).limit(1))[0];
@@ -2367,16 +2424,34 @@ export async function runIsolatedFullBackupRestore() {
 
   try {
     const { snapshot } = await getBackupSnapshotFromRecord(latestBackup.id);
-    const result = await restoreBackupSnapshot(snapshot, { dryRun: true });
+    if (!ENV.databaseUrl) throw new InventoryError("UNAVAILABLE", "رابط قاعدة البيانات غير مهيأ لاختبار الاستعادة");
+    const sourceDatabase = decodeURIComponent(new URL(ENV.databaseUrl).pathname.replace(/^\//, ""));
+    const testDatabase = getRestoreTestDatabaseName(sourceDatabase);
+    const isolated = await createIsolatedRestoreDatabase(testDatabase);
+    let result: any;
+    let restoredTableCounts: Record<string, number> = {};
+    try {
+      result = await restoreBackupSnapshotIntoDatabase(isolated.db, snapshot);
+      const restoreTables: Record<string, any> = { users, warehouses, suppliers, customers, items, itemWarehouseBalances, additions, disbursements, transfers, settings, userPreferences, userPermissions, auditLogs, loginAuditLogs, securityNotifications, notifications, chatConversations, chatMembers, chatMessages, chatMessageReceipts, revokedSessions };
+      for (const tableName of RESTORABLE_BACKUP_TABLES) {
+        const rows = await isolated.db.select({ total: count() }).from(restoreTables[tableName]);
+        restoredTableCounts[tableName] = Number(rows[0]?.total ?? 0);
+      }
+    } finally {
+      await isolated.pool.end();
+      const sourceUrl = new URL(ENV.databaseUrl);
+      const ipv4 = await dns.lookup(sourceUrl.hostname, { family: 4 });
+      const admin = await mysql.createConnection({ ...getDatabaseConnectionOptions(), host: ipv4.address });
+      try { await admin.query(`DROP DATABASE IF EXISTS ${safeDatabaseIdentifier(testDatabase)}`); } finally { await admin.end(); }
+    }
     const expectedTableCounts = result.validation?.rowCounts ?? validateBackupSnapshot(snapshot).rowCounts;
-    const restoredTableCounts = result.attemptedRows as Record<string, number>;
     const mismatches = Object.entries(expectedTableCounts).filter(([tableName, expected]) => restoredTableCounts[tableName] !== expected).map(([tableName, expected]) => ({ tableName, expected, actual: restoredTableCounts[tableName] ?? 0 }));
     const status = mismatches.length === 0 && result.validation?.isValid === true ? "passed" as const : "failed" as const;
     const completedAt = new Date();
     const errorMessage = status === "failed" ? "فشلت مطابقة صفوف النسخة أثناء الاستعادة الكاملة الآمنة" : null;
-    await updateBackupVerificationStatus({ runId, status, completedAt, backupRecordId: latestBackup.id, attemptedRows: result.attemptedRows, coverage: { ...result.coverage, restoredTableCounts, mismatches, restoreMode: "transaction_rollback" }, validation: result.validation, errorMessage });
+    await updateBackupVerificationStatus({ runId, status, completedAt, backupRecordId: latestBackup.id, attemptedRows: restoredTableCounts, coverage: { ...result.coverage, restoredTableCounts, mismatches, restoreMode: "isolated_database" }, validation: result.validation, errorMessage });
     if (status === "failed") await notifyBackupVerificationFailure({ backupRecordId: latestBackup.id, message: errorMessage!, failedAt: completedAt });
-    return { runId, status, backupRecordId: latestBackup.id, restoredTableCounts, expectedTableCounts, mismatches };
+    return { runId, status, backupRecordId: latestBackup.id, restoredTableCounts, expectedTableCounts, mismatches, testDatabase };
   } catch (error: any) {
     const completedAt = new Date();
     const errorMessage = error?.message || "تعذرت الاستعادة الكاملة في قاعدة الاختبار المعزولة";
