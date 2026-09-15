@@ -1,4 +1,8 @@
+import { setDefaultResultOrder } from "node:dns";
 import nodemailer from "nodemailer";
+
+setDefaultResultOrder("ipv4first");
+
 
 function smtpTransport() {
   const host = process.env.SMTP_HOST?.trim();
@@ -7,8 +11,9 @@ function smtpTransport() {
   const password = process.env.SMTP_PASSWORD?.replace(/\s+/g, "");
   const from = process.env.SMTP_FROM?.trim() || user;
   if (!host || !user || !password || !from) return null;
-  return { transport: nodemailer.createTransport({ host, port, secure: port === 465, family: 4, auth: { user, pass: password }, connectionTimeout: 15_000, greetingTimeout: 15_000, socketTimeout: 20_000 } as any), from };
+  return { transport: nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass: password }, connectionTimeout: 15_000, greetingTimeout: 15_000, socketTimeout: 20_000 } as any), from };
 }
+
 
 export async function verifyConfiguredSmtp() {
   const configured = smtpTransport();
@@ -17,6 +22,7 @@ export async function verifyConfiguredSmtp() {
   return { configured: true, verified: true };
 }
 
+
 export async function sendConfiguredEmail(input: { subject: string; html: string; recipients: string[] }) {
   const configured = smtpTransport();
   const recipients = Array.from(new Set(input.recipients.map(value => value.trim()).filter(Boolean)));
@@ -24,3 +30,4 @@ export async function sendConfiguredEmail(input: { subject: string; html: string
   await configured.transport.sendMail({ from: configured.from, to: recipients.join(","), subject: input.subject, html: input.html });
   return true;
 }
+
