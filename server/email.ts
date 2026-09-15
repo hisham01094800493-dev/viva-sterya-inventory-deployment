@@ -7,7 +7,7 @@ function smtpTransport() {
   const password = process.env.SMTP_PASSWORD?.replace(/\s+/g, "");
   const from = process.env.SMTP_FROM?.trim() || user;
   if (!host || !user || !password || !from) return null;
-  return { transport: nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass: password }, connectionTimeout: 15_000, greetingTimeout: 15_000, socketTimeout: 20_000 }), from };
+  return { transport: nodemailer.createTransport({ host, port, secure: port === 465, family: 4, auth: { user, pass: password }, connectionTimeout: 15_000, greetingTimeout: 15_000, socketTimeout: 20_000 } as any), from };
 }
 
 export async function verifyConfiguredSmtp() {
