@@ -872,7 +872,15 @@ export async function updateTransferDocumentImage(id: number, imageKey: string, 
   await db.update(transfers).set({ documentImageKey: imageKey, documentImageUrl: imageUrl }).where(eq(transfers.id, id));
   return { id, documentImageKey: imageKey, documentImageUrl: imageUrl };
 }
-
+export type MovementDocumentType = "addition" | "disbursement" | "transfer";
+export async function clearMovementDocumentImage(type: MovementDocumentType, id: number) {
+  const db = await requireDb();
+  const table = type === "addition" ? additions : type === "disbursement" ? disbursements : transfers;
+  const rows = await db.select({ id: table.id, imageKey: table.documentImageKey }).from(table).where(eq(table.id, id)).limit(1);
+  if (!rows[0]) throw new InventoryError("NOT_FOUND", type === "addition" ? "سجل الإضافة غير موجود" : type === "disbursement" ? "سجل الصرف غير موجود" : "سجل التحويل غير موجود");
+  await db.update(table).set({ documentImageKey: null, documentImageUrl: null }).where(eq(table.id, id));
+  return { id, imageKey: rows[0].imageKey ?? null, cleared: true };
+}
 export async function deleteItem(id: number) {
   const db = await requireDb();
   return db.transaction(async (tx: any) => {

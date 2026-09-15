@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 function storageConfig() {
@@ -42,4 +42,9 @@ export async function storageGetObject(relKey: string, range?: string) {
 export async function storageGetSignedUrl(relKey: string, expiresIn = 300) {
   const { bucket, s3 } = client();
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: normalizeKey(relKey) }), { expiresIn });
+}
+export async function storageDelete(relKey: string) {
+  const { bucket, s3 } = client();
+  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: normalizeKey(relKey) }));
+  return { key: normalizeKey(relKey) };
 }

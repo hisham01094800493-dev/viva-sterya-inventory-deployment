@@ -63,6 +63,7 @@ import {
   updateAdditionDocumentImage,
   updateDisbursementDocumentImage,
   updateTransfer,
+  clearMovementDocumentImage,
   upsertSetting,
   createAuditLog,
   listAuditLogs,
@@ -127,6 +128,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { uploadItemImage } from "./itemImageUpload";
 import { uploadCompanyLogo } from "./companyLogoUpload";
 import { uploadDocumentImage } from "./documentImageUpload";
+import { storageDelete } from "./storage";
 import { createHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
 
 const DEFAULT_GOOGLE_SEARCH_ENGINE_ID = "01b5a823a6a9140c6";
@@ -351,6 +353,12 @@ export const appRouter = router({
     uploadDocumentImage: protectedProcedure
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
       .mutation(({ input }) => safe(() => uploadDocumentImage({ ...input, movementType: "addition" }))),
+    clearDocumentImage: protectedProcedure.input(z.object({ movementId: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      const result = await safe(() => clearMovementDocumentImage("addition", input.movementId));
+      if (result.imageKey) { try { await storageDelete(result.imageKey); } catch (error) { console.warn("[Storage] Failed to delete addition document image:", error); } }
+      await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "addition", entityId: input.movementId });
+      return result;
+    }),
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteAddition(input.id)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "addition", entityId: input.id }); return result; }),
@@ -376,6 +384,12 @@ export const appRouter = router({
     uploadDocumentImage: protectedProcedure
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
       .mutation(({ input }) => safe(() => uploadDocumentImage({ ...input, movementType: "disbursement" }))),
+    clearDocumentImage: protectedProcedure.input(z.object({ movementId: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      const result = await safe(() => clearMovementDocumentImage("disbursement", input.movementId));
+      if (result.imageKey) { try { await storageDelete(result.imageKey); } catch (error) { console.warn("[Storage] Failed to delete disbursement document image:", error); } }
+      await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "disbursement", entityId: input.movementId });
+      return result;
+    }),
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteDisbursement(input.id)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "disbursement", entityId: input.id }); return result; }),
@@ -393,6 +407,12 @@ export const appRouter = router({
     uploadDocumentImage: protectedProcedure
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
       .mutation(({ input }) => safe(() => uploadDocumentImage({ ...input, movementType: "transfer" }))),
+    clearDocumentImage: protectedProcedure.input(z.object({ movementId: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      const result = await safe(() => clearMovementDocumentImage("transfer", input.movementId));
+      if (result.imageKey) { try { await storageDelete(result.imageKey); } catch (error) { console.warn("[Storage] Failed to delete transfer document image:", error); } }
+      await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "transfer", entityId: input.movementId });
+      return result;
+    }),
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteTransfer(input.id)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "transfer", entityId: input.id }); return result; }),
