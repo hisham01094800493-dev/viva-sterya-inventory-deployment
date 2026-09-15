@@ -11,6 +11,12 @@ function canAccess(allowed: string[], key: string) {
   return allowed.includes(key);
 }
 
+function canAccessWarehouses(allowed: number[], requested: Array<number | null | undefined>) {
+  if (!allowed.length) return true;
+  const ids = requested.filter((id): id is number => typeof id === "number");
+  return ids.length > 0 && ids.every(id => allowed.includes(id));
+}
+
 describe("role permission policy", () => {
   it("allows viewer to read while denying inventory creation", () => {
     expect(readOnlyRoles.has("viewer")).toBe(true);
@@ -43,6 +49,14 @@ describe("role permission policy", () => {
     expect(canAccess(reports, "item-card")).toBe(true);
     expect(canAccess(reports, "customer-account")).toBe(false);
   });
+
+  it("allows only explicitly assigned warehouses for restricted users", () => {
+    expect(canAccessWarehouses([2, 4], [2])).toBe(true);
+    expect(canAccessWarehouses([2, 4], [3])).toBe(false);
+    expect(canAccessWarehouses([2, 4], [2, 4])).toBe(true);
+    expect(canAccessWarehouses([2, 4], [2, 5])).toBe(false);
+    expect(canAccessWarehouses([2, 4], [null])).toBe(false);
+  });
 });
 
-export { canCreateInventory, canAccess, readOnlyRoles };
+export { canCreateInventory, canAccess, canAccessWarehouses, readOnlyRoles };

@@ -914,9 +914,24 @@ export async function deleteItem(id: number) {
   });
 }
 
-export async function listAdditions(limit = 100) {
+export async function listAdditions(limit = 100, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
-  return db.select().from(additions).orderBy(desc(additions.id)).limit(limit);
+  const where = allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined;
+  return db.select().from(additions).where(where).orderBy(desc(additions.id)).limit(limit);
+}
+
+export async function getMovementWarehouseIds(type: "addition" | "disbursement" | "transfer", id: number) {
+  const db = await requireDb();
+  if (type === "addition") {
+    const rows = await db.select({ warehouseId: additions.warehouseId }).from(additions).where(eq(additions.id, id)).limit(1);
+    return rows[0] ? [rows[0].warehouseId] : [];
+  }
+  if (type === "disbursement") {
+    const rows = await db.select({ warehouseId: disbursements.warehouseId }).from(disbursements).where(eq(disbursements.id, id)).limit(1);
+    return rows[0] ? [rows[0].warehouseId] : [];
+  }
+  const rows = await db.select({ fromWarehouseId: transfers.fromWarehouseId, toWarehouseId: transfers.toWarehouseId }).from(transfers).where(eq(transfers.id, id)).limit(1);
+  return rows[0] ? [rows[0].fromWarehouseId, rows[0].toWarehouseId] : [];
 }
 
 export type MovementPageInput = { page?: number; pageSize?: number; itemSearch?: string; permitSearch?: string; purposeSearch?: string; fromDate?: string; toDate?: string; supplierId?: number };
@@ -929,7 +944,7 @@ export function normalizeMovementPageTotals(row: { total?: unknown; totalQuantit
   return { total: Number(row?.total ?? 0), totalQuantity: Number(row?.totalQuantity ?? 0), totalValue: Number(row?.totalValue ?? 0) };
 }
 
-export async function listAdditionsPaged(input: MovementPageInput) {
+export async function listAdditionsPaged(input: MovementPageInput, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
   const { page, pageSize } = normalizeMovementPageInput(input);
   const conditions: any[] = [];
@@ -940,6 +955,7 @@ export async function listAdditionsPaged(input: MovementPageInput) {
   if (input.supplierId) conditions.push(eq(additions.supplierId, input.supplierId));
   if (input.fromDate) conditions.push(gte(additions.date, input.fromDate));
   if (input.toDate) conditions.push(lte(additions.date, input.toDate));
+  if (allowedWarehouseIds.length) conditions.push(inArray(additions.warehouseId, allowedWarehouseIds));
   const whereClause = conditions.length ? and(...conditions) : undefined;
   const [rows, totalRows] = await Promise.all([db.select().from(additions).where(whereClause).orderBy(desc(additions.id)).limit(pageSize).offset((page - 1) * pageSize), db.select({ total: count(), totalQuantity: sum(additions.quantity), totalValue: sum(additions.totalValue) }).from(additions).where(whereClause)]);
   const totals = normalizeMovementPageTotals(totalRows[0]);
@@ -1105,12 +1121,13 @@ export async function deleteAddition(id: number) {
   });
 }
 
-export async function listDisbursements(limit = 500) {
+export async function listDisbursements(limit = 500, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
-  return db.select().from(disbursements).orderBy(desc(disbursements.id)).limit(limit);
+  const where = allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined;
+  return db.select().from(disbursements).where(where).orderBy(desc(disbursements.id)).limit(limit);
 }
 
-export async function listDisbursementsPaged(input: Omit<MovementPageInput, "supplierId"> & { customerId?: number }) {
+export async function listDisbursementsPaged(input: Omit<MovementPageInput, "supplierId"> & { customerId?: number }, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
   const { page, pageSize } = normalizeMovementPageInput(input);
   const conditions: any[] = [];
@@ -1121,6 +1138,7 @@ export async function listDisbursementsPaged(input: Omit<MovementPageInput, "sup
   if (input.customerId) conditions.push(eq(disbursements.customerId, input.customerId));
   if (input.fromDate) conditions.push(gte(disbursements.date, input.fromDate));
   if (input.toDate) conditions.push(lte(disbursements.date, input.toDate));
+  if (allowedWarehouseIds.length) conditions.push(inArray(disbursements.warehouseId, allowedWarehouseIds));
   const whereClause = conditions.length ? and(...conditions) : undefined;
   const [rows, totalRows] = await Promise.all([db.select().from(disbursements).where(whereClause).orderBy(desc(disbursements.id)).limit(pageSize).offset((page - 1) * pageSize), db.select({ total: count(), totalQuantity: sum(disbursements.quantity), totalValue: sum(disbursements.totalValue) }).from(disbursements).where(whereClause)]);
   const totals = normalizeMovementPageTotals(totalRows[0]);
@@ -1273,12 +1291,13 @@ export async function deleteDisbursement(id: number) {
   });
 }
 
-export async function listTransfers(limit = 100) {
+export async function listTransfers(limit = 100, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
-  return db.select().from(transfers).orderBy(desc(transfers.id)).limit(limit);
+  const where = allowedWarehouseIds.length ? or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)) : undefined;
+  return db.select().from(transfers).where(where).orderBy(desc(transfers.id)).limit(limit);
 }
 
-export async function listTransfersPaged(input: Omit<MovementPageInput, "supplierId">) {
+export async function listTransfersPaged(input: Omit<MovementPageInput, "supplierId">, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
   const { page, pageSize } = normalizeMovementPageInput(input);
   const conditions: any[] = [];
@@ -1288,6 +1307,7 @@ export async function listTransfersPaged(input: Omit<MovementPageInput, "supplie
   if (purposeSearch) conditions.push(like(transfers.notes, `%${purposeSearch}%`));
   if (input.fromDate) conditions.push(gte(transfers.date, input.fromDate));
   if (input.toDate) conditions.push(lte(transfers.date, input.toDate));
+  if (allowedWarehouseIds.length) conditions.push(or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)));
   const whereClause = conditions.length ? and(...conditions) : undefined;
   const [rows, totalRows] = await Promise.all([db.select().from(transfers).where(whereClause).orderBy(desc(transfers.id)).limit(pageSize).offset((page - 1) * pageSize), db.select({ total: count(), totalQuantity: sum(transfers.quantity), totalValue: sum(transfers.totalValue) }).from(transfers).where(whereClause)]);
   const totals = normalizeMovementPageTotals(totalRows[0]);

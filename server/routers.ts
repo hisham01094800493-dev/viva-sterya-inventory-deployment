@@ -94,6 +94,7 @@ import {
   deleteUserAbsence,
   getUserAbsenceTotals,
   getUserPermissionSettings,
+  getMovementWarehouseIds,
   listManagedUserPermissions,
   upsertUserPermissionSettings,
   exportBackupSnapshot,
@@ -123,7 +124,7 @@ import {
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { whatsappRouter } from "./whatsappRouter";
-import { adminProcedure, managementProcedure, entryProcedure, itemCreateProcedure, reviewProcedure, permissionProcedure, reportPermissionProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, managementProcedure, entryProcedure, writePermissionProcedure, itemCreateProcedure, reviewProcedure, permissionProcedure, reportPermissionProcedure, protectedProcedure, publicProcedure, router, canAccessWarehouses } from "./_core/trpc";
 import { COOKIE_NAME } from "@shared/const";
 import { uploadItemImage } from "./itemImageUpload";
 import { uploadCompanyLogo } from "./companyLogoUpload";
@@ -157,6 +158,19 @@ async function safe<T>(work: () => Promise<T>) {
 }
 function canViewWarehouse(allowedWarehouseIds: number[], warehouseId: number | null | undefined) {
   return !allowedWarehouseIds.length || (warehouseId != null && allowedWarehouseIds.includes(warehouseId));
+}
+
+function assertWarehouseAccess(permissions: { allowedWarehouseIds: number[] }, warehouseIds: Array<number | null | undefined>) {
+  if (!canAccessWarehouses(permissions.allowedWarehouseIds, warehouseIds)) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الوصول إلى هذا المخزن" });
+  }
+}
+
+async function assertExistingMovementAccess(type: "addition" | "disbursement" | "transfer", id: number, permissions: { allowedWarehouseIds: number[] }) {
+  const warehouseIds = await safe(() => getMovementWarehouseIds(type, id));
+  if (!warehouseIds.length) throw new TRPCError({ code: "NOT_FOUND", message: "سجل الحركة غير موجود" });
+  assertWarehouseAccess(permissions, warehouseIds);
+  return warehouseIds;
 }
 
 const itemInput = z.object({
@@ -312,24 +326,24 @@ export const appRouter = router({
     nextCode: protectedProcedure.input(z.object({ warehouseId: z.number().int().positive().nullable().optional() }).optional()).query(({ input }) =>
       safe(() => suggestNextItemCode(input?.warehouseId)),
     ),
-    uploadImage: protectedProcedure
+    uploadImage: writePermissionProcedure("inventory")
       .input(z.object({
         itemId: z.number().int().positive(),
         fileName: z.string().trim().min(1).max(128),
         contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
         dataBase64: z.string().min(20).max(7_000_000),
       }))
-      .mutation(({ input }) => safe(() => uploadItemImage(input))),
-    create: itemCreateProcedure.input(itemInput).mutation(async ({ input, ctx }) => { const result = await safe(() => createItem(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "item", entityId: result?.id, details: { code: result?.code, name: result?.name } }); return result; }),
+      .mutation(async ({ input, ctx }) => { const item = await safe(() => getItemById(input.itemId)); if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "الصنف غير موجود" }); assertWarehouseAccess(ctx.permissions, [item.warehouseId]); return safe(() => uploadItemImage(input)); }),
+    create: itemCreateProcedure.input(itemInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createItem(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "item", entityId: result?.id, details: { code: result?.code, name: result?.name } }); return result; }),
     importBulk: itemCreateProcedure
       .input(z.object({ rows: z.array(importItemInput).min(1).max(5000) }))
-      .mutation(({ input }) => safe(() => importItems(input.rows))),
+      .mutation(({ input, ctx }) => { if (ctx.permissions.allowedWarehouseIds.length) throw new TRPCError({ code: "FORBIDDEN", message: "الاستيراد الجماعي يتطلب صلاحية إدارة جميع المخازن" }); return safe(() => importItems(input.rows)); }),
     importMovements: protectedProcedure
       .input(z.object({ rows: z.array(movementImportRow).min(1).max(5000) }))
       .mutation(({ input }) => safe(() => importMovements(input.rows))),
-    update: entryProcedure
+    update: writePermissionProcedure("inventory")
       .input(itemInput.partial().extend({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const result = await safe(() => updateItem(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "item", entityId: input.id, details: input }); return result; }),
+      .mutation(async ({ input, ctx }) => { const existing = await safe(() => getItemById(input.id)); if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "الصنف غير موجود" }); assertWarehouseAccess(ctx.permissions, [existing.warehouseId, input.warehouseId]); const result = await safe(() => updateItem(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "item", entityId: input.id, details: input }); return result; }),
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteItem(input.id)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "item", entityId: input.id }); return result; }),
@@ -338,22 +352,23 @@ export const appRouter = router({
   additions: router({
     list: permissionProcedure("additions")
       .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
-      .query(({ input }) => safe(() => listAdditions(input?.limit ?? 100))),
-    listPaged: permissionProcedure("additions").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), supplierId: z.number().int().positive().optional() })).query(({ input }) => safe(() => listAdditionsPaged(input))),
+      .query(({ input, ctx }) => safe(() => listAdditions(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds))),
+    listPaged: permissionProcedure("additions").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), supplierId: z.number().int().positive().optional() })).query(({ input, ctx }) => safe(() => listAdditionsPaged(input, ctx.permissions.allowedWarehouseIds))),
     account: protectedProcedure.input(z.object({ supplierId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
       const rows = await safe(() => listSupplierAccount(input.supplierId));
       const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
       return canViewFinancialDetails ? rows : rows.map(({ unitPrice: _unitPrice, totalValue: _totalValue, ...row }) => row);
     }),
-    create: entryProcedure.input(additionInput).mutation(async ({ input, ctx }) => { const result = await safe(() => createAddition(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "addition", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
-    update: protectedProcedure
+    create: writePermissionProcedure("additions").input(additionInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createAddition(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "addition", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
+    update: writePermissionProcedure("additions")
       .input(additionInput.partial().extend({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const result = await safe(() => updateAddition(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "addition", entityId: input.id, details: input }); return result; }),
-    uploadDocumentImage: protectedProcedure
+      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("addition", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const result = await safe(() => updateAddition(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "addition", entityId: input.id, details: input }); return result; }),
+    uploadDocumentImage: writePermissionProcedure("additions")
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
-      .mutation(({ input }) => safe(() => uploadDocumentImage({ ...input, movementType: "addition" }))),
-    clearDocumentImage: protectedProcedure.input(z.object({ movementId: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      .mutation(async ({ input, ctx }) => { await assertExistingMovementAccess("addition", input.movementId, ctx.permissions); return safe(() => uploadDocumentImage({ ...input, movementType: "addition" })); }),
+    clearDocumentImage: writePermissionProcedure("additions").input(z.object({ movementId: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      await assertExistingMovementAccess("addition", input.movementId, ctx.permissions);
       const result = await safe(() => clearMovementDocumentImage("addition", input.movementId));
       if (result.imageKey) { try { await storageDelete(result.imageKey); } catch (error) { console.warn("[Storage] Failed to delete addition document image:", error); } }
       await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "addition", entityId: input.movementId });
@@ -367,24 +382,25 @@ export const appRouter = router({
   disbursements: router({
     list: permissionProcedure("disbursements")
       .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
-      .query(({ input }) => safe(() => listDisbursements(input?.limit ?? 100))),
-    listPaged: permissionProcedure("disbursements").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), customerId: z.number().int().positive().optional() })).query(({ input }) => safe(() => listDisbursementsPaged(input))),
+      .query(({ input, ctx }) => safe(() => listDisbursements(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds))),
+    listPaged: permissionProcedure("disbursements").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), customerId: z.number().int().positive().optional() })).query(({ input, ctx }) => safe(() => listDisbursementsPaged(input, ctx.permissions.allowedWarehouseIds))),
     account: protectedProcedure.input(z.object({ customerId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
       const rows = await safe(() => listCustomerAccount(input.customerId));
       const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
       return canViewFinancialDetails ? rows : rows.map(({ unitPrice: _unitPrice, totalValue: _totalValue, ...row }) => row);
     }),
-    create: entryProcedure
+    create: writePermissionProcedure("disbursements")
       .input(disbursementInput)
-      .mutation(async ({ input, ctx }) => { const result = await safe(() => createDisbursement(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "disbursement", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
-    update: entryProcedure
+      .mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createDisbursement(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "disbursement", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
+    update: writePermissionProcedure("disbursements")
       .input(disbursementInput.partial().extend({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const result = await safe(() => updateDisbursement(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "disbursement", entityId: input.id, details: input }); return result; }),
-    uploadDocumentImage: protectedProcedure
+      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("disbursement", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const result = await safe(() => updateDisbursement(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "disbursement", entityId: input.id, details: input }); return result; }),
+    uploadDocumentImage: writePermissionProcedure("disbursements")
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
-      .mutation(({ input }) => safe(() => uploadDocumentImage({ ...input, movementType: "disbursement" }))),
-    clearDocumentImage: protectedProcedure.input(z.object({ movementId: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      .mutation(async ({ input, ctx }) => { await assertExistingMovementAccess("disbursement", input.movementId, ctx.permissions); return safe(() => uploadDocumentImage({ ...input, movementType: "disbursement" })); }),
+    clearDocumentImage: writePermissionProcedure("disbursements").input(z.object({ movementId: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      await assertExistingMovementAccess("disbursement", input.movementId, ctx.permissions);
       const result = await safe(() => clearMovementDocumentImage("disbursement", input.movementId));
       if (result.imageKey) { try { await storageDelete(result.imageKey); } catch (error) { console.warn("[Storage] Failed to delete disbursement document image:", error); } }
       await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "disbursement", entityId: input.movementId });
@@ -398,16 +414,17 @@ export const appRouter = router({
   transfers: router({
     list: permissionProcedure("transfers")
       .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
-      .query(({ input }) => safe(() => listTransfers(input?.limit ?? 100))),
-    listPaged: permissionProcedure("transfers").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional() })).query(({ input }) => safe(() => listTransfersPaged(input))),
-    create: entryProcedure.input(transferInput).mutation(async ({ input, ctx }) => { const result = await safe(() => createTransfer(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "transfer", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity, transferType: input.transferType } }); return result; }),
-    update: entryProcedure
+      .query(({ input, ctx }) => safe(() => listTransfers(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds))),
+    listPaged: permissionProcedure("transfers").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional() })).query(({ input, ctx }) => safe(() => listTransfersPaged(input, ctx.permissions.allowedWarehouseIds))),
+    create: writePermissionProcedure("transfers").input(transferInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId, input.toWarehouseId]); const result = await safe(() => createTransfer(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "transfer", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity, transferType: input.transferType } }); return result; }),
+    update: writePermissionProcedure("transfers")
       .input(transferInput.partial().extend({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const result = await safe(() => updateTransfer(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "transfer", entityId: input.id, details: input }); return result; }),
-    uploadDocumentImage: protectedProcedure
+      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("transfer", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId ?? existing[0], input.toWarehouseId ?? existing[1]]); const result = await safe(() => updateTransfer(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "transfer", entityId: input.id, details: input }); return result; }),
+    uploadDocumentImage: writePermissionProcedure("transfers")
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
-      .mutation(({ input }) => safe(() => uploadDocumentImage({ ...input, movementType: "transfer" }))),
-    clearDocumentImage: protectedProcedure.input(z.object({ movementId: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      .mutation(async ({ input, ctx }) => { await assertExistingMovementAccess("transfer", input.movementId, ctx.permissions); return safe(() => uploadDocumentImage({ ...input, movementType: "transfer" })); }),
+    clearDocumentImage: writePermissionProcedure("transfers").input(z.object({ movementId: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      await assertExistingMovementAccess("transfer", input.movementId, ctx.permissions);
       const result = await safe(() => clearMovementDocumentImage("transfer", input.movementId));
       if (result.imageKey) { try { await storageDelete(result.imageKey); } catch (error) { console.warn("[Storage] Failed to delete transfer document image:", error); } }
       await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "transfer", entityId: input.movementId });
