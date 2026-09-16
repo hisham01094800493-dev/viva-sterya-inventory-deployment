@@ -457,16 +457,14 @@ export async function upsertGoogleUser(input: {
   }
 
   const role = resolveGoogleUserRole(email);
-  const result = await db
-    .insert(users)
-    .values({
-      openId,
-      name: input.name || "مستخدم Google",
-      email,
-      loginMethod: "google",
-      role,
-      lastSignedIn: new Date(),
-    });
+  const result = await db.insert(users).values({
+    openId,
+    name: input.name || "مستخدم Google",
+    email,
+    loginMethod: "google",
+    role,
+    lastSignedIn: new Date(),
+  });
   const id = resultInsertId(result);
   return (await db.select().from(users).where(eq(users.id, id)).limit(1))[0]!;
 }
@@ -719,15 +717,13 @@ export async function createCustomer(input: {
   if (!name)
     throw new InventoryError("BAD_REQUEST", "اسم العميل أو الجهة مطلوب");
   try {
-    const result = await db
-      .insert(customers)
-      .values({
-        name,
-        phone: input.phone?.trim() || null,
-        email: input.email?.trim() || null,
-        address: input.address?.trim() || null,
-        notes: input.notes?.trim() || null,
-      });
+    const result = await db.insert(customers).values({
+      name,
+      phone: input.phone?.trim() || null,
+      email: input.email?.trim() || null,
+      address: input.address?.trim() || null,
+      notes: input.notes?.trim() || null,
+    });
     const rows = await db
       .select()
       .from(customers)
@@ -798,15 +794,13 @@ export async function createSupplier(input: {
   const name = input.name.trim();
   if (!name) throw new InventoryError("BAD_REQUEST", "اسم المورد مطلوب");
   try {
-    const result = await db
-      .insert(suppliers)
-      .values({
-        name,
-        phone: input.phone?.trim() || null,
-        email: input.email?.trim() || null,
-        address: input.address?.trim() || null,
-        notes: input.notes?.trim() || null,
-      });
+    const result = await db.insert(suppliers).values({
+      name,
+      phone: input.phone?.trim() || null,
+      email: input.email?.trim() || null,
+      address: input.address?.trim() || null,
+      notes: input.notes?.trim() || null,
+    });
     const id = resultInsertId(result);
     const rows = await db
       .select()
@@ -916,13 +910,11 @@ async function nextItemCode(tx: any, _warehouseId?: number | null) {
       .set({ value: String(selected.nextSequence) })
       .where(eq(settings.id, rows[0].id));
   else
-    await tx
-      .insert(settings)
-      .values({
-        key: MAIN_WAREHOUSE_CODE_KEY,
-        value: String(selected.nextSequence),
-        description: "عداد التكويد التلقائي للمخزن الرئيسي",
-      });
+    await tx.insert(settings).values({
+      key: MAIN_WAREHOUSE_CODE_KEY,
+      value: String(selected.nextSequence),
+      description: "عداد التكويد التلقائي للمخزن الرئيسي",
+    });
   return selected.code;
 }
 
@@ -1598,13 +1590,11 @@ export async function updateItem(input: {
         .limit(1)
         .for("update");
       if (!balanceRows[0])
-        await tx
-          .insert(itemWarehouseBalances)
-          .values({
-            itemId: current.id,
-            warehouseId: stockWarehouse.id,
-            currentStock: "0.000",
-          });
+        await tx.insert(itemWarehouseBalances).values({
+          itemId: current.id,
+          warehouseId: stockWarehouse.id,
+          currentStock: "0.000",
+        });
     }
 
     if (Object.keys(updates).length > 0) {
@@ -3359,21 +3349,19 @@ export async function createAuditLog(input: {
   details?: Record<string, unknown> | string | null;
 }) {
   const db = await requireDb();
-  await db
-    .insert(auditLogs)
-    .values({
-      userId: input.userId ?? null,
-      userName: input.userName ?? null,
-      action: input.action,
-      entity: input.entity,
-      entityId: input.entityId == null ? null : String(input.entityId),
-      details:
-        input.details == null
-          ? null
-          : typeof input.details === "string"
-            ? input.details
-            : JSON.stringify(input.details),
-    });
+  await db.insert(auditLogs).values({
+    userId: input.userId ?? null,
+    userName: input.userName ?? null,
+    action: input.action,
+    entity: input.entity,
+    entityId: input.entityId == null ? null : String(input.entityId),
+    details:
+      input.details == null
+        ? null
+        : typeof input.details === "string"
+          ? input.details
+          : JSON.stringify(input.details),
+  });
 }
 
 export async function listAuditLogs(limit = 200) {
@@ -3513,14 +3501,12 @@ export async function createSecurityNotification(input: {
   loginLogId?: number | null;
 }) {
   const db = await requireDb();
-  await db
-    .insert(securityNotifications)
-    .values({
-      notificationType: input.notificationType,
-      title: input.title,
-      message: input.message,
-      loginLogId: input.loginLogId ?? null,
-    });
+  await db.insert(securityNotifications).values({
+    notificationType: input.notificationType,
+    title: input.title,
+    message: input.message,
+    loginLogId: input.loginLogId ?? null,
+  });
 }
 
 export async function createNotification(input: {
@@ -3533,17 +3519,15 @@ export async function createNotification(input: {
   link?: string | null;
 }) {
   const db = await requireDb();
-  const result = await db
-    .insert(notifications)
-    .values({
-      recipientUserId: input.recipientUserId ?? null,
-      createdBy: input.createdBy ?? null,
-      notificationType: input.notificationType,
-      title: input.title,
-      message: input.message,
-      priority: input.priority ?? "normal",
-      link: input.link ?? null,
-    });
+  const result = await db.insert(notifications).values({
+    recipientUserId: input.recipientUserId ?? null,
+    createdBy: input.createdBy ?? null,
+    notificationType: input.notificationType,
+    title: input.title,
+    message: input.message,
+    priority: input.priority ?? "normal",
+    link: input.link ?? null,
+  });
   return { id: resultInsertId(result) };
 }
 
@@ -4010,18 +3994,16 @@ export async function createBackupRecord(input: {
     assets: snapshot.assets.length,
     payloadSha256,
   };
-  const result = await db
-    .insert(backupRecords)
-    .values({
-      fileKey: uploaded.key,
-      fileUrl: uploaded.url,
-      fileName,
-      fileSize: Buffer.byteLength(payload),
-      backupType: input.backupType ?? "manual",
-      summary: JSON.stringify(summary),
-      createdBy: input.userId ?? null,
-      createdByName: input.userName ?? null,
-    });
+  const result = await db.insert(backupRecords).values({
+    fileKey: uploaded.key,
+    fileUrl: uploaded.url,
+    fileName,
+    fileSize: Buffer.byteLength(payload),
+    backupType: input.backupType ?? "manual",
+    summary: JSON.stringify(summary),
+    createdBy: input.userId ?? null,
+    createdByName: input.userName ?? null,
+  });
   const id = resultInsertId(result);
   await cleanupExpiredBackupRecords({ retentionDays: 30 });
   return {
@@ -4300,10 +4282,24 @@ export async function sendBackupEmailTest() {
       "لم يتم العثور على بريد إلكتروني للمسؤول"
     );
   const message = buildBackupEmailTestMessage(new Date(), recipient);
-  const sent = await sendConfiguredEmail({
-    ...message,
-    recipients: [recipient],
-  });
+  let sent = false;
+  try {
+    sent = await sendConfiguredEmail({
+      ...message,
+      recipients: [recipient],
+    });
+  } catch (error: any) {
+    const code = error?.code;
+    if (code === "ETIMEDOUT" || code === "ESOCKET" || code === "ECONNREFUSED")
+      throw new InventoryError(
+        "UNAVAILABLE",
+        "انتهت مهلة الاتصال بخادم البريد. راجع SMTP_HOST وSMTP_PORT، واستخدم المنفذ 587 مع TLS أو 465 مع SSL."
+      );
+    throw new InventoryError(
+      "UNAVAILABLE",
+      "تعذر إرسال رسالة الاختبار عبر SMTP. راجع إعدادات خادم البريد وبيانات الدخول."
+    );
+  }
   if (!sent)
     throw new InventoryError(
       "UNAVAILABLE",
@@ -4455,14 +4451,12 @@ export async function saveBackupVerificationSchedule(input: {
     };
   }
   const id = resultInsertId(
-    await db
-      .insert(backupVerificationConfigs)
-      .values({
-        scheduleCronTaskUid: input.taskUid,
-        cronExpression: input.cronExpression,
-        nextExecutionAt: input.nextExecutionAt ?? null,
-        isEnabled: input.enabled,
-      })
+    await db.insert(backupVerificationConfigs).values({
+      scheduleCronTaskUid: input.taskUid,
+      cronExpression: input.cronExpression,
+      nextExecutionAt: input.nextExecutionAt ?? null,
+      isEnabled: input.enabled,
+    })
   );
   return (
     await db
@@ -5049,15 +5043,13 @@ export async function runIsolatedFullBackupRestore() {
   )[0];
   const startedAt = new Date();
   const runId = resultInsertId(
-    await db
-      .insert(backupVerificationRuns)
-      .values({
-        backupRecordId: latestBackup?.id ?? null,
-        runType: "isolated_full",
-        status: "running",
-        sampleRowsPerTable: 0,
-        startedAt,
-      })
+    await db.insert(backupVerificationRuns).values({
+      backupRecordId: latestBackup?.id ?? null,
+      runType: "isolated_full",
+      status: "running",
+      sampleRowsPerTable: 0,
+      startedAt,
+    })
   );
   if (!latestBackup) {
     const completedAt = new Date();
@@ -5445,15 +5437,13 @@ export async function setUserOnboardingCompleted(
       .set({ onboardingCompleted })
       .where(eq(userPreferences.userId, userId));
   } else {
-    await db
-      .insert(userPreferences)
-      .values({
-        userId,
-        quickActions: JSON.stringify(DEFAULT_QUICK_ACTIONS),
-        hapticEnabled: true,
-        reportColumnOrder: "{}",
-        onboardingCompleted,
-      });
+    await db.insert(userPreferences).values({
+      userId,
+      quickActions: JSON.stringify(DEFAULT_QUICK_ACTIONS),
+      hapticEnabled: true,
+      reportColumnOrder: "{}",
+      onboardingCompleted,
+    });
   }
   return getUserPreferences(userId);
 }
@@ -5985,13 +5975,11 @@ export async function createPrivateConversation(input: {
       .filter(member => member.id !== input.userId)
       .map(member => member.name || member.email || `مستخدم ${member.id}`)
       .join("، ");
-  const result = await db
-    .insert(chatConversations)
-    .values({
-      type: "private",
-      title: title.slice(0, 255),
-      createdBy: input.userId,
-    });
+  const result = await db.insert(chatConversations).values({
+    type: "private",
+    title: title.slice(0, 255),
+    createdBy: input.userId,
+  });
   const conversationId = resultInsertId(result);
   await db
     .insert(chatMembers)
@@ -6066,18 +6054,16 @@ export async function sendChatMessage(input: {
       size: buffer.length,
     };
   }
-  const result = await db
-    .insert(chatMessages)
-    .values({
-      conversationId: input.conversationId,
-      senderId: input.userId,
-      body: body || attachmentData?.name || "مرفق",
-      attachmentUrl: attachmentData?.url ?? null,
-      attachmentKey: attachmentData?.key ?? null,
-      attachmentName: attachmentData?.name ?? null,
-      attachmentMime: attachmentData?.mime ?? null,
-      attachmentSize: attachmentData?.size ?? null,
-    });
+  const result = await db.insert(chatMessages).values({
+    conversationId: input.conversationId,
+    senderId: input.userId,
+    body: body || attachmentData?.name || "مرفق",
+    attachmentUrl: attachmentData?.url ?? null,
+    attachmentKey: attachmentData?.key ?? null,
+    attachmentName: attachmentData?.name ?? null,
+    attachmentMime: attachmentData?.mime ?? null,
+    attachmentSize: attachmentData?.size ?? null,
+  });
   const messageId = resultInsertId(result);
   const conversation = await db
     .select({ type: chatConversations.type })
@@ -6100,14 +6086,12 @@ export async function sendChatMessage(input: {
             )
           );
   if (recipientRows.length)
-    await db
-      .insert(chatMessageReceipts)
-      .values(
-        recipientRows.map(recipient => ({
-          messageId,
-          userId: recipient.userId,
-        }))
-      );
+    await db.insert(chatMessageReceipts).values(
+      recipientRows.map(recipient => ({
+        messageId,
+        userId: recipient.userId,
+      }))
+    );
   await db
     .update(chatConversations)
     .set({ updatedAt: new Date() })
@@ -6144,13 +6128,11 @@ export async function markChatConversationRead(input: {
       .set({ lastReadAt: now })
       .where(eq(chatMembers.id, existing[0].id));
   else
-    await db
-      .insert(chatMembers)
-      .values({
-        conversationId: input.conversationId,
-        userId: input.userId,
-        lastReadAt: now,
-      });
+    await db.insert(chatMembers).values({
+      conversationId: input.conversationId,
+      userId: input.userId,
+      lastReadAt: now,
+    });
   const unreadMessages = await db
     .select({ id: chatMessages.id })
     .from(chatMessages)
@@ -6178,14 +6160,12 @@ export async function markChatConversationRead(input: {
         .set({ readAt: now })
         .where(eq(chatMessageReceipts.id, receipt[0].id));
     else
-      await db
-        .insert(chatMessageReceipts)
-        .values({
-          messageId: message.id,
-          userId: input.userId,
-          deliveredAt: now,
-          readAt: now,
-        });
+      await db.insert(chatMessageReceipts).values({
+        messageId: message.id,
+        userId: input.userId,
+        deliveredAt: now,
+        readAt: now,
+      });
   }
   return { updated: true };
 }
@@ -6313,13 +6293,11 @@ export async function createUserAbsence(input: {
     throw new Error(
       "ÙØªØ±Ø© Ø§ÙØºÙØ§Ø¨ ØªØªØ¯Ø§Ø®Ù ÙØ¹ ÙØªØ±Ø© ÙØ³Ø¬ÙØ© ÙØ³Ø¨ÙØ§Ù"
     );
-  const result = await db
-    .insert(userAbsences)
-    .values({
-      userId: input.userId,
-      startDate: input.startDate,
-      days: input.days,
-    });
+  const result = await db.insert(userAbsences).values({
+    userId: input.userId,
+    startDate: input.startDate,
+    days: input.days,
+  });
   return {
     id: Number((result as any).insertId),
     userId: input.userId,
@@ -6348,13 +6326,11 @@ export async function updateUserAbsence(input: {
     });
     return { ...updated, id: input.id };
   } catch (error) {
-    await db
-      .insert(userAbsences)
-      .values({
-        userId: current.userId,
-        startDate: current.startDate,
-        days: current.days,
-      });
+    await db.insert(userAbsences).values({
+      userId: current.userId,
+      startDate: current.startDate,
+      days: current.days,
+    });
     throw error;
   }
 }
