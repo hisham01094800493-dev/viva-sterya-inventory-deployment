@@ -53,12 +53,12 @@ async function migrationFiles() {
   return files.sort((a, b) =>
     path
       .basename(a)
-      .localeCompare(path.basename(b), undefined, { numeric: true })
+      .localeCompare(path.basename(b), undefined, { numeric: true }),
   );
 }
 
 const { url: productionUrl, database: productionDatabase } = databaseFromUrl(
-  ENV.databaseUrl
+  ENV.databaseUrl,
 );
 const configuredTestDatabase = ENV.backupRestoreTestDatabase;
 if (!configuredTestDatabase)
@@ -79,10 +79,10 @@ try {
       productionDatabase,
       testDatabase: configuredTestDatabase,
       action: "recreate_test_database_only",
-    })
+    }),
   );
   await admin.query(`DROP DATABASE IF EXISTS ${testIdentifier}`);
-  await admin.query(`CREATE DATABASE ${testIdentifier}`);
+  await admin.query(`CREATE DATABASE IF NOT EXISTS ${testIdentifier}`);
 } finally {
   await admin.end();
 }
@@ -104,15 +104,22 @@ try {
     for (const statement of statements) await testPool.query(statement);
     console.log(`applied ${path.relative(process.cwd(), file)}`);
   }
-  await testPool.query(
-    "ALTER TABLE `user_permissions` ADD COLUMN `allowed_warehouses` VARCHAR(2000) NOT NULL DEFAULT '[]'"
-  );
-  console.log(
-    "applied runtime schema upgrade user_permissions.allowed_warehouses"
-  );
+  try {
+    await testPool.query(
+      "ALTER TABLE `user_permissions` ADD COLUMN `allowed_warehouses` VARCHAR(2000) NOT NULL DEFAULT '[]'",
+    );
+    console.log(
+      "applied runtime schema upgrade user_permissions.allowed_warehouses",
+    );
+  } catch (error: any) {
+    if (error?.code !== "ER_DUP_FIELDNAME") throw error;
+    console.log(
+      "runtime schema upgrade already present: user_permissions.allowed_warehouses",
+    );
+  }
   const [rows] = await testPool.query<{ total: number }[]>(
     "SELECT COUNT(*) AS total FROM information_schema.tables WHERE table_schema = ?",
-    [configuredTestDatabase]
+    [configuredTestDatabase],
   );
   console.log(
     JSON.stringify({
@@ -120,11 +127,11 @@ try {
       testDatabase: configuredTestDatabase,
       migrationFiles: files.length,
       tableCount: Number(rows[0]?.total ?? 0),
-    })
+    }),
   );
 } catch (error) {
   const cleanup = await mysql.createConnection(
-    connectionOptions(productionUrl)
+    connectionOptions(productionUrl),
   );
   try {
     await cleanup.query(`DROP DATABASE IF EXISTS ${testIdentifier}`);
