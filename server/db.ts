@@ -4962,7 +4962,11 @@ async function createIsolatedRestoreDatabase(databaseName: string) {
       connectionLimit: 2,
     });
     try {
-      await pool.query("SELECT 1 FROM `users` LIMIT 1");
+      try {
+        await pool.query("SELECT 1 FROM `users` LIMIT 1");
+      } catch {
+        await applyRestoreMigrations(pool);
+      }
       await pool.query(
         `SET FOREIGN_KEY_CHECKS=0;${Object.values(BACKUP_SQL_TABLE_NAMES)
           .map(name => `TRUNCATE TABLE \`${name}\`;`)
@@ -4993,29 +4997,8 @@ async function createIsolatedRestoreDatabase(databaseName: string) {
     host: ipv4.address,
     connectionLimit: 2,
   });
-  const migrationDirectory = path.resolve(process.cwd(), "drizzle");
-  const migrationFiles = (await fs.readdir(migrationDirectory))
-    .filter(file => /^\d+_.*\.sql$/.test(file))
-    .sort();
-  if (!migrationFiles.length) {
-    await pool.end();
-    throw new InventoryError(
-      "UNAVAILABLE",
-      "لم يتم العثور على migrations لإنشاء قاعدة الاستعادة"
-    );
-  }
   try {
-    for (const file of migrationFiles) {
-      const sqlText = await fs.readFile(
-        path.join(migrationDirectory, file),
-        "utf8"
-      );
-      for (const statement of sqlText
-        .split(/--> statement-breakpoint\s*/)
-        .map(part => part.trim())
-        .filter(Boolean))
-        await pool.query(statement);
-    }
+    await applyRestoreMigrations(pool);
   } catch (error) {
     await pool.end();
     const cleanup = await mysql.createConnection({
@@ -5030,6 +5013,28 @@ async function createIsolatedRestoreDatabase(databaseName: string) {
     throw error;
   }
   return { db: drizzle(pool) as any, pool, managedDatabase: true };
+}
+
+async function applyRestoreMigrations(pool: mysql.Pool) {
+  const migrationDirectory = path.resolve(process.cwd(), "drizzle");
+  const migrationFiles = (await fs.readdir(migrationDirectory))
+    .filter(file => /^\d+_.*\.sql$/.test(file))
+    .sort();
+  if (!migrationFiles.length) {
+    throw new InventoryError(
+      "UNAVAILABLE",
+      "لم يتم العثور على migrations لإنشاء قاعدة الاستعادة"
+    );
+  }
+  for (const file of migrationFiles) {
+    const sqlText = await fs.readFile(path.join(migrationDirectory, file), "utf8");
+    for (const statement of sqlText
+      .split(/--> statement-breakpoint\s*/)
+      .map(part => part.trim())
+      .filter(Boolean)) {
+      await pool.query(statement);
+    }
+  }
 }
 
 export async function runIsolatedFullBackupRestore() {
