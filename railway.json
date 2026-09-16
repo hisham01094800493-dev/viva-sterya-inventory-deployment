@@ -12,7 +12,7 @@
   
   "deploy": {
     
-    "startCommand": "pnpm exec tsx scripts/prepare-isolated-restore-database.mts && pnpm start",
+    "startCommand": "pnpm start",
     
     "healthcheckPath": "/health",
     
@@ -25,7 +25,6 @@
   }
   
 }
-
 
 
 
