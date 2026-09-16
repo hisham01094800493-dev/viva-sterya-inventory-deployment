@@ -4961,7 +4961,9 @@ async function createIsolatedRestoreDatabase(databaseName: string) {
       host: ipv4.address,
     });
     try {
-      await admin.query(`CREATE DATABASE IF NOT EXISTS ${safeDatabaseIdentifier(configuredName)}`);
+      const configuredIdentifier = safeDatabaseIdentifier(configuredName);
+      await admin.query(`DROP DATABASE IF EXISTS ${configuredIdentifier}`);
+      await admin.query(`CREATE DATABASE ${configuredIdentifier}`);
     } finally {
       await admin.end();
     }
@@ -4971,7 +4973,7 @@ async function createIsolatedRestoreDatabase(databaseName: string) {
       connectionLimit: 2,
     });
     try {
-      await resetConfiguredRestoreDatabase(pool, configuredName);
+      await applyRestoreMigrations(pool);
     } catch (error: any) {
       await pool.end();
       throw new InventoryError(
@@ -5035,17 +5037,6 @@ async function applyRestoreMigrations(pool: mysql.Pool) {
       await pool.query(statement);
     }
   }
-}
-
-async function resetConfiguredRestoreDatabase(pool: mysql.Pool, databaseName: string) {
-  const [rawTables] = await pool.query(
-    "SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE'",
-    [databaseName]
-  );
-  const tables = rawTables as Array<{ table_name: string }>;
-  const dropStatements = tables.map(({ table_name }) => `DROP TABLE IF EXISTS ${safeDatabaseIdentifier(table_name)};`).join("");
-  if (dropStatements) await pool.query(`SET FOREIGN_KEY_CHECKS=0;${dropStatements}SET FOREIGN_KEY_CHECKS=1;`);
-  await applyRestoreMigrations(pool);
 }
 
 export async function runIsolatedFullBackupRestore() {
