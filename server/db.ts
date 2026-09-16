@@ -2411,21 +2411,6 @@ function getDatabaseConnectionOptions(database?: string) {
 async function createIsolatedRestoreDatabase(databaseName: string) {
   const sourceUrl = new URL(ENV.databaseUrl!);
   const ipv4 = await dns.lookup(sourceUrl.hostname, { family: 4 });
-  if (ENV.backupRestoreTestDatabase) {
-    const configuredName = ENV.backupRestoreTestDatabase;
-    if (!/^[A-Za-z0-9_]+$/.test(configuredName) || configuredName === decodeURIComponent(sourceUrl.pathname.replace(/^\//, ""))) {
-      throw new InventoryError("BAD_REQUEST", "قاعدة اختبار الاستعادة المهيأة غير صالحة أو تطابق قاعدة الإنتاج");
-    }
-    const pool = mysql.createPool({ ...getDatabaseConnectionOptions(configuredName), host: ipv4.address, connectionLimit: 2 });
-    try {
-      await pool.query("SELECT 1 FROM `users` LIMIT 1");
-      await pool.query(`SET FOREIGN_KEY_CHECKS=0;${Object.values(BACKUP_SQL_TABLE_NAMES).map(name => `TRUNCATE TABLE \`${name}\`;`).join("")}SET FOREIGN_KEY_CHECKS=1;`);
-    } catch (error) {
-      await pool.end();
-      throw new InventoryError("UNAVAILABLE", "قاعدة اختبار الاستعادة غير مهيأة أو لا يمكن تنظيفها؛ أنشئها وشغّل migrations عليها أولًا");
-    }
-    return { db: drizzle(pool) as any, pool, managedDatabase: false };
-  }
   const admin = await mysql.createConnection({ ...getDatabaseConnectionOptions(), host: ipv4.address });
   const identifier = safeDatabaseIdentifier(databaseName);
   try {
@@ -2452,7 +2437,7 @@ async function createIsolatedRestoreDatabase(databaseName: string) {
     try { await cleanup.query(`DROP DATABASE IF EXISTS ${identifier}`); } finally { await cleanup.end(); }
     throw error;
   }
-  return { db: drizzle(pool) as any, pool, managedDatabase: true };
+  return { db: drizzle(pool) as any, pool };
 }
 
 export async function runIsolatedFullBackupRestore() {
@@ -2470,7 +2455,7 @@ export async function runIsolatedFullBackupRestore() {
     const { snapshot } = await getBackupSnapshotFromRecord(latestBackup.id);
     if (!ENV.databaseUrl) throw new InventoryError("UNAVAILABLE", "رابط قاعدة البيانات غير مهيأ لاختبار الاستعادة");
     const sourceDatabase = decodeURIComponent(new URL(ENV.databaseUrl).pathname.replace(/^\//, ""));
-    const testDatabase = ENV.backupRestoreTestDatabase || getRestoreTestDatabaseName(sourceDatabase);
+    const testDatabase = getRestoreTestDatabaseName(sourceDatabase);
     const isolated = await createIsolatedRestoreDatabase(testDatabase);
     let result: any;
     let restoredTableCounts: Record<string, number> = {};
@@ -2483,12 +2468,10 @@ export async function runIsolatedFullBackupRestore() {
       }
     } finally {
       await isolated.pool.end();
-      if (isolated.managedDatabase) {
-        const sourceUrl = new URL(ENV.databaseUrl);
-        const ipv4 = await dns.lookup(sourceUrl.hostname, { family: 4 });
-        const admin = await mysql.createConnection({ ...getDatabaseConnectionOptions(), host: ipv4.address });
-        try { await admin.query(`DROP DATABASE IF EXISTS ${safeDatabaseIdentifier(testDatabase)}`); } finally { await admin.end(); }
-      }
+      const sourceUrl = new URL(ENV.databaseUrl);
+      const ipv4 = await dns.lookup(sourceUrl.hostname, { family: 4 });
+      const admin = await mysql.createConnection({ ...getDatabaseConnectionOptions(), host: ipv4.address });
+      try { await admin.query(`DROP DATABASE IF EXISTS ${safeDatabaseIdentifier(testDatabase)}`); } finally { await admin.end(); }
     }
     const expectedTableCounts = result.validation?.rowCounts ?? validateBackupSnapshot(snapshot).rowCounts;
     const mismatches = Object.entries(expectedTableCounts).filter(([tableName, expected]) => restoredTableCounts[tableName] !== expected).map(([tableName, expected]) => ({ tableName, expected, actual: restoredTableCounts[tableName] ?? 0 }));
