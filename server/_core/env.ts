@@ -45,6 +45,7 @@ export const ENV = {
   appId: process.env.APP_ID ?? "smart-inventory",
   cookieSecret: process.env.SESSION_SECRET ?? process.env.JWT_SECRET ?? "",
   databaseUrl: getDatabaseUrl(),
+  backupRestoreTestDatabase: clean(process.env.BACKUP_RESTORE_TEST_DATABASE),
   databaseSsl: getDatabaseSsl(),
   appUrl: normalizeEnvironmentValue(process.env.APP_URL, "APP_URL"),
   googleClientId: normalizeEnvironmentValue(process.env.GOOGLE_CLIENT_ID, "GOOGLE_CLIENT_ID"),

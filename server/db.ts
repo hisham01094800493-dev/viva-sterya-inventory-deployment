@@ -2163,7 +2163,7 @@ export async function runScheduledBackupVerification() {
   if (Number(rows?.[0]?.acquired ?? 0) !== 1) return { status: "skipped" as const, message: "يوجد اختبار نسخ احتياطي قيد التنفيذ بالفعل" };
   try {
     const backup = await createBackupRecord({ backupType: "scheduled" });
-    const result = await runLatestBackupVerification("scheduled");
+    const result = await runIsolatedFullBackupRestore();
     return { ...result, backupRecordId: backup.record.id };
   } finally {
     await _pool.query("SELECT RELEASE_LOCK('smart_inventory_backup_verification')");
@@ -2341,7 +2341,10 @@ async function restoreBackupSnapshotIntoDatabase(db: any, snapshot: any, options
         }
         for (const row of sampleRows) {
           const normalizedRow = normalizeBackupRow(name, row);
-          await tx.insert(table).values(normalizedRow as any).onDuplicateKeyUpdate({ set: normalizedRow as any });
+          const portableRow = name === "userPermissions"
+            ? Object.fromEntries(Object.entries(normalizedRow).filter(([key]) => key !== "id"))
+            : normalizedRow;
+          await tx.insert(table).values(portableRow as any).onDuplicateKeyUpdate({ set: portableRow as any });
         }
       };
       await merge("users", users, tables.users); await merge("warehouses", warehouses, tables.warehouses); await merge("suppliers", suppliers, tables.suppliers); await merge("customers", customers, tables.customers); await merge("items", items, tables.items); await merge("itemWarehouseBalances", itemWarehouseBalances, tables.itemWarehouseBalances); await merge("additions", additions, tables.additions); await merge("disbursements", disbursements, tables.disbursements); await merge("transfers", transfers, tables.transfers); await merge("settings", settings, tables.settings); await merge("userPreferences", userPreferences, tables.userPreferences); await merge("userPermissions", userPermissions, tables.userPermissions); await merge("auditLogs", auditLogs, tables.auditLogs); await merge("loginAuditLogs", loginAuditLogs, tables.loginAuditLogs); await merge("securityNotifications", securityNotifications, tables.securityNotifications); await merge("notifications", notifications, tables.notifications); await merge("chatConversations", chatConversations, tables.chatConversations); await merge("chatMembers", chatMembers, tables.chatMembers); await merge("chatMessages", chatMessages, tables.chatMessages); await merge("chatMessageReceipts", chatMessageReceipts, tables.chatMessageReceipts); await merge("revokedSessions", revokedSessions, tables.revokedSessions);
@@ -2411,6 +2414,22 @@ function getDatabaseConnectionOptions(database?: string) {
 async function createIsolatedRestoreDatabase(databaseName: string) {
   const sourceUrl = new URL(ENV.databaseUrl!);
   const ipv4 = await dns.lookup(sourceUrl.hostname, { family: 4 });
+  if (ENV.backupRestoreTestDatabase) {
+    const configuredName = ENV.backupRestoreTestDatabase;
+    const sourceDatabase = decodeURIComponent(sourceUrl.pathname.replace(/^\//, ""));
+    if (!/^[A-Za-z0-9_]+$/.test(configuredName) || configuredName === sourceDatabase) {
+      throw new InventoryError("BAD_REQUEST", "قاعدة اختبار الاستعادة غير صالحة أو تطابق قاعدة الإنتاج");
+    }
+    const pool = mysql.createPool({ ...getDatabaseConnectionOptions(configuredName), host: ipv4.address, connectionLimit: 2 });
+    try {
+      await pool.query("SELECT 1 FROM `users` LIMIT 1");
+      await pool.query(`SET FOREIGN_KEY_CHECKS=0;${Object.values(BACKUP_SQL_TABLE_NAMES).map(name => `TRUNCATE TABLE \`${name}\`;`).join("")}SET FOREIGN_KEY_CHECKS=1;`);
+    } catch (error) {
+      await pool.end();
+      throw new InventoryError("UNAVAILABLE", "قاعدة اختبار الاستعادة غير مهيأة؛ شغّل migrations عليها أولًا");
+    }
+    return { db: drizzle(pool) as any, pool, managedDatabase: false };
+  }
   const admin = await mysql.createConnection({ ...getDatabaseConnectionOptions(), host: ipv4.address });
   const identifier = safeDatabaseIdentifier(databaseName);
   try {
@@ -2437,7 +2456,7 @@ async function createIsolatedRestoreDatabase(databaseName: string) {
     try { await cleanup.query(`DROP DATABASE IF EXISTS ${identifier}`); } finally { await cleanup.end(); }
     throw error;
   }
-  return { db: drizzle(pool) as any, pool };
+  return { db: drizzle(pool) as any, pool, managedDatabase: true };
 }
 
 export async function runIsolatedFullBackupRestore() {
@@ -2470,8 +2489,10 @@ export async function runIsolatedFullBackupRestore() {
       await isolated.pool.end();
       const sourceUrl = new URL(ENV.databaseUrl);
       const ipv4 = await dns.lookup(sourceUrl.hostname, { family: 4 });
-      const admin = await mysql.createConnection({ ...getDatabaseConnectionOptions(), host: ipv4.address });
-      try { await admin.query(`DROP DATABASE IF EXISTS ${safeDatabaseIdentifier(testDatabase)}`); } finally { await admin.end(); }
+      if (isolated.managedDatabase) {
+        const admin = await mysql.createConnection({ ...getDatabaseConnectionOptions(), host: ipv4.address });
+        try { await admin.query(`DROP DATABASE IF EXISTS ${safeDatabaseIdentifier(testDatabase)}`); } finally { await admin.end(); }
+      }
     }
     const expectedTableCounts = result.validation?.rowCounts ?? validateBackupSnapshot(snapshot).rowCounts;
     const mismatches = Object.entries(expectedTableCounts).filter(([tableName, expected]) => restoredTableCounts[tableName] !== expected).map(([tableName, expected]) => ({ tableName, expected, actual: restoredTableCounts[tableName] ?? 0 }));
