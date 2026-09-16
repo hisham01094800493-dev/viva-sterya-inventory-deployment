@@ -2163,7 +2163,7 @@ export async function runScheduledBackupVerification() {
   if (Number(rows?.[0]?.acquired ?? 0) !== 1) return { status: "skipped" as const, message: "يوجد اختبار نسخ احتياطي قيد التنفيذ بالفعل" };
   try {
     const backup = await createBackupRecord({ backupType: "scheduled" });
-    const result = await runIsolatedFullBackupRestore();
+    const result = await runLatestBackupVerification("scheduled");
     return { ...result, backupRecordId: backup.record.id };
   } finally {
     await _pool.query("SELECT RELEASE_LOCK('smart_inventory_backup_verification')");
