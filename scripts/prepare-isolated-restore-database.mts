@@ -104,6 +104,12 @@ try {
     for (const statement of statements) await testPool.query(statement);
     console.log(`applied ${path.relative(process.cwd(), file)}`);
   }
+  await testPool.query(
+    "ALTER TABLE `user_permissions` ADD COLUMN `allowed_warehouses` VARCHAR(2000) NOT NULL DEFAULT '[]'"
+  );
+  console.log(
+    "applied runtime schema upgrade user_permissions.allowed_warehouses"
+  );
   const [rows] = await testPool.query<{ total: number }[]>(
     "SELECT COUNT(*) AS total FROM information_schema.tables WHERE table_schema = ?",
     [configuredTestDatabase]
