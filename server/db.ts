@@ -4963,7 +4963,7 @@ async function createIsolatedRestoreDatabase(databaseName: string) {
     try {
       const configuredIdentifier = safeDatabaseIdentifier(configuredName);
       await admin.query(`DROP DATABASE IF EXISTS ${configuredIdentifier}`);
-      await admin.query(`CREATE DATABASE ${configuredIdentifier}`);
+      await admin.query(`CREATE DATABASE IF NOT EXISTS ${configuredIdentifier}`);
     } finally {
       await admin.end();
     }
