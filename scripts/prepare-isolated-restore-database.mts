@@ -97,7 +97,8 @@ try {
   for (const file of files) {
     const sql = await readFile(file, "utf8");
     const statements = sql
-      .split(/--> statement-breakpoint\s*/)
+      .replace(/--> statement-breakpoint\s*/g, "\n")
+      .split(/;\s*(?=(?:CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|REPLACE)\b)/i)
       .map(statement => statement.trim())
       .filter(Boolean);
     for (const statement of statements) await testPool.query(statement);
