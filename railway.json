@@ -13,6 +13,7 @@
   "deploy": {
     
     "startCommand": "pnpm start",
+    "preDeployCommand": "node dist/prepare-isolated-restore-database.js",
     
     "healthcheckPath": "/health",
     
@@ -25,7 +26,6 @@
   }
   
 }
-
 
 
 
