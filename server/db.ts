@@ -4956,6 +4956,15 @@ async function createIsolatedRestoreDatabase(databaseName: string) {
         "قاعدة اختبار الاستعادة غير صالحة أو تطابق قاعدة الإنتاج"
       );
     }
+    const admin = await mysql.createConnection({
+      ...getDatabaseConnectionOptions(),
+      host: ipv4.address,
+    });
+    try {
+      await admin.query(`CREATE DATABASE IF NOT EXISTS ${safeDatabaseIdentifier(configuredName)}`);
+    } finally {
+      await admin.end();
+    }
     const pool = mysql.createPool({
       ...getDatabaseConnectionOptions(configuredName),
       host: ipv4.address,
