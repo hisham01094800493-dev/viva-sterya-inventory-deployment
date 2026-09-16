@@ -4962,21 +4962,12 @@ async function createIsolatedRestoreDatabase(databaseName: string) {
       connectionLimit: 2,
     });
     try {
-      try {
-        await pool.query("SELECT 1 FROM `users` LIMIT 1");
-      } catch {
-        await applyRestoreMigrations(pool);
-      }
-      await pool.query(
-        `SET FOREIGN_KEY_CHECKS=0;${Object.values(BACKUP_SQL_TABLE_NAMES)
-          .map(name => `TRUNCATE TABLE \`${name}\`;`)
-          .join("")}SET FOREIGN_KEY_CHECKS=1;`
-      );
-    } catch (error) {
+      await resetConfiguredRestoreDatabase(pool, configuredName);
+    } catch (error: any) {
       await pool.end();
       throw new InventoryError(
         "UNAVAILABLE",
-        "قاعدة اختبار الاستعادة غير مهيأة؛ شغّل migrations عليها أولًا"
+        `تعذر تهيئة قاعدة اختبار الاستعادة تلقائياً: ${error?.message || "خطأ غير معروف"}`
       );
     }
     return { db: drizzle(pool) as any, pool, managedDatabase: false };
@@ -5035,6 +5026,17 @@ async function applyRestoreMigrations(pool: mysql.Pool) {
       await pool.query(statement);
     }
   }
+}
+
+async function resetConfiguredRestoreDatabase(pool: mysql.Pool, databaseName: string) {
+  const [rawTables] = await pool.query(
+    "SELECT table_name FROM information_schema.tables WHERE table_schema = ? AND table_type = 'BASE TABLE'",
+    [databaseName]
+  );
+  const tables = rawTables as Array<{ table_name: string }>;
+  const dropStatements = tables.map(({ table_name }) => `DROP TABLE IF EXISTS ${safeDatabaseIdentifier(table_name)};`).join("");
+  if (dropStatements) await pool.query(`SET FOREIGN_KEY_CHECKS=0;${dropStatements}SET FOREIGN_KEY_CHECKS=1;`);
+  await applyRestoreMigrations(pool);
 }
 
 export async function runIsolatedFullBackupRestore() {
