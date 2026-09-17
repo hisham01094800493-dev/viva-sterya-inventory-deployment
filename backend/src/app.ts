@@ -9,7 +9,7 @@ import { createContext } from "./context.js";
 import { appRouter } from "./routers.js";
 import { COOKIE_NAME } from "./constants.js";
 
-const allowedOrigin = "https://viva-sterya-inventory.vercel.app";
+const allowedOrigin = process.env.CLIENT_URL || process.env.APP_URL || "https://viva-sterya-inventory-production.up.railway.app";
 
 export function createApp() {
   if (!process.env.SESSION_SECRET) {

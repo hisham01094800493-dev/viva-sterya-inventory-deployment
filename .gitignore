@@ -115,6 +115,3 @@ temp/
 client/public/__manus__/version.json
 client/public/app-version.json
 .project-config.json
-
-# External deployment state
-frontend/.vercel/

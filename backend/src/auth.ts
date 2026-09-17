@@ -7,7 +7,7 @@ import type { User } from "./schema.js";
 const GOOGLE_CALLBACK_URL = "https://viva-sterya-inventory-production.up.railway.app/auth/google/callback";
 
 function getClientUrl() {
-  return process.env.CLIENT_URL || "https://viva-sterya-inventory.vercel.app";
+  return process.env.CLIENT_URL || process.env.APP_URL || "https://viva-sterya-inventory-production.up.railway.app";
 }
 
 export function configureGoogleAuth() {
