@@ -293,6 +293,8 @@ export default function ReportsPage() {
   const [to, setTo] = useState(today());
   const [unlinkedSearch, setUnlinkedSearch] = useState("");
   const [permitSearch, setPermitSearch] = useState("");
+  const [itemCodeSearch, setItemCodeSearch] = useState("");
+  const [warehouseSearch, setWarehouseSearch] = useState("");
   const [incomingFromSearch, setIncomingFromSearch] = useState("");
   const [outgoingToSearch, setOutgoingToSearch] = useState("");
   const [additionPurposeSearch, setAdditionPurposeSearch] = useState("");
