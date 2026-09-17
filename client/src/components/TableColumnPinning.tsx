@@ -48,6 +48,82 @@ function getTablePreferenceKey(table: HTMLTableElement, index: number) {
   return `table-pins:${currentPath}:${explicitId ?? index}`;
 }
 
+function normalizeTableFilterValue(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+function attachColumnFilters(table: HTMLTableElement, headers: HTMLTableCellElement[]) {
+  const filters = new Map<number, string>();
+  const filterButtons: HTMLButtonElement[] = [];
+  const filterPopovers: HTMLElement[] = [];
+  const tbody = table.tBodies[0];
+  if (!tbody) return () => undefined;
+
+  const applyFilters = () => {
+    const activeFilters = Array.from(filters.entries()).filter(([, value]) => normalizeTableFilterValue(value));
+    Array.from(tbody.rows).forEach(row => {
+      const visible = activeFilters.every(([column, value]) => normalizeTableFilterValue(row.cells[column]?.textContent ?? "").includes(normalizeTableFilterValue(value)));
+      row.hidden = !visible;
+    });
+    headers.forEach((header, index) => {
+      const active = Boolean(normalizeTableFilterValue(filters.get(index) ?? ""));
+      header.classList.toggle("smart-table-filtered", active);
+      filterButtons[index]?.setAttribute("aria-pressed", String(active));
+    });
+  };
+
+  headers.forEach((header, index) => {
+    const wrapper = document.createElement("span");
+    wrapper.className = "smart-table-header-tools";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "smart-table-filter-trigger";
+    button.textContent = "⌕";
+    button.title = "تصفية هذا العمود";
+    button.setAttribute("aria-label", `تصفية عمود ${header.textContent?.trim() || index + 1}`);
+    button.setAttribute("aria-pressed", "false");
+    const popover = document.createElement("span");
+    popover.className = "smart-table-filter-popover";
+    popover.hidden = true;
+    const input = document.createElement("input");
+    input.type = "search";
+    input.placeholder = "تصفية...";
+    input.setAttribute("aria-label", `قيمة تصفية ${header.textContent?.trim() || index + 1}`);
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "smart-table-filter-clear";
+    clear.textContent = "مسح";
+    clear.hidden = true;
+    popover.append(input, clear);
+    wrapper.append(button, popover);
+    header.append(wrapper);
+    filterButtons[index] = button;
+    filterPopovers[index] = popover;
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      filterPopovers.forEach((item, itemIndex) => { if (itemIndex !== index) item.hidden = true; });
+      popover.hidden = !popover.hidden;
+      if (!popover.hidden) { input.value = filters.get(index) ?? ""; input.focus(); }
+    });
+    input.addEventListener("input", () => { filters.set(index, input.value); clear.hidden = !input.value; applyFilters(); });
+    input.addEventListener("click", event => event.stopPropagation());
+    clear.addEventListener("click", event => { event.stopPropagation(); input.value = ""; filters.delete(index); clear.hidden = true; applyFilters(); input.focus(); });
+  });
+  const closePopovers = (event: MouseEvent) => {
+    if (!(event.target as HTMLElement).closest(".smart-table-filter-popover, .smart-table-filter-trigger")) filterPopovers.forEach(popover => { popover.hidden = true; });
+  };
+  document.addEventListener("click", closePopovers);
+  const observer = typeof MutationObserver === "undefined" ? null : new MutationObserver(applyFilters);
+  observer?.observe(tbody, { childList: true });
+  applyFilters();
+  return () => {
+    observer?.disconnect();
+    document.removeEventListener("click", closePopovers);
+    headers.forEach(header => header.classList.remove("smart-table-filtered"));
+    filterButtons.forEach(button => button.parentElement?.remove());
+  };
+}
+
 function parsePinnedColumns(saved: string[] | undefined, headerCount: number) {
   return (saved ?? []).map(value => Number(value)).filter(column => Number.isInteger(column) && column >= 0 && column < headerCount).slice(-2);
 }
@@ -125,6 +201,7 @@ function attachColumnPinning(table: HTMLTableElement, preferenceKey: string, sav
   scroller.style.maxBlockSize = "min(62dvh, 34rem)";
   scroller.style.scrollbarGutter = "stable both-edges";
   const detachInventoryZoom = attachInventoryTableZoom(table, scroller);
+  const detachColumnFilters = attachColumnFilters(table, headers);
   let pinnedColumns = parsePinnedColumns(savedColumns, headers.length);
   const clearPinnedCells = () => {
     Array.from(table.rows).forEach(row => Array.from(row.cells).forEach(cell => {
@@ -232,6 +309,7 @@ function attachColumnPinning(table: HTMLTableElement, preferenceKey: string, sav
   return () => {
     resizeObserver?.disconnect();
     detachInventoryZoom();
+    detachColumnFilters();
     clearPinnedCells();
     clearStickyHeaders();
     scroller.classList.remove("smart-table-scroll-region");

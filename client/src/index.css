@@ -2414,6 +2414,21 @@ body {
     box-shadow: 0 2px 0 rgba(13, 79, 98, 0.22), 0 7px 12px rgba(13, 79, 98, 0.11);
   }
 
+  .smart-table-header-tools { position: relative; display: inline-flex; align-items: center; gap: 0.2rem; margin-inline-start: 0.25rem; vertical-align: middle; }
+  .smart-table-filter-trigger { display: inline-flex; align-items: center; justify-content: center; min-inline-size: 1.15rem; block-size: 1.15rem; padding: 0; border: 0; border-radius: 999px; background: transparent; color: currentColor; cursor: pointer; font-size: 0.9rem; line-height: 1; opacity: 0.72; }
+  .smart-table-filter-trigger:hover, .smart-table-filter-trigger[aria-pressed="true"] { background: rgba(13, 113, 128, 0.16); opacity: 1; }
+  .smart-table-filter-trigger:focus-visible { outline: 2px solid rgba(13, 113, 128, 0.45); outline-offset: 2px; }
+  .smart-table-filtered { background: #e6f7f8 !important; }
+  .smart-table-filter-popover { position: absolute; inset-block-start: calc(100% + 0.45rem); inset-inline-end: 0; z-index: 100; display: inline-flex; align-items: center; gap: 0.35rem; min-inline-size: 12rem; padding: 0.45rem; border: 1px solid #c7e1e6; border-radius: 0.7rem; background: #fff; box-shadow: 0 8px 22px rgba(13, 79, 98, 0.2); color: #0d4f62; }
+  .smart-table-filter-popover[hidden] { display: none; }
+  .smart-table-filter-popover input { min-inline-size: 0; inline-size: 100%; block-size: 2rem; border: 1px solid #dce7ee; border-radius: 0.5rem; padding: 0 0.55rem; background: #fff; color: #102a43; font-size: 0.75rem; }
+  .smart-table-filter-clear { flex: none; block-size: 2rem; padding: 0 0.5rem; border: 1px solid #dce7ee; border-radius: 0.5rem; background: #f7fbfc; color: #0d4f62; cursor: pointer; font-size: 0.7rem; font-weight: 800; }
+  .smart-table-filter-clear:hover { background: #e8f5f7; }
+  .dark .smart-table-filtered { background: #214b5b !important; }
+  .dark .smart-table-filter-popover { border-color: #44798a; background: #183945; color: #d6f8ff; }
+  .dark .smart-table-filter-popover input { border-color: #44798a; background: #152f38; color: #f0fcff; }
+  .dark .smart-table-filter-clear { border-color: #44798a; background: #214b5b; color: #d6f8ff; }
+
   .smart-table-scroll-region > table thead .smart-table-pinned {
     z-index: 32;
     background: #c9edf5 !important;
