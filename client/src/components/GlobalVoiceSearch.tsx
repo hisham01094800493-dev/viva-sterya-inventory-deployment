@@ -17,7 +17,7 @@ export function GlobalVoiceSearch() {
   const [text, setText] = useState("");
   const command = useMemo(() => parseGlobalVoiceSearch(text), [text]);
   const enabled = command.terms.trim().length >= 2;
-  const movementSearch = command.permitNumber ? { permitSearch: command.permitNumber } : { itemSearch: command.terms };
+  const movementSearch = command.permitNumber ? { permitSearch: command.permitNumber, fromDate: command.period?.from, toDate: command.period?.to } : { itemSearch: command.period ? undefined : command.terms, fromDate: command.period?.from, toDate: command.period?.to };
   const items = trpc.items.list.useQuery({ search: command.terms }, { enabled });
   const suppliers = trpc.suppliers.list.useQuery(undefined, { enabled });
   const customers = trpc.customers.list.useQuery(undefined, { enabled });
@@ -30,6 +30,7 @@ export function GlobalVoiceSearch() {
     const matches = (value: unknown) => simplifyArabicForSearch(String(value ?? "")).includes(simplifyArabicForSearch(command.terms));
     const only = (accepted: string[]) => command.intent === "all" || accepted.includes(command.intent);
     const next: Result[] = [];
+    if (command.period && (command.intent === "all" || command.intent === "date")) next.push({ key: `date-${command.period.from}-${command.period.to}`, label: `حركات بتاريخ ${command.period.label}`, description: "فتح تقرير كل الحركات في هذا التاريخ أو النطاق", href: getGlobalSearchRoute("date", command.terms, undefined, undefined, command.period), icon: "movement" });
     if (only(["item", "item-card"])) for (const item of items.data ?? []) next.push({ key: `item-${item.id}`, label: item.name, description: `صنف · الكود ${item.code} · افتح كارت الحركة`, href: getGlobalSearchRoute(command.intent === "item-card" ? "item-card" : "item", command.terms, item.id), icon: "item" });
     if (only(["supplier", "supplier-statement", "supplier-report"])) for (const supplier of (suppliers.data ?? []).filter(item => matches(item.name) || matches(item.phone))) next.push({ key: `supplier-${supplier.id}`, label: supplier.name, description: command.intent === "supplier-report" ? `تقرير توريدات المورد${command.period ? ` · ${command.period.label}` : ""}` : "مورد · فتح كشف الحساب", href: getGlobalSearchRoute(command.intent === "supplier-report" ? "supplier-report" : "supplier-statement", supplier.name, supplier.id, undefined, command.period), icon: "supplier" });
     if (only(["customer", "customer-statement", "customer-report"])) for (const customer of (customers.data ?? []).filter(item => matches(item.name) || matches(item.phone))) next.push({ key: `customer-${customer.id}`, label: customer.name, description: command.intent === "customer-report" ? `تقرير مبيعات/صرف العميل${command.period ? ` · ${command.period.label}` : ""}` : "عميل أو جهة صرف · فتح كشف الحساب", href: getGlobalSearchRoute(command.intent === "customer-report" ? "customer-report" : "customer-statement", customer.name, customer.id, undefined, command.period), icon: "customer" });

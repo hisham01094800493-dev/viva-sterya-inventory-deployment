@@ -1,6 +1,6 @@
 import { normalizeVoiceSearchText } from "@/components/VoiceInputButton";
 
-export type GlobalVoiceSearchIntent = "all" | "item" | "item-card" | "supplier" | "supplier-statement" | "supplier-report" | "customer" | "customer-statement" | "customer-report" | "additions" | "disbursements" | "transfers";
+export type GlobalVoiceSearchIntent = "date" | "all" | "item" | "item-card" | "supplier" | "supplier-statement" | "supplier-report" | "customer" | "customer-statement" | "customer-report" | "additions" | "disbursements" | "transfers";
 export type VoiceReportPeriod = { from: string; to: string; label: string };
 
 const arabicDigitMap: Record<string, string> = { "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4", "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9" };
@@ -102,7 +102,7 @@ export function parseGlobalVoiceSearch(raw: string, referenceDate = new Date()) 
   const intent = intentRules.find(([, pattern]) => pattern.test(normalized))?.[0] ?? "all";
   const permitNumber = extractPermitNumber(spokenText);
   const isReport = intent === "supplier-report" || intent === "customer-report";
-  const period = isReport ? extractReportPeriod(spokenText, referenceDate) : undefined;
+  const period = extractReportPeriod(spokenText, referenceDate);
   const terms = spokenText.replace(removableWords, " ").replace(/\s+/g, " ").trim();
   const reportPartyTerms = isReport ? extractReportPartyTerms(spokenText) : undefined;
   return { raw: spokenText, normalized, intent, terms: permitNumber || reportPartyTerms || terms || spokenText, permitNumber, period };
@@ -110,6 +110,7 @@ export function parseGlobalVoiceSearch(raw: string, referenceDate = new Date()) 
 
 export function getGlobalSearchRoute(intent: GlobalVoiceSearchIntent, terms: string, id?: number, permitNumber?: string, period?: VoiceReportPeriod) {
   const query = encodeURIComponent(terms);
+  if (intent === "date") return `/reports?type=movements&from=${encodeURIComponent(period?.from ?? "")}&to=${encodeURIComponent(period?.to ?? "")}`;
   if (intent === "item" || intent === "item-card") return id ? `/items?card=${id}` : `/items?search=${query}`;
   if (intent === "supplier" || intent === "supplier-statement") return id ? `/suppliers/${id}/statement` : `/suppliers`;
   if (intent === "supplier-report") return `/reports?type=movements&incomingFrom=${query}&movement=إضافة${period ? `&from=${period.from}&to=${period.to}` : ""}`;
