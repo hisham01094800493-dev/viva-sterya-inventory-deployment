@@ -1,4 +1,5 @@
 import { Mic, MicOff } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,10 +16,43 @@ export function getSpeechRecognitionConstructor() {
 
 export function VoiceInputButton({ onText, label = "البحث بالصوت", className = "" }: { onText: (text: string) => void; label?: string; className?: string }) {
   const recognitionRef = useRef<RecognitionLike | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [listening, setListening] = useState(false);
+  const transcribe = trpc.voice.transcribe.useMutation();
   const supported = Boolean(getSpeechRecognitionConstructor());
 
-  useEffect(() => () => { recognitionRef.current?.stop(); }, []);
+  useEffect(() => () => { recognitionRef.current?.stop(); recorderRef.current?.stop(); streamRef.current?.getTracks().forEach(track => track.stop()); }, []);
+
+  async function startRecorderFallback() {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") { toast.error("هذا المتصفح لا يدعم طريقة التسجيل البديلة. افتح البرنامج في Chrome حديث."); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find(type => MediaRecorder.isTypeSupported(type)) ?? "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+        const blob = new Blob(chunks, { type: mimeType });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = String(reader.result ?? "");
+          const comma = dataUrl.indexOf(",");
+          if (comma < 0) { setListening(false); toast.error("تعذر تجهيز التسجيل الصوتي."); return; }
+          transcribe.mutate({ audioDataBase64: dataUrl.slice(comma + 1), mimeType, language: "ar" }, { onSuccess: result => { setListening(false); if (result.text?.trim()) onText(result.text.trim()); else toast.error("لم يتم التعرف على كلام واضح."); }, onError: () => { setListening(false); toast.error("تعذر تحويل التسجيل إلى نص. تحقق من الاتصال ثم حاول مرة أخرى."); } });
+        };
+        reader.readAsDataURL(blob);
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+      setListening(true);
+      window.setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 5000);
+      toast.info("تحدث الآن لمدة تصل إلى 5 ثوانٍ…");
+    } catch { setListening(false); toast.error("تعذر تسجيل الصوت. تأكد من السماح بالميكروفون للتطبيق والمتصفح."); }
+  }
 
   function toggleListening() {
     const Recognition = getSpeechRecognitionConstructor();
@@ -32,8 +66,8 @@ export function VoiceInputButton({ onText, label = "البحث بالصوت", cl
     recognition.onerror = event => {
       setListening(false);
       const error = event?.error;
-      if (error === "not-allowed" || error === "service-not-allowed") toast.error("Chrome يمنع خدمة التعرف الصوتي لهذا الموقع. افتح الرابط مباشرة في Chrome، ثم من إعدادات الموقع اجعل الميكروفون مسموحاً، وأعد تحميل الصفحة.");
-      else if (error === "audio-capture") toast.error("لم تصل خدمة التعرف إلى الميكروفون. أغلق أي تطبيق يستخدمه ثم أعد المحاولة.");
+      if (error === "not-allowed" || error === "service-not-allowed") { toast.info("خدمة المتصفح رفضت التعرف الصوتي؛ سأستخدم التسجيل البديل الآن."); void startRecorderFallback(); }
+      else if (error === "audio-capture") { toast.info("سأستخدم التسجيل البديل للوصول إلى الميكروفون."); void startRecorderFallback(); }
       else if (error === "network") toast.error("تعذر الاتصال بخدمة التعرف الصوتي. تحقق من الإنترنت ثم أعد المحاولة.");
       else if (error !== "aborted") toast.error("تعذر التقاط الكلام. تحدث بوضوح وحاول مرة أخرى.");
     };

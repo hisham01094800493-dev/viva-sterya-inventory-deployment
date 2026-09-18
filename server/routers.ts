@@ -131,6 +131,7 @@ import { uploadCompanyLogo } from "./companyLogoUpload";
 import { uploadDocumentImage } from "./documentImageUpload";
 import { storageDelete } from "./storage";
 import { createHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
+import { transcribeAudio } from "./_core/voiceTranscription";
 
 const DEFAULT_GOOGLE_SEARCH_ENGINE_ID = "01b5a823a6a9140c6";
 
@@ -266,6 +267,13 @@ const transferInput = z.object({
 export const appRouter = router({
   system: systemRouter,
   whatsapp: whatsappRouter,
+  voice: router({
+    transcribe: protectedProcedure.input(z.object({ audioDataBase64: z.string().min(20).max(12_000_000), mimeType: z.string().trim().min(3).max(100), language: z.string().trim().max(20).optional() })).mutation(async ({ input }) => {
+      const result = await transcribeAudio({ audioUrl: `data:${input.mimeType};base64,${input.audioDataBase64}`, language: input.language ?? "ar" });
+      if ("error" in result) throw new TRPCError({ code: "BAD_REQUEST", message: result.error, cause: result });
+      return { text: result.text, language: result.language };
+    }),
+  }),
 
   warehouses: router({
     list: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); return safe(() => listWarehousesForAccess(permissions.allowedWarehouseIds)); }),
