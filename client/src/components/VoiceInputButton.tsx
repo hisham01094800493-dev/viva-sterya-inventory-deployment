@@ -21,11 +21,13 @@ export function VoiceInputButton({ onText, label = "البحث بالصوت", cl
   const [listening, setListening] = useState(false);
   const transcribe = trpc.voice.transcribe.useMutation();
   const supported = Boolean(getSpeechRecognitionConstructor());
+  const recorderSupported = typeof window !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia) && typeof MediaRecorder !== "undefined";
 
   useEffect(() => () => { recognitionRef.current?.stop(); recorderRef.current?.stop(); streamRef.current?.getTracks().forEach(track => track.stop()); }, []);
 
   async function startRecorderFallback() {
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") { toast.error("هذا المتصفح لا يدعم طريقة التسجيل البديلة. افتح البرنامج في Chrome حديث."); return; }
+    if (!window.isSecureContext && window.location.hostname !== "localhost") { toast.error("التسجيل الصوتي يحتاج إلى رابط HTTPS مباشر، وليس نافذة داخل تطبيق آخر."); return; }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") { toast.error("هذا المتصفح لا يدعم التسجيل الصوتي. افتح رابط البرنامج مباشرة في Google Chrome."); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -51,12 +53,19 @@ export function VoiceInputButton({ onText, label = "البحث بالصوت", cl
       setListening(true);
       window.setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 5000);
       toast.info("تحدث الآن لمدة تصل إلى 5 ثوانٍ…");
-    } catch { setListening(false); toast.error("تعذر تسجيل الصوت. تأكد من السماح بالميكروفون للتطبيق والمتصفح."); }
+    } catch (error) {
+      setListening(false);
+      const name = error instanceof DOMException ? error.name : "";
+      if (name === "NotAllowedError" || name === "SecurityError") toast.error("المتصفح رفض إنشاء جلسة التسجيل. افتح الموقع مباشرة في Chrome، وليس داخل WhatsApp أو Facebook، ثم أعد تحميل الصفحة.");
+      else if (name === "NotFoundError") toast.error("لم يتم العثور على ميكروفون متاح في الجهاز.");
+      else if (name === "NotReadableError") toast.error("الميكروفون مستخدم من تطبيق آخر. أغلق المكالمات أو التسجيلات ثم حاول.");
+      else toast.error("تعذر تسجيل الصوت في هذا المتصفح. جرّب فتح الرابط مباشرة في Chrome.");
+    }
   }
 
   function toggleListening() {
     const Recognition = getSpeechRecognitionConstructor();
-    if (!Recognition) { toast.error("البحث الصوتي غير مدعوم في هذا المتصفح. افتح البرنامج في Google Chrome أو Safari حديثاً."); return; }
+    if (!Recognition) { if (recorderSupported) { void startRecorderFallback(); return; } toast.error("البحث الصوتي غير مدعوم في هذا المتصفح. افتح البرنامج مباشرة في Google Chrome."); return; }
     if (listening) { recognitionRef.current?.stop(); setListening(false); return; }
     const recognition = new Recognition();
     recognition.lang = "ar-EG";
@@ -66,8 +75,8 @@ export function VoiceInputButton({ onText, label = "البحث بالصوت", cl
     recognition.onerror = event => {
       setListening(false);
       const error = event?.error;
-      if (error === "not-allowed" || error === "service-not-allowed") { toast.info("خدمة المتصفح رفضت التعرف الصوتي؛ سأستخدم التسجيل البديل الآن."); void startRecorderFallback(); }
-      else if (error === "audio-capture") { toast.info("سأستخدم التسجيل البديل للوصول إلى الميكروفون."); void startRecorderFallback(); }
+      if (error === "not-allowed" || error === "service-not-allowed") { toast.info("سأستخدم التسجيل المباشر بدل خدمة التعرف الصوتي."); recognition.stop(); window.setTimeout(() => void startRecorderFallback(), 350); }
+      else if (error === "audio-capture") { toast.info("سأعيد فتح الميكروفون بطريقة التسجيل المباشر."); recognition.stop(); window.setTimeout(() => void startRecorderFallback(), 350); }
       else if (error === "network") toast.error("تعذر الاتصال بخدمة التعرف الصوتي. تحقق من الإنترنت ثم أعد المحاولة.");
       else if (error !== "aborted") toast.error("تعذر التقاط الكلام. تحدث بوضوح وحاول مرة أخرى.");
     };
@@ -75,7 +84,7 @@ export function VoiceInputButton({ onText, label = "البحث بالصوت", cl
     recognitionRef.current = recognition;
     try { recognition.start(); setListening(true); } catch { setListening(false); toast.error("تعذر بدء البحث الصوتي. أغلق النافذة وافتحها مرة أخرى."); }
   }
-  return <button type="button" onClick={toggleListening} disabled={!supported} aria-pressed={listening} aria-label={listening ? "جارٍ الاستماع، اضغط للإيقاف" : supported ? label : "البحث الصوتي غير مدعوم"} title={listening ? "جارٍ الاستماع، اضغط للإيقاف" : supported ? label : "البحث الصوتي غير مدعوم في هذا المتصفح"} className={`group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 active:scale-95 ${listening ? "border-red-300 bg-red-50 text-red-600 shadow-[0_0_0_5px_rgba(239,68,68,0.12)] motion-safe:animate-[voiceButtonPulse_1.4s_ease-in-out_infinite]" : "border-[#dce7ee] bg-white text-[#0d7180] hover:border-[#8bc5c9] hover:bg-[#e8f7f6]"} disabled:cursor-not-allowed disabled:opacity-45 ${className}`}><span aria-hidden="true" className={`pointer-events-none absolute inset-[-4px] rounded-[1rem] border-2 border-red-300/70 ${listening ? "motion-safe:animate-ping motion-reduce:animate-none" : "hidden"}`} />{listening ? <MicOff className="relative z-10 h-4 w-4" /> : <Mic className="relative z-10 h-4 w-4" />}{listening && <span className="sr-only" aria-live="polite">جارٍ الاستماع</span>}</button>;
+  return <button type="button" onClick={toggleListening} disabled={!supported && !recorderSupported} aria-pressed={listening} aria-label={listening ? "جارٍ الاستماع، اضغط للإيقاف" : supported || recorderSupported ? label : "البحث الصوتي غير مدعوم"} title={listening ? "جارٍ الاستماع، اضغط للإيقاف" : supported || recorderSupported ? label : "البحث الصوتي غير مدعوم في هذا المتصفح"} className={`group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 active:scale-95 ${listening ? "border-red-300 bg-red-50 text-red-600 shadow-[0_0_0_5px_rgba(239,68,68,0.12)] motion-safe:animate-[voiceButtonPulse_1.4s_ease-in-out_infinite]" : "border-[#dce7ee] bg-white text-[#0d7180] hover:border-[#8bc5c9] hover:bg-[#e8f7f6]"} disabled:cursor-not-allowed disabled:opacity-45 ${className}`}><span aria-hidden="true" className={`pointer-events-none absolute inset-[-4px] rounded-[1rem] border-2 border-red-300/70 ${listening ? "motion-safe:animate-ping motion-reduce:animate-none" : "hidden"}`} />{listening ? <MicOff className="relative z-10 h-4 w-4" /> : <Mic className="relative z-10 h-4 w-4" />}{listening && <span className="sr-only" aria-live="polite">جارٍ الاستماع</span>}</button>;
 }
 
 export function normalizeVoiceSearchText(value: string) { return value.trim().replace(/[؟?,،؛;.!]+$/g, "").replace(/\s+/g, " "); }
