@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatAutoItemCode, formatWarehouseItemCode, selectNextAutoItemCode } from "./db";
-import { getInventoryStatusLabel, summarizeInventoryStatuses } from "../client/src/pages/WarehousesSuppliersPages";
+import { filterWarehouseItemReference, getInventoryStatusLabel, summarizeInventoryStatuses } from "../client/src/pages/WarehousesSuppliersPages";
 
 describe("المخازن والموردون والتكويد التلقائي", () => {
   it("ينشئ أكواداً متسلسلة بصيغة Smart Inventory", () => {
@@ -37,6 +37,15 @@ describe("المخازن والموردون والتكويد التلقائي", 
       { currentStock: 5, reorderLevel: 2 },
       { currentStock: 7, reorderLevel: 2 },
     ])).toEqual({ available: 2, low: 1, outOfStock: 1 });
+  });
+
+  it("يبحث في مرجع أصناف المخزن بالاسم أو الكود ويرتب النتائج", () => {
+    const rows = [
+      { id: 2, code: "20002", name: "حديد تسليح", category: null, currentStock: 5, reorderLevel: 1 },
+      { id: 1, code: "20001", name: "أسمنت", category: null, currentStock: 8, reorderLevel: 1 },
+    ];
+    expect(filterWarehouseItemReference(rows, "20002").map(row => row.name)).toEqual(["حديد تسليح"]);
+    expect(filterWarehouseItemReference(rows, "").map(row => row.code)).toEqual(["20001", "20002"]);
   });
 
   it("يتجاوز الأكواد الموجودة ولا يعيد استخدامها", () => {
