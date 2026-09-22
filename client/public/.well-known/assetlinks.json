@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.vivasterya.inventory",
+      "sha256_cert_fingerprints": [
+        "2C:AF:4D:86:78:F6:24:85:D4:62:B7:06:FC:50:BB:2C:76:4B:83:FE:77:2F:AC:4E:E3:43:3F:69:3C:27:AF:28"
+      ]
+    }
+  }
+]
