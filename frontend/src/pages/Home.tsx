@@ -66,22 +66,21 @@ function EmptyState({ label }: { label: string }) {
 export default function Home() {
   const [, setLocation] = useLocation();
   const summary = trpc.dashboard.summary.useQuery();
-  const totalItems = Number(summary.data?.stats?.totalItems ?? 0);
-  const lowStockCount = Number(summary.data?.stats?.lowStockCount ?? 0);
+  const totalItems = Number(summary.data?.stats.totalItems ?? 0);
+  const lowStockCount = Number(summary.data?.stats.lowStockCount ?? 0);
   const healthPercent = totalItems ? Math.max(0, Math.round(((totalItems - lowStockCount) / totalItems) * 100)) : 0;
   const [movementRange, setMovementRange] = useState<7 | 30 | 90>(30);
   const analytics = summary.data?.analytics;
-  const recentMovements = summary.data?.recentMovements ?? { additions: [], disbursements: [], transfers: [] };
   const movementSeries = useMemo(
     () => (analytics?.series ?? []).slice(-movementRange),
     [analytics?.series, movementRange],
   );
   const statusData = useMemo(
     () => [
-      { key: "safe", label: "آمن", value: Number(analytics?.status?.safe ?? 0), color: "#0d806c" },
-      { key: "watch", label: "مراقبة", value: Number(analytics?.status?.watch ?? 0), color: "#d08a3b" },
-      { key: "low", label: "منخفض", value: Number(analytics?.status?.low ?? 0), color: "#bd5147" },
-      { key: "empty", label: "نفد", value: Number(analytics?.status?.empty ?? 0), color: "#7f1d1d" },
+      { key: "safe", label: "آمن", value: Number(analytics?.status.safe ?? 0), color: "#0d806c" },
+      { key: "watch", label: "مراقبة", value: Number(analytics?.status.watch ?? 0), color: "#d08a3b" },
+      { key: "low", label: "منخفض", value: Number(analytics?.status.low ?? 0), color: "#bd5147" },
+      { key: "empty", label: "نفد", value: Number(analytics?.status.empty ?? 0), color: "#7f1d1d" },
     ],
     [analytics?.status],
   );
@@ -114,11 +113,11 @@ export default function Home() {
         ) : (
           <>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              <StatCard label="إجمالي الأصناف" value={formatNumber(summary.data?.stats?.totalItems)} detail="صنف مسجل" icon={Boxes} tone="teal" />
-              <StatCard label="أصناف تحتاج متابعة" value={formatNumber(summary.data?.stats?.lowStockCount)} detail={`تحت ${summary.data?.thresholdPercentage ?? 20}%`} icon={AlertTriangle} tone="rose" />
-              <StatCard label="الرصيد الحالي" value={formatNumber(summary.data?.stats?.totalCurrentStock)} detail="وحدة متاحة" icon={Package} tone="blue" />
-              <StatCard label="إجمالي الوارد" value={formatNumber(summary.data?.stats?.totalIncoming)} detail="تراكمي" icon={TrendingUp} tone="gold" />
-              <StatCard label="إجمالي المنصرف" value={formatNumber(summary.data?.stats?.totalOutgoing)} detail="تراكمي" icon={TrendingDown} tone="rose" />
+              <StatCard label="إجمالي الأصناف" value={formatNumber(summary.data?.stats.totalItems)} detail="صنف مسجل" icon={Boxes} tone="teal" />
+              <StatCard label="أصناف تحتاج متابعة" value={formatNumber(summary.data?.stats.lowStockCount)} detail={`تحت ${summary.data?.thresholdPercentage ?? 20}%`} icon={AlertTriangle} tone="rose" />
+              <StatCard label="الرصيد الحالي" value={formatNumber(summary.data?.stats.totalCurrentStock)} detail="وحدة متاحة" icon={Package} tone="blue" />
+              <StatCard label="إجمالي الوارد" value={formatNumber(summary.data?.stats.totalIncoming)} detail="تراكمي" icon={TrendingUp} tone="gold" />
+              <StatCard label="إجمالي المنصرف" value={formatNumber(summary.data?.stats.totalOutgoing)} detail="تراكمي" icon={TrendingDown} tone="rose" />
             </div>
 
             <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
@@ -205,8 +204,8 @@ export default function Home() {
                     <Button variant="ghost" onClick={() => setLocation("/alerts")} className="rounded-lg text-xs font-bold text-[#0d4f62] hover:bg-[#e8f1f2]">عرض الكل<ChevronLeft className="mr-1 h-4 w-4" /></Button>
                   </div>
                   <div className="p-4 md:p-6">
-                    {!summary.data?.lowStock?.length ? <EmptyState label="لا توجد أصناف منخفضة المخزون حالياً. الوضع مستقر." /> : (
-                      <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-right"><thead><tr className="text-[11px] font-black text-slate-400"><th className="pb-3 pr-2">الصنف</th><th className="pb-3">الكود</th><th className="pb-3">الرصيد الحالي</th><th className="pb-3">حد الطلب</th><th className="pb-3">الحالة</th></tr></thead><tbody className="divide-y divide-[#f0f4f6]">{summary.data?.lowStock?.slice(0, 7).map(item => <tr key={item.id} className="text-sm"><td className="py-4 pr-2 font-bold text-[#102a43]">{item.name}</td><td className="py-4 font-mono text-xs text-slate-400">{item.code}</td><td className="py-4 font-black text-[#bd5147]">{formatNumber(item.currentStock)}</td><td className="py-4 text-slate-500">{formatNumber(item.reorderLevel)}</td><td className="py-4"><span className="inline-flex items-center gap-1.5 rounded-full bg-[#fff0ed] px-2.5 py-1 text-[11px] font-bold text-[#bd5147]"><span className="h-1.5 w-1.5 rounded-full bg-[#bd5147]" />يحتاج طلب</span></td></tr>)}</tbody></table></div>
+                    {!summary.data?.lowStock.length ? <EmptyState label="لا توجد أصناف منخفضة المخزون حالياً. الوضع مستقر." /> : (
+                      <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-right"><thead><tr className="text-[11px] font-black text-slate-400"><th className="pb-3 pr-2">الصنف</th><th className="pb-3">الكود</th><th className="pb-3">الرصيد الحالي</th><th className="pb-3">حد الطلب</th><th className="pb-3">الحالة</th></tr></thead><tbody className="divide-y divide-[#f0f4f6]">{summary.data.lowStock.slice(0, 7).map(item => <tr key={item.id} className="text-sm"><td className="py-4 pr-2 font-bold text-[#102a43]">{item.name}</td><td className="py-4 font-mono text-xs text-slate-400">{item.code}</td><td className="py-4 font-black text-[#bd5147]">{formatNumber(item.currentStock)}</td><td className="py-4 text-slate-500">{formatNumber(item.reorderLevel)}</td><td className="py-4"><span className="inline-flex items-center gap-1.5 rounded-full bg-[#fff0ed] px-2.5 py-1 text-[11px] font-bold text-[#bd5147]"><span className="h-1.5 w-1.5 rounded-full bg-[#bd5147]" />يحتاج طلب</span></td></tr>)}</tbody></table></div>
                     )}
                   </div>
                 </CardContent>
@@ -216,10 +215,10 @@ export default function Home() {
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between border-b border-[#edf2f5] px-6 py-5"><div><p className="text-lg font-black text-[#102a43]">آخر الحركات</p><p className="mt-1 text-xs text-slate-400">ملخص سريع للنشاط الأخير</p></div><RefreshCcw className="h-4 w-4 text-slate-300" /></div>
                   <div className="divide-y divide-[#f0f4f6] px-6">{[
-                    ...(recentMovements.additions ?? []).map(row => ({ id: `a${row.id}`, title: "إضافة مخزون", subtitle: `${row.itemName} • ${row.eznNum}`, quantity: `+${formatNumber(row.quantity)}`, icon: ArrowDownToLine, tone: "text-[#0d806c] bg-[#e7f3f1]" })),
-                    ...(recentMovements.disbursements ?? []).map(row => ({ id: `d${row.id}`, title: "إذن صرف", subtitle: `${row.itemName} • ${row.eznNum}`, quantity: `-${formatNumber(row.quantity)}`, icon: ArrowUpFromLine, tone: "text-[#bd5147] bg-[#fff0ed]" })),
-                    ...(recentMovements.transfers ?? []).map(row => ({ id: `t${row.id}`, title: "تحويل / مرتجع", subtitle: `${row.itemName} • ${row.eznNum}`, quantity: formatNumber(row.quantity), icon: ArrowLeftRight, tone: "text-[#a96821] bg-[#fff4df]" })),
-                  ].slice(0, 6).map(row => <div key={row.id} className="flex items-center gap-3 py-4"><div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${row.tone}`}><row.icon className="h-4 w-4" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-[#102a43]">{row.title}</p><p className="mt-1 truncate text-[11px] text-slate-400">{row.subtitle}</p></div><span className={`text-sm font-black ${row.quantity.startsWith("-") ? "text-[#bd5147]" : "text-[#0d806c]"}`}>{row.quantity}</span></div>)}{!recentMovements.additions.length && !recentMovements.disbursements.length && !recentMovements.transfers.length ? <div className="py-12 text-center text-sm text-slate-400">لا توجد حركات مسجلة بعد.</div> : null}</div>
+                    ...(summary.data?.recentMovements.additions ?? []).map(row => ({ id: `a${row.id}`, title: "إضافة مخزون", subtitle: `${row.itemName} • ${row.eznNum}`, quantity: `+${formatNumber(row.quantity)}`, icon: ArrowDownToLine, tone: "text-[#0d806c] bg-[#e7f3f1]" })),
+                    ...(summary.data?.recentMovements.disbursements ?? []).map(row => ({ id: `d${row.id}`, title: "إذن صرف", subtitle: `${row.itemName} • ${row.eznNum}`, quantity: `-${formatNumber(row.quantity)}`, icon: ArrowUpFromLine, tone: "text-[#bd5147] bg-[#fff0ed]" })),
+                    ...(summary.data?.recentMovements.transfers ?? []).map(row => ({ id: `t${row.id}`, title: "تحويل / مرتجع", subtitle: `${row.itemName} • ${row.eznNum}`, quantity: formatNumber(row.quantity), icon: ArrowLeftRight, tone: "text-[#a96821] bg-[#fff4df]" })),
+                  ].slice(0, 6).map(row => <div key={row.id} className="flex items-center gap-3 py-4"><div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${row.tone}`}><row.icon className="h-4 w-4" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-[#102a43]">{row.title}</p><p className="mt-1 truncate text-[11px] text-slate-400">{row.subtitle}</p></div><span className={`text-sm font-black ${row.quantity.startsWith("-") ? "text-[#bd5147]" : "text-[#0d806c]"}`}>{row.quantity}</span></div>)}{!summary.data?.recentMovements.additions.length && !summary.data?.recentMovements.disbursements.length && !summary.data?.recentMovements.transfers.length ? <div className="py-12 text-center text-sm text-slate-400">لا توجد حركات مسجلة بعد.</div> : null}</div>
                   <Button variant="ghost" onClick={() => setLocation("/items")} className="mb-4 mr-4 rounded-lg text-xs font-bold text-[#0d4f62] hover:bg-[#e8f1f2]">استعراض المخزون<ChevronLeft className="mr-1 h-4 w-4" /></Button>
                 </CardContent>
               </Card>
