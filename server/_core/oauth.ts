@@ -47,7 +47,10 @@ export function buildMySqlSessionOptions(databaseUrl: string) {
 
 function createSessionStore() {
   if (!ENV.databaseUrl) {
-    if (ENV.isProduction) throw new Error("DATABASE_URL is required for the production OAuth session store");
+    // Vercel Functions are stateless and the OAuth callback uses session:false.
+    // Keep the API available when DB_* / DATABASE_URL is not configured there;
+    // the durable application data remains served by the configured backend.
+    if (ENV.isProduction) console.warn("[OAuth] DATABASE_URL is not configured; using Express's transient session store");
     return undefined;
   }
   const MySQLStore = MySQLStoreFactory(session);
