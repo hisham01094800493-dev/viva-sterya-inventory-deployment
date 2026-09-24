@@ -4,7 +4,7 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { startLogin } from "./const";
+import { API_ORIGIN, startLogin } from "./const";
 import "./index.css";
 import { registerPwaServiceWorker } from "./lib/pwa";
 import { restoreOfflineQueryCache, subscribeToOfflineQueryCache } from "./lib/offlineQueryCache";
@@ -65,7 +65,7 @@ queryClient.getMutationCache().subscribe(event => {
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
-      url: "/api/trpc",
+      url: `${API_ORIGIN}/api/trpc`,
       transformer: superjson,
       headers() {
         try {
