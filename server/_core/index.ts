@@ -9,7 +9,6 @@ import { createContext } from "./context";
 import { createBackupRestoreVerificationHandler, createInventoryReportHandler } from "../scheduled";
 import { checkDatabaseReadiness, closeDatabasePool, runDueLocalBackupVerification } from "../db";
 import { registerMigrationImportRoutes } from "../migrationImport";
-import { serveStatic, setupVite } from "./vite";
 
 export async function createApp(options: { withStaticFiles?: boolean } = {}) {
   const app = express();
@@ -57,8 +56,10 @@ export async function createApp(options: { withStaticFiles?: boolean } = {}) {
   app.use("/api/trpc", trpcMiddleware);
   app.use("/trpc", trpcMiddleware);
   if (process.env.NODE_ENV === "development") {
+    const { setupVite } = await import("./vite");
     await setupVite(app, server);
   } else if (withStaticFiles) {
+    const { serveStatic } = await import("./vite");
     serveStatic(app);
   }
   return { app, server, requestBuckets };
