@@ -1,4 +1,4 @@
-import { createApp } from "../server/_core/index";
+import { createApp } from "../server/_core/index.ts";
 
 let handlerPromise: ReturnType<typeof createApp> | undefined;
 
