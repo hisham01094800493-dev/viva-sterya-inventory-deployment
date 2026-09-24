@@ -1,8 +1,8 @@
-import { createApp } from "../server/_core/index.ts";
+import { createApp } from "../dist/index.js";
 
-let handlerPromise: ReturnType<typeof createApp> | undefined;
+let handlerPromise;
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req, res) {
   if (!handlerPromise) {
     process.env.NODE_ENV = "production";
     handlerPromise = createApp({ withStaticFiles: false });
