@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
-    "build": "node scripts/write-app-version.mjs && vite build && node scripts/write-sw-precache.mjs && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && esbuild scripts/prepare-isolated-restore-database.mts --platform=node --packages=external --bundle --format=esm --outfile=dist/prepare-isolated-restore-database.js && cp -R drizzle dist/drizzle",
+    "build": "node scripts/write-app-version.mjs && vite build && node scripts/write-sw-precache.mjs && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && esbuild server/_core/vercelApp.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/vercel-api.js && esbuild scripts/prepare-isolated-restore-database.mts --platform=node --packages=external --bundle --format=esm --outfile=dist/prepare-isolated-restore-database.js && cp -R drizzle dist/drizzle",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
