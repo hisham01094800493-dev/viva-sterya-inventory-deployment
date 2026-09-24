@@ -4790,18 +4790,32 @@ async function restoreBackupSnapshotIntoDatabase(
           }
           return;
         }
-        for (const row of sampleRows) {
-          const normalizedRow = normalizeBackupRow(name, row);
-          const portableRow =
-            name === "userPermissions"
-              ? Object.fromEntries(
-                  Object.entries(normalizedRow).filter(([key]) => key !== "id")
-                )
-              : normalizedRow;
+        const batchSize = Math.max(1, options.batchSize ?? 100);
+        for (let index = 0; index < sampleRows.length; index += batchSize) {
+          const batch = sampleRows
+            .slice(index, index + batchSize)
+            .map(row => {
+              const normalizedRow = normalizeBackupRow(name, row);
+              return name === "userPermissions"
+                ? Object.fromEntries(
+                    Object.entries(normalizedRow).filter(([key]) => key !== "id")
+                  )
+                : normalizedRow;
+            });
+          const updateColumns = Object.keys(batch[0] ?? {}).filter(
+            key => key !== "id"
+          );
+          if (updateColumns.length === 0) {
+            await tx.insert(table).values(batch as any);
+            continue;
+          }
+          const updateSet = Object.fromEntries(
+            updateColumns.map(key => [key, sql`VALUES(${table[key]})`])
+          );
           await tx
             .insert(table)
-            .values(portableRow as any)
-            .onDuplicateKeyUpdate({ set: portableRow as any });
+            .values(batch as any)
+            .onDuplicateKeyUpdate({ set: updateSet as any });
         }
       };
       await merge("users", users, tables.users);
