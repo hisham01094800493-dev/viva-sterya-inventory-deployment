@@ -5088,7 +5088,13 @@ export async function runIsolatedFullBackupRestore() {
     let result: any;
     let restoredTableCounts: Record<string, number> = {};
     try {
-      result = await restoreBackupSnapshotIntoDatabase(isolated.db, snapshot);
+      // The isolated database is recreated empty for every run, so upserts are
+      // unnecessary. Batched inserts reduce hundreds/thousands of round trips
+      // and keep the operation within Vercel's serverless execution window.
+      result = await restoreBackupSnapshotIntoDatabase(isolated.db, snapshot, {
+        insertOnly: true,
+        batchSize: 200,
+      });
       const restoreTables: Record<string, any> = {
         users,
         warehouses,
