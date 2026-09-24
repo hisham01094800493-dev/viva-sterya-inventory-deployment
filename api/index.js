@@ -7,6 +7,6 @@ export default async function handler(req, res) {
     process.env.NODE_ENV = "production";
     handlerPromise = createVercelApp();
   }
-  const { app } = await handlerPromise;
+  const app = await handlerPromise;
   return app(req, res);
 }
