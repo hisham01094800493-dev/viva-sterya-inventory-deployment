@@ -15,6 +15,24 @@ export async function createApp(options: { withStaticFiles?: boolean } = {}) {
   const server = createServer(app);
   const withStaticFiles = options.withStaticFiles ?? process.env.NODE_ENV !== "development";
   app.set("trust proxy", 1);
+  const allowedOrigins = new Set([
+    "https://viva-sterya-inventory.vercel.app",
+    "https://viva-sterya-inventory-hisham20.vercel.app",
+    "https://viva-sterya-inventory-git-main-hisham20.vercel.app",
+    process.env.APP_URL?.replace(/\/$/, ""),
+  ].filter((origin): origin is string => Boolean(origin)));
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.has(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    }
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    next();
+  });
   const requestBuckets = new Map<string, { windowStartedAt: number; count: number }>();
   app.use((req, res, next) => {
     if (!req.path.startsWith("/api/") && !req.path.startsWith("/trpc")) return next();
