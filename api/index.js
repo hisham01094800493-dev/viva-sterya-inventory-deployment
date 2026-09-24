@@ -8,5 +8,7 @@ export default async function handler(req, res) {
     handlerPromise = createVercelApp();
   }
   const app = await handlerPromise;
-  return app(req, res);
+  const handler = typeof app === "function" ? app : app?.default ?? app?.app ?? app?.handle?.bind(app);
+  if (!handler) throw new TypeError("Vercel API bundle did not return an Express handler");
+  return handler(req, res);
 }
