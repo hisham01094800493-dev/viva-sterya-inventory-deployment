@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGovernanceNavigationItems, canAccessMigrationImport, SIDEBAR_VISUAL_CLASSES } from "./DashboardLayout";
+import { buildGovernanceNavigationItems, buildNavigationGroups, canAccessMigrationImport, isNavigationPathActive, SIDEBAR_VISUAL_CLASSES } from "./DashboardLayout";
 
 describe("buildGovernanceNavigationItems", () => {
   it("exposes the migration import link to admins only", () => {
@@ -19,5 +19,23 @@ describe("buildGovernanceNavigationItems", () => {
     expect(SIDEBAR_VISUAL_CLASSES.navigationItem).toBe("smart-sidebar-nav-item");
     expect(SIDEBAR_VISUAL_CLASSES.activeNavigationItem).toBe("smart-sidebar-nav-item-active");
     expect(SIDEBAR_VISUAL_CLASSES.icon).toBe("smart-sidebar-nav-icon");
+  });
+
+  it("organizes real routes into focused expandable sections", () => {
+    const items = [
+      { icon: () => null, label: "الرئيسية", path: "/" },
+      { icon: () => null, label: "الأصناف", path: "/items" },
+      { icon: () => null, label: "المخازن", path: "/warehouses" },
+      { icon: () => null, label: "التقارير", path: "/reports" },
+    ];
+    const groups = buildNavigationGroups(items);
+    expect(groups.map(group => group.id)).toEqual(["home", "inventory", "reports"]);
+    expect(groups.find(group => group.id === "inventory")?.items.map(item => item.path)).toEqual(["/items", "/warehouses"]);
+  });
+
+  it("recognizes nested routes while keeping query shortcuts exact", () => {
+    expect(isNavigationPathActive("/warehouses", "/warehouses/2")).toBe(true);
+    expect(isNavigationPathActive("/governance?tab=backups", "/governance?tab=backups")).toBe(true);
+    expect(isNavigationPathActive("/governance?tab=backups", "/governance?tab=backup-center")).toBe(false);
   });
 });

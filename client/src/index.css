@@ -273,6 +273,31 @@
     border-color: rgba(183, 242, 239, 0.40);
     box-shadow: 0 12px 24px rgba(10, 73, 89, 0.22), inset 0 1px rgba(255, 255, 255, 0.18);
   }
+  .smart-sidebar-group {
+    position: relative;
+  }
+  .smart-sidebar-group-trigger-active {
+    background: rgba(255, 255, 255, 0.48) !important;
+    border-color: rgba(96, 181, 188, 0.34) !important;
+  }
+  .smart-sidebar-group-trigger-active .smart-sidebar-nav-icon {
+    background: linear-gradient(145deg, #ffe7af, #f6c96f);
+    color: #704718;
+  }
+  .smart-sidebar-submenu [data-sidebar="menu-button"].smart-sidebar-nav-item {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-color: transparent;
+    box-shadow: none;
+  }
+  .smart-sidebar-submenu [data-sidebar="menu-button"].smart-sidebar-nav-item:hover {
+    background: rgba(255, 255, 255, 0.52) !important;
+    transform: translateX(-2px);
+  }
+  .smart-sidebar-submenu [data-sidebar="menu-button"].smart-sidebar-nav-item-active,
+  .smart-sidebar-submenu [data-sidebar="menu-button"].smart-sidebar-nav-item-active:hover {
+    background: linear-gradient(105deg, rgba(10, 73, 89, 0.94), rgba(19, 132, 139, 0.88)) !important;
+    border-color: rgba(183, 242, 239, 0.32);
+  }
   .smart-sidebar-nav-icon {
     background: linear-gradient(145deg, rgba(225, 249, 248, 0.94), rgba(174, 226, 227, 0.78));
     border: 1px solid rgba(255, 255, 255, 0.74);
@@ -312,6 +337,20 @@
     color: #ffffff !important;
     background: linear-gradient(105deg, rgba(7, 93, 105, 0.96), rgba(19, 137, 141, 0.94)) !important;
     border-color: rgba(188, 249, 244, 0.44);
+  }
+  .dark .smart-sidebar-group-trigger-active {
+    background: rgba(37, 105, 116, 0.34) !important;
+    border-color: rgba(151, 232, 230, 0.26) !important;
+  }
+  .dark .smart-sidebar-group-trigger-active .smart-sidebar-nav-icon {
+    background: linear-gradient(145deg, rgba(255, 223, 159, 0.86), rgba(197, 147, 73, 0.82));
+    color: #3f2a14;
+  }
+  .dark .smart-sidebar-submenu [data-sidebar="menu-button"].smart-sidebar-nav-item {
+    background: rgba(12, 54, 65, 0.18) !important;
+  }
+  .dark .smart-sidebar-submenu [data-sidebar="menu-button"].smart-sidebar-nav-item:hover {
+    background: rgba(37, 105, 116, 0.42) !important;
   }
   .dark .smart-sidebar-nav-icon {
     background: linear-gradient(145deg, rgba(41, 119, 130, 0.62), rgba(19, 77, 91, 0.70));

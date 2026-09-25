@@ -24,6 +24,14 @@ import {
   Upload,
   UserRound,
   X,
+  ChevronDown,
+  Boxes,
+  UsersRound,
+  ReceiptText,
+  MessagesSquare,
+  ChartNoAxesCombined,
+  SlidersHorizontal,
+  ClipboardList,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -105,6 +113,7 @@ export function GoogleSearchButton() {
 }
 
 type NavigationItem = { icon: React.ComponentType<{ className?: string }>; label: string; path: string; mobileLabel?: string };
+export type NavigationGroup = { id: string; icon: React.ComponentType<{ className?: string }>; label: string; description: string; items: NavigationItem[] };
 type PreviewPermissions = { userId: number; userName?: string | null; userEmail?: string | null; allowedScreens: string[]; allowedReports: string[]; readOnly: boolean };
 const MOVEMENT_FINANCIAL_PERMISSION = "warehouse-financial-details";
 const MOVEMENT_FINANCIAL_PREFERENCE_KEY = "movement-financial-columns-v1";
@@ -123,6 +132,26 @@ export const SIDEBAR_VISUAL_CLASSES = {
 
 export function canAccessMigrationImport(role?: string | null) {
   return role === "admin";
+}
+
+export function isNavigationPathActive(path: string, location: string) {
+  if (path.includes("?")) return location === path;
+  return location === path || location.startsWith(`${path}/`) || location.startsWith(`${path}?`);
+}
+
+export function buildNavigationGroups(items: NavigationItem[], governanceItems: NavigationItem[] = []): NavigationGroup[] {
+  const byPath = new Map(items.map(item => [item.path, item]));
+  const pick = (paths: string[]) => paths.map(path => byPath.get(path)).filter((item): item is NavigationItem => Boolean(item));
+  return [
+    { id: "home", icon: LayoutDashboard, label: "الرئيسية", description: "ملخص سريع لحالة العمل", items: pick(["/"]) },
+    { id: "inventory", icon: Boxes, label: "المخازن والمخزون", description: "الأصناف والمخازن والأرصدة", items: pick(["/items", "/warehouses", "/inventory-audit"]) },
+    { id: "suppliers", icon: Truck, label: "الموردون", description: "دليل الموردين وكشوف الحساب", items: pick(["/suppliers"]) },
+    { id: "customers", icon: UsersRound, label: "العملاء وجهات الصرف", description: "العملاء والجهات وكشوف الحساب", items: pick(["/customers"]) },
+    { id: "movements", icon: ReceiptText, label: "أذونات المخازن العامة", description: "الإضافة والصرف والتحويل والتسويات", items: pick(["/additions", "/disbursements", "/transfers", "/stock-adjustments"]) },
+    { id: "alerts", icon: MessagesSquare, label: "التنبيهات المهمة", description: "محادثات الفريق والتنبيهات", items: pick(["/chat", "/alerts"]) },
+    { id: "reports", icon: ChartNoAxesCombined, label: "التقارير", description: "تقارير الحركة والأرصدة والفروقات", items: pick(["/reports"]) },
+    { id: "settings", icon: SlidersHorizontal, label: "الإعدادات والحماية", description: "الإعدادات والنسخ والصلاحيات", items: [...pick(["/settings"]), ...governanceItems] },
+  ].filter(group => group.items.length > 0);
 }
 
 export function buildGovernanceNavigationItems(role?: string | null): NavigationItem[] {
@@ -163,9 +192,63 @@ export function WarehouseNavigationList({ items, activePath, onNavigate, darkMod
   );
 }
 
+function GroupedNavigation({ groups, location, isCollapsed, onNavigate, onExpandSidebar }: { groups: NavigationGroup[]; location: string; isCollapsed: boolean; onNavigate: (path: string) => void; onExpandSidebar: () => void }) {
+  const activeGroupId = groups.find(group => group.items.some(item => isNavigationPathActive(item.path, location)))?.id ?? groups[0]?.id;
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("smart-inventory-sidebar-groups") || "{}");
+      return typeof saved === "object" && saved ? saved : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    if (!activeGroupId) return;
+    setExpanded(current => current[activeGroupId] ? current : { ...current, [activeGroupId]: true });
+  }, [activeGroupId]);
+  const toggleGroup = (groupId: string) => {
+    if (isCollapsed) onExpandSidebar();
+    setExpanded(current => {
+      const next = { ...current, [groupId]: !current[groupId] };
+      window.localStorage.setItem("smart-inventory-sidebar-groups", JSON.stringify(next));
+      return next;
+    });
+  };
+  return <div className={`${SIDEBAR_VISUAL_CLASSES.navigation} space-y-2`}>
+    {groups.map(group => {
+      const GroupIcon = group.icon;
+      const groupActive = group.id === activeGroupId;
+      const groupExpanded = isCollapsed ? false : Boolean(expanded[group.id] ?? groupActive);
+      return <div key={group.id} className={`smart-sidebar-group ${groupActive ? "smart-sidebar-group-active" : ""}`}>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton type="button" onClick={() => toggleGroup(group.id)} tooltip={group.label} className={`smart-interactive group h-14 rounded-2xl px-3 text-[13px] font-black transition-all duration-200 ${SIDEBAR_VISUAL_CLASSES.navigationItem} ${groupActive ? "smart-sidebar-group-trigger-active" : ""}`} aria-expanded={groupExpanded}>
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all ${SIDEBAR_VISUAL_CLASSES.icon}`}><GroupIcon className="h-[18px] w-[18px]" /></span>
+              <span className="min-w-0 flex-1 text-right"><span className="block truncate">{group.label}</span><span className="mt-0.5 block truncate text-[10px] font-semibold opacity-65">{group.description}</span></span>
+              <ChevronDown className={`h-4 w-4 shrink-0 transition-transform duration-200 ${groupExpanded ? "rotate-180" : ""}`} />
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+        <div className={`smart-sidebar-submenu overflow-hidden transition-[max-height,opacity] duration-200 ease-out motion-reduce:transition-none ${groupExpanded ? "max-h-96 opacity-100" : "pointer-events-none max-h-0 opacity-0"}`}>
+          <SidebarMenu className="mt-1 gap-1 border-r border-[#75b9bd]/30 pr-3">
+            {group.items.map(item => {
+              const ItemIcon = item.icon;
+              const active = isNavigationPathActive(item.path, location);
+              return <SidebarMenuItem key={item.path}>
+                <SidebarMenuButton type="button" isActive={active} onClick={() => onNavigate(item.path)} tooltip={item.label} className={`smart-interactive h-10 rounded-xl px-3 text-xs font-bold ${SIDEBAR_VISUAL_CLASSES.navigationItem} ${active ? SIDEBAR_VISUAL_CLASSES.activeNavigationItem : ""}`}>
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/45"><ItemIcon className="h-3.5 w-3.5" /></span><span className="truncate">{item.label}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>;
+            })}
+          </SidebarMenu>
+        </div>
+      </div>;
+    })}
+  </div>;
+}
+
 const menuItems = [
   { icon: LayoutDashboard, label: "نظرة عامة", path: "/" },
   { icon: Package, label: "المخزون", path: "/items" },
+  { icon: ClipboardList, label: "مراجعة المخزون", path: "/inventory-audit" },
   { icon: ArrowDownToLine, label: "إضافات المخزون", path: "/additions" },
   { icon: ArrowUpFromLine, label: "أذونات الصرف", path: "/disbursements" },
   { icon: ArrowLeftRight, label: "التحويلات والمرتجعات", path: "/transfers" },
@@ -407,7 +490,13 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   const offlinePageHasData = isSuppliersDirectory ? directorySuppliers.data !== undefined : isCustomersDirectory ? directoryCustomers.data !== undefined : accountKind === "suppliers" ? directorySuppliers.data !== undefined && supplierAccount.data !== undefined : accountKind === "customers" ? directoryCustomers.data !== undefined && customerAccount.data !== undefined : false;
   const warehouseMenuItems = [{ icon: Warehouse, label: "المخازن", path: "/warehouses" }];
   const governanceItem = buildGovernanceNavigationItems(user.role);
-  const allNavigationItems = [...menuItems.slice(0, 2), ...warehouseMenuItems, { icon: Truck, label: "الموردون للإضافات", path: "/suppliers" }, { icon: UserRound, label: "العملاء/جهات الصرف", path: "/customers" }, ...menuItems.slice(2), ...governanceItem];
+  const allNavigationItems = [
+    ...menuItems,
+    ...warehouseMenuItems,
+    { icon: Truck, label: "الموردون للإضافات", path: "/suppliers" },
+    { icon: UserRound, label: "العملاء/جهات الصرف", path: "/customers" },
+    ...governanceItem,
+  ];
   // The permission model calls the items screen "inventory", while the
   // browser route is /items. Keep both names aligned so the sidebar does not
   // hide the inventory entry for users who already have inventory access.
@@ -415,17 +504,18 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   const hasScreenPermission = (path: string) => path.startsWith("/governance") || !effectivePermissions || effectivePermissions.allowedScreens.includes(screenForPath(path));
   const navigationItems = allNavigationItems.filter(item => hasScreenPermission(item.path) && (!readOnlyRole || !["/additions", "/disbursements", "/transfers", "/suppliers", "/customers"].includes(item.path)));
   const chatEnabled = hasScreenPermission("/chat");
-  const activeMenuItem = navigationItems.find(item => item.path === location) ?? navigationItems.find(item => item.path.startsWith("/governance") && location.startsWith("/governance")) ?? menuItems[0];
+  const navigationGroups = buildNavigationGroups(navigationItems, governanceItem);
+  const activeMenuItem = navigationItems.find(item => isNavigationPathActive(item.path, location)) ?? menuItems[0];
   const mobileNavigationItems = readOnlyRole ? [
     { ...menuItems[0], mobileLabel: "الرئيسية" },
     { ...menuItems[1], mobileLabel: "المخزون" },
-    { ...menuItems[7], mobileLabel: "التقارير" },
+    { ...menuItems[8], mobileLabel: "التقارير" },
   ] : [
     { ...menuItems[0], mobileLabel: "الرئيسية" },
     { ...menuItems[1], mobileLabel: "المخزون" },
     { ...menuItems[2], mobileLabel: "الإضافة" },
     { ...menuItems[3], mobileLabel: "الصرف" },
-    { ...menuItems[7], mobileLabel: "التقارير" },
+    { ...menuItems[8], mobileLabel: "التقارير" },
   ];
   const { logout } = useAuth();
   const showOnboarding = restartOnboarding || onboardingPreferences.data?.onboardingCompleted === false;
@@ -450,7 +540,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
           </SidebarHeader>
           <SidebarContent className="px-3 py-5">
             <div className={`${SIDEBAR_VISUAL_CLASSES.sectionLabel} mb-3 px-3 text-[10px] font-black tracking-[0.22em] ${isCollapsed ? "sr-only" : ""}`}>مساحات العمل</div>
-            <WarehouseNavigationList items={navigationItems} activePath={activeMenuItem.path} onNavigate={(path) => path === "/migration-import" ? window.location.assign(path) : setLocation(path)} darkMode={darkMode} />
+            <GroupedNavigation groups={navigationGroups} location={location} isCollapsed={isCollapsed} onExpandSidebar={() => { if (isCollapsed) toggleSidebar(); }} onNavigate={(path) => path === "/migration-import" ? window.location.assign(path) : setLocation(path)} />
           </SidebarContent>
           <SidebarFooter className={`${SIDEBAR_VISUAL_CLASSES.footer} p-3`}>
             <PwaVersionCard collapsed={isCollapsed} />
