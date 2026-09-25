@@ -1618,8 +1618,8 @@ export async function updateItem(input: {
 
 export async function updateItemImage(
   id: number,
-  imageKey: string,
-  imageUrl: string
+  imageKey: string | null,
+  imageUrl: string | null
 ) {
   const db = await requireDb();
   await db.update(items).set({ imageKey, imageUrl }).where(eq(items.id, id));

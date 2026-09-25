@@ -344,6 +344,9 @@ export const appRouter = router({
         dataBase64: z.string().min(20).max(7_000_000),
       }))
       .mutation(async ({ input, ctx }) => { const item = await safe(() => getItemById(input.itemId)); if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "الصنف غير موجود" }); assertWarehouseAccess(ctx.permissions, [item.warehouseId]); return safe(() => uploadItemImage(input)); }),
+    clearImage: writePermissionProcedure("inventory")
+      .input(z.object({ itemId: z.number().int().positive() }))
+      .mutation(async ({ input, ctx }) => { const item = await safe(() => getItemById(input.itemId)); if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "الصنف غير موجود" }); assertWarehouseAccess(ctx.permissions, [item.warehouseId]); return safe(() => updateItemImage(input.itemId, null, null)); }),
     create: itemCreateProcedure.input(itemInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createItem(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "item", entityId: result?.id, details: { code: result?.code, name: result?.name } }); return result; }),
     importBulk: itemCreateProcedure
       .input(z.object({ rows: z.array(importItemInput).min(1).max(5000) }))
