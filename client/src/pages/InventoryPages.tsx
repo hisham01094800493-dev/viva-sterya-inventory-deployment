@@ -204,7 +204,30 @@ function ItemImagePreviewDialog({ item, open, onOpenChange, onEdit, onClear }: {
   if (!item?.imageUrl) return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-md rounded-2xl" dir="rtl"><DialogHeader><DialogTitle>صورة الصنف غير متاحة</DialogTitle><DialogDescription>يمكنك إضافة صورة من شاشة تعديل بيانات الصنف.</DialogDescription></DialogHeader><DialogFooter><Button type="button" onClick={() => { onOpenChange(false); onEdit(item); }} className="rounded-xl bg-[#0d4f62] text-white">تعديل الصنف</Button><Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">رجوع</Button></DialogFooter></DialogContent></Dialog>;
   const fileName = `${String(item.name || "item").replace(/[^\w\u0600-\u06ff-]+/g, "-")}-${item.code || item.id}.jpg`;
   const download = () => { const link = document.createElement("a"); link.href = item.imageUrl; link.download = fileName; link.target = "_blank"; link.rel = "noopener"; link.click(); };
-  const share = async () => { setSharing(true); try { const result = await shareImageFile(item.imageUrl, `صورة ${item.name}`, fileName); if (result === "shared") toast.success("تم فتح خيارات مشاركة الصورة"); else if (result === "unsupported") toast.info("المشاركة المباشرة غير مدعومة في هذا المتصفح؛ استخدم التنزيل"); } catch (error: any) { toast.error(error?.message || "تعذرت مشاركة الصورة"); } finally { setSharing(false); } };
+  const copyOrOpenShareLink = async () => {
+    const text = `صورة ${item.name} (${item.code || item.id}): ${item.imageUrl}`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(item.imageUrl);
+        toast.success("تم نسخ رابط الصورة؛ يمكنك لصقه في واتساب أو البريد");
+        return;
+      }
+    } catch { /* fallback below */ }
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    const popup = window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    if (popup) toast.info("تم فتح واتساب لمشاركة رابط الصورة");
+    else toast.error("تعذر فتح المشاركة؛ انسخ رابط الصورة من شريط العنوان");
+  };
+  const share = async () => {
+    setSharing(true);
+    try {
+      const result = await shareImageFile(item.imageUrl, `صورة ${item.name}`, fileName);
+      if (result === "shared") toast.success("تم فتح خيارات مشاركة الصورة");
+      else if (result === "unsupported") await copyOrOpenShareLink();
+    } catch {
+      await copyOrOpenShareLink();
+    } finally { setSharing(false); }
+  };
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[96vh] w-[min(94vw,900px)] max-w-[900px] overflow-y-auto rounded-3xl p-0" dir="rtl"><DialogHeader className="border-b border-[#e5eef1] bg-gradient-to-l from-[#eefafa] to-[#fffaf0] px-6 py-5"><DialogTitle className="flex items-center gap-2 text-xl font-black text-[#102a43]"><ImageIcon className="h-5 w-5 text-[#0d7180]" />صورة الصنف</DialogTitle><DialogDescription>{item.name} · الكود {item.code}</DialogDescription></DialogHeader><div className="flex min-h-[45vh] items-center justify-center bg-slate-950/95 p-5 sm:min-h-[58vh]"><img src={item.imageUrl} alt={`صورة ${item.name}`} className="max-h-[58vh] max-w-full rounded-2xl object-contain shadow-2xl" /></div><DialogFooter className="flex flex-wrap items-center justify-between gap-2 px-6 py-4"><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={download} className="rounded-xl border-[#0d4f62] text-[#0d4f62]"><Download className="ml-2 h-4 w-4" />تحميل</Button><Button type="button" variant="outline" onClick={() => void share()} disabled={sharing} className="rounded-xl border-[#0d806c] text-[#0d806c]"><Share2 className="ml-2 h-4 w-4" />{sharing ? "جارٍ المشاركة" : "مشاركة"}</Button><Button type="button" variant="outline" onClick={() => { onOpenChange(false); onEdit(item); }} className="rounded-xl"><Edit3 className="ml-2 h-4 w-4" />تعديل</Button><Button type="button" variant="outline" onClick={() => { if (window.confirm(`حذف صورة الصنف «${item.name}» فقط؟`)) void onClear(item); }} className="rounded-xl border-red-200 text-red-700 hover:bg-red-50"><Trash2 className="ml-2 h-4 w-4" />حذف الصورة</Button></div><Button type="button" onClick={() => onOpenChange(false)} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]"><ArrowRight className="ml-2 h-4 w-4" />رجوع</Button></DialogFooter></DialogContent></Dialog>;
 }
 
