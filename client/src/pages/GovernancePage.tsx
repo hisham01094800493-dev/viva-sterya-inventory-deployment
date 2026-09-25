@@ -7,6 +7,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { permissionTemplates, type PermissionTemplateKey } from "@/lib/permissionTemplates";
 import { canCreateInventoryItems, ITEM_CREATE_DISABLED_PERMISSION, ITEM_CREATE_PERMISSION } from "@/lib/itemCreatePermission";
+import { useLocation } from "wouter";
 
 const roles = [
   ["viewer", "قراءة فقط"], ["reports", "مشاهدة التقارير"], ["reviewer", "مراجعة"], ["operator", "إدخال الحركات"], ["user", "مستخدم تشغيلي"], ["manager", "مدير"], ["admin", "مدير عام"],
@@ -94,7 +95,10 @@ function AbsenceManager({ userId, userName, onClose }: { userId: number; userNam
 }
 
 export default function GovernancePage() {
-  const [tab, setTab] = useState<"users" | "audit" | "shares" | "logins" | "backup" | "backups" | "backup-center" | "reset">(() => { const requested = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null; return requested === "reset" || requested === "backups" || requested === "backup-center" || requested === "logins" || requested === "shares" ? requested : "users"; });
+  const [location] = useLocation();
+  const getRequestedTab = (): "users" | "audit" | "shares" | "logins" | "backup" | "backups" | "backup-center" | "reset" => { const requested = new URLSearchParams(location.split("?")[1] ?? "").get("tab"); return requested === "reset" || requested === "backups" || requested === "backup-center" || requested === "logins" || requested === "shares" || requested === "audit" || requested === "backup" ? requested : "users"; };
+  const [tab, setTab] = useState<"users" | "audit" | "shares" | "logins" | "backup" | "backups" | "backup-center" | "reset">(getRequestedTab);
+  useEffect(() => { setTab(getRequestedTab()); }, [location]);
   const fileRef = useRef<HTMLInputElement>(null);
   const usersQuery = trpc.governance.users.useQuery(undefined, { enabled: tab === "users" });
   const absenceTotals = trpc.governance.absenceTotals.useQuery(undefined, { enabled: tab === "users" });

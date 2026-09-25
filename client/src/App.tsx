@@ -19,6 +19,7 @@ const WarehousesPage = lazy(() => import("./pages/WarehousesSuppliersPages").the
 const SuppliersPage = lazy(() => import("./pages/WarehousesSuppliersPages").then(module => ({ default: module.SuppliersPage })));
 const CustomersPage = lazy(() => import("./pages/WarehousesSuppliersPages").then(module => ({ default: module.CustomersPage })));
 const AccountStatementPage = lazy(() => import("./pages/WarehousesSuppliersPages").then(module => ({ default: module.AccountStatementPage })));
+const MigrationImportPage = lazy(() => import("./pages/MigrationImportPage"));
 import NotFound from "./pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import PwaInstallPrompt from "./components/PwaInstallPrompt";
@@ -71,6 +72,7 @@ function Router() {
       <Route path="/chat" component={ChatPage} />
       <Route path="/reports" component={ReportsPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/migration-import" component={MigrationImportPage} />
       <Route path="/governance" component={GovernancePage} />
       <Route path="/stock-adjustments" component={StockAdjustmentsPage} />
       <Route path="/404" component={NotFound} />

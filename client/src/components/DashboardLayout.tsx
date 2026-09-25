@@ -157,13 +157,14 @@ export function buildNavigationGroups(items: NavigationItem[], governanceItems: 
 export function buildGovernanceNavigationItems(role?: string | null): NavigationItem[] {
   if (canAccessMigrationImport(role)) {
     return [
-      { icon: ShieldCheck, label: "الحماية والنسخ الاحتياطي", path: "/governance" },
+      { icon: ShieldCheck, label: "مركز النسخ والحماية", path: "/governance?tab=backup-center" },
       { icon: ShieldCheck, label: "النسخ الاحتياطية السابقة", path: "/governance?tab=backups" },
+      { icon: UserRound, label: "المستخدمون والصلاحيات", path: "/governance?tab=users" },
       { icon: Upload, label: "استيراد حزمة الترحيل", path: "/migration-import" },
       { icon: RotateCcw, label: "بدء استخدام جديد", path: "/governance?tab=reset" },
     ];
   }
-  return role === "manager" ? [{ icon: ShieldCheck, label: "الحماية والنسخ الاحتياطي", path: "/governance" }] : [];
+  return role === "manager" ? [{ icon: ShieldCheck, label: "مركز النسخ والحماية", path: "/governance?tab=backup-center" }] : [];
 }
 
 export function WarehouseNavigationList({ items, activePath, onNavigate, darkMode = false }: { items: NavigationItem[]; activePath?: string; onNavigate: (path: string) => void; darkMode?: boolean }) {
@@ -540,7 +541,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
           </SidebarHeader>
           <SidebarContent className="px-3 py-5">
             <div className={`${SIDEBAR_VISUAL_CLASSES.sectionLabel} mb-3 px-3 text-[10px] font-black tracking-[0.22em] ${isCollapsed ? "sr-only" : ""}`}>مساحات العمل</div>
-            <GroupedNavigation groups={navigationGroups} location={location} isCollapsed={isCollapsed} onExpandSidebar={() => { if (isCollapsed) toggleSidebar(); }} onNavigate={(path) => path === "/migration-import" ? window.location.assign(path) : setLocation(path)} />
+            <GroupedNavigation groups={navigationGroups} location={location} isCollapsed={isCollapsed} onExpandSidebar={() => { if (isCollapsed) toggleSidebar(); }} onNavigate={setLocation} />
           </SidebarContent>
           <SidebarFooter className={`${SIDEBAR_VISUAL_CLASSES.footer} p-3`}>
             <PwaVersionCard collapsed={isCollapsed} />
