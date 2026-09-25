@@ -195,6 +195,8 @@ export function WarehouseNavigationList({ items, activePath, onNavigate, darkMod
 
 function GroupedNavigation({ groups, location, isCollapsed, onNavigate, onExpandSidebar }: { groups: NavigationGroup[]; location: string; isCollapsed: boolean; onNavigate: (path: string) => void; onExpandSidebar: () => void }) {
   const activeGroupId = groups.find(group => group.items.some(item => isNavigationPathActive(item.path, location)))?.id ?? groups[0]?.id;
+  const [pressedPath, setPressedPath] = useState<string | null>(null);
+  const pressTimerRef = useRef<number | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem("smart-inventory-sidebar-groups") || "{}");
@@ -205,6 +207,13 @@ function GroupedNavigation({ groups, location, isCollapsed, onNavigate, onExpand
     if (!activeGroupId) return;
     setExpanded(current => current[activeGroupId] ? current : { ...current, [activeGroupId]: true });
   }, [activeGroupId]);
+  useEffect(() => () => { if (pressTimerRef.current !== null) window.clearTimeout(pressTimerRef.current); }, []);
+  const navigateItem = (path: string) => {
+    setPressedPath(path);
+    if (pressTimerRef.current !== null) window.clearTimeout(pressTimerRef.current);
+    pressTimerRef.current = window.setTimeout(() => setPressedPath(current => current === path ? null : current), 240);
+    onNavigate(path);
+  };
   const toggleGroup = (groupId: string) => {
     if (isCollapsed) onExpandSidebar();
     setExpanded(current => {
@@ -234,7 +243,7 @@ function GroupedNavigation({ groups, location, isCollapsed, onNavigate, onExpand
               const ItemIcon = item.icon;
               const active = isNavigationPathActive(item.path, location);
               return <SidebarMenuItem key={item.path}>
-                <SidebarMenuButton type="button" isActive={active} onClick={() => onNavigate(item.path)} tooltip={item.label} className={`smart-interactive h-10 rounded-xl px-3 text-xs font-bold ${SIDEBAR_VISUAL_CLASSES.navigationItem} ${active ? SIDEBAR_VISUAL_CLASSES.activeNavigationItem : ""}`}>
+                <SidebarMenuButton type="button" isActive={active} onClick={() => navigateItem(item.path)} tooltip={item.label} aria-current={active ? "page" : undefined} className={`smart-interactive h-10 rounded-xl px-3 text-xs font-bold ${SIDEBAR_VISUAL_CLASSES.navigationItem} ${active ? SIDEBAR_VISUAL_CLASSES.activeNavigationItem : ""} ${pressedPath === item.path ? "smart-sidebar-click-flash" : ""}`}>
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white/45"><ItemIcon className="h-3.5 w-3.5" /></span><span className="truncate">{item.label}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>;

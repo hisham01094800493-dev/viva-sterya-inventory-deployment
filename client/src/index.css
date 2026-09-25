@@ -493,6 +493,12 @@
   }
   .smart-interactive:hover { transform: translateY(-2px); box-shadow: 0 18px 38px rgba(13, 79, 98, 0.13); }
   .smart-interactive:active { transform: translateY(0) scale(0.985); }
+  @keyframes smart-sidebar-click-flash {
+    0% { box-shadow: 0 0 0 0 rgba(255, 219, 126, 0); }
+    35% { background-color: rgba(255, 232, 169, 0.72); box-shadow: 0 0 0 4px rgba(255, 219, 126, 0.22), 0 10px 24px rgba(13, 79, 98, 0.14); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 219, 126, 0); }
+  }
+  .smart-sidebar-click-flash { animation: smart-sidebar-click-flash 240ms cubic-bezier(0.23, 1, 0.32, 1); }
 
   .smart-gradient-card {
     position: relative;
@@ -527,6 +533,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .smart-interactive, .smart-table tbody tr { transition: none; }
+  .smart-sidebar-click-flash { animation: none; }
   .smart-interactive:hover { transform: none; }
 }
 
