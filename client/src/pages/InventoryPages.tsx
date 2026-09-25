@@ -53,6 +53,7 @@ import {
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { createRoot } from "react-dom/client";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { enableNotificationAudioPreference, getNotificationSoundPreference, getNotificationVolume, notificationSoundPresets, playNotificationTone, setNotificationSoundPreference, setNotificationVolume, unlockNotificationAudio, type NotificationSoundId } from "@/lib/notificationAudio";
 import { isSupportedItemsFile, parseItemsWorkbook } from "@/lib/importItems";
@@ -75,30 +76,57 @@ import { canCreateInventoryItems } from "@/lib/itemCreatePermission";
 const formatQuantity = (value: number | string | null | undefined) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 }).format(Number(value ?? 0));
 
 function ItemImageHoverPreview({ src, alt }: { src: string; alt: string }) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
   const [visible, setVisible] = useState(false);
+  const [position, setPosition] = useState({ top: 8, left: 8 });
+  const updatePosition = () => {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (!rect || typeof window === "undefined") return;
+    const width = 224;
+    const height = 202;
+    setPosition({
+      top: Math.max(8, Math.min(window.innerHeight - height - 8, rect.top - height - 10)),
+      left: Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width)),
+    });
+  };
+  useEffect(() => {
+    if (!visible) return;
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [visible]);
+  const preview = visible && typeof document !== "undefined" ? createPortal(
+    <span
+      role="tooltip"
+      className="pointer-events-none fixed z-[100] hidden w-56 rounded-2xl border border-[#b9d4d9] bg-white p-2 shadow-[0_18px_45px_rgba(13,79,98,0.22)] sm:block"
+      style={{ top: position.top, left: position.left }}
+    >
+      <span className="mb-1 block truncate px-1 text-right text-[10px] font-bold text-[#386672]">معاينة سريعة</span>
+      <img src={src} alt={alt} className="h-44 w-full rounded-xl bg-slate-950/5 object-contain" />
+    </span>,
+    document.body,
+  ) : null;
   return (
     <span
+      ref={anchorRef}
       className="group relative inline-flex h-full w-full items-center justify-center"
-      onMouseEnter={() => setVisible(true)}
+      onMouseEnter={() => { updatePosition(); setVisible(true); }}
       onMouseLeave={() => setVisible(false)}
-      onFocus={() => setVisible(true)}
+      onFocus={() => { updatePosition(); setVisible(true); }}
       onBlur={() => setVisible(false)}
     >
       <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-[inherit]">
         <img src={src} alt={alt} className="max-h-full max-w-full object-contain transition-transform duration-200 group-hover:scale-105" />
       </span>
-      {visible ? (
-        <span
-          role="tooltip"
-          className="pointer-events-none absolute bottom-[calc(100%+0.6rem)] right-0 z-[70] hidden w-56 rounded-2xl border border-[#b9d4d9] bg-white p-2 shadow-[0_18px_45px_rgba(13,79,98,0.22)] sm:block"
-        >
-          <span className="mb-1 block truncate px-1 text-right text-[10px] font-bold text-[#386672]">معاينة سريعة</span>
-          <img src={src} alt={alt} className="h-44 w-full rounded-xl bg-slate-950/5 object-contain" />
-        </span>
-      ) : null}
+      {preview}
     </span>
   );
 }
+
 const movementPdfColumnLabels: Record<string, string> = { type: "نوع الحركة", date: "التاريخ", eznNum: "رقم الإذن", itemCode: "كود الصنف", name: "اسم الصنف", quantity: "الكمية", additionPurpose: "لِزوم الإضافة", disbursementPurpose: "لِزوم الصرف", returnPurpose: "لِزوم الارتجاع", detail: "التفاصيل", unitPrice: "سعر الوحدة", totalValue: "الإجمالي", documentImage: "صورة الإذن" };
 const PdfPageCanvas = lazy(() => import("@/components/PdfPageCanvas").then(module => ({ default: module.PdfPageCanvas })));
 const triggerHaptic = (duration = 10, enabled = true) => { if (enabled && typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(duration); };
