@@ -227,36 +227,24 @@ function ItemsDialog({ open, onOpenChange, editing, onSaved }: { open: boolean; 
 
 function ItemImagePreviewDialog({ item, open, onOpenChange, onEdit, onClear }: { item?: any; open: boolean; onOpenChange: (open: boolean) => void; onEdit: (item: any) => void; onClear: (item: any) => Promise<void> }) {
   const [sharing, setSharing] = useState(false);
-  const [shareOptionsOpen, setShareOptionsOpen] = useState(false);
+  const [fileShareAvailable, setFileShareAvailable] = useState(() => typeof navigator !== "undefined" && typeof navigator.share === "function");
   if (!item?.imageUrl) return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-md rounded-2xl" dir="rtl"><DialogHeader><DialogTitle>صورة الصنف غير متاحة</DialogTitle><DialogDescription>يمكنك إضافة صورة من شاشة تعديل بيانات الصنف.</DialogDescription></DialogHeader><DialogFooter><Button type="button" onClick={() => { onOpenChange(false); onEdit(item); }} className="rounded-xl bg-[#0d4f62] text-white">تعديل الصنف</Button><Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">رجوع</Button></DialogFooter></DialogContent></Dialog>;
   const fileName = `${String(item.name || "item").replace(/[^\w\u0600-\u06ff-]+/g, "-")}-${item.code || item.id}.jpg`;
   const download = () => { const link = document.createElement("a"); link.href = item.imageUrl; link.download = fileName; link.target = "_blank"; link.rel = "noopener"; link.click(); };
-  const openShareOptions = () => setShareOptionsOpen(true);
-  const shareWhatsApp = () => {
-    const text = `صورة ${item.name} (${item.code || item.id})\n${item.imageUrl}`;
-    const popup = window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
-    if (!popup) toast.error("تعذر فتح واتساب؛ اسمح بالنوافذ المنبثقة ثم حاول مرة أخرى");
-    else setShareOptionsOpen(false);
-  };
-  const shareByEmail = () => {
-    const subject = encodeURIComponent(`صورة الصنف: ${item.name}`);
-    const body = encodeURIComponent(`مرحباً،\n\nأشارك معك صورة الصنف ${item.name} (الكود: ${item.code || item.id}).\n\nرابط الصورة: ${item.imageUrl}`);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-    setShareOptionsOpen(false);
-  };
   const share = async () => {
     setSharing(true);
     try {
       const result = await shareImageFile(item.imageUrl, `صورة ${item.name}`, fileName);
-      if (result === "shared") toast.success("تم فتح خيارات مشاركة الصورة");
-      else if (result === "unsupported") openShareOptions();
+      if (result === "shared") toast.success("تم فتح خيارات مشاركة ملف الصورة");
+      else if (result === "cancelled") return;
+      else setFileShareAvailable(false);
     } catch {
-      openShareOptions();
+      setFileShareAvailable(false);
+      toast.error("تعذرت مشاركة ملف الصورة على هذا الجهاز");
     } finally { setSharing(false); }
   };
   return <>
-    <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[96vh] w-[min(94vw,900px)] max-w-[900px] overflow-y-auto rounded-3xl p-0" dir="rtl"><DialogHeader className="border-b border-[#e5eef1] bg-gradient-to-l from-[#eefafa] to-[#fffaf0] px-6 py-5"><DialogTitle className="flex items-center gap-2 text-xl font-black text-[#102a43]"><ImageIcon className="h-5 w-5 text-[#0d7180]" />صورة الصنف</DialogTitle><DialogDescription>{item.name} · الكود {item.code}</DialogDescription></DialogHeader><div className="flex min-h-[45vh] items-center justify-center bg-slate-950/95 p-5 sm:min-h-[58vh]"><img src={item.imageUrl} alt={`صورة ${item.name}`} className="max-h-[58vh] max-w-full rounded-2xl object-contain shadow-2xl" /></div><DialogFooter className="flex flex-wrap items-center justify-between gap-2 px-6 py-4"><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={download} className="rounded-xl border-[#0d4f62] text-[#0d4f62]"><Download className="ml-2 h-4 w-4" />تحميل</Button><Button type="button" variant="outline" onClick={() => void share()} disabled={sharing} className="rounded-xl border-[#0d806c] text-[#0d806c]"><Share2 className="ml-2 h-4 w-4" />{sharing ? "جارٍ المشاركة" : "مشاركة"}</Button><Button type="button" variant="outline" onClick={() => { onOpenChange(false); onEdit(item); }} className="rounded-xl"><Edit3 className="ml-2 h-4 w-4" />تعديل</Button><Button type="button" variant="outline" onClick={() => { if (window.confirm(`حذف صورة الصنف «${item.name}» فقط؟`)) void onClear(item); }} className="rounded-xl border-red-200 text-red-700 hover:bg-red-50"><Trash2 className="ml-2 h-4 w-4" />حذف الصورة</Button></div><Button type="button" onClick={() => onOpenChange(false)} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]"><ArrowRight className="ml-2 h-4 w-4" />رجوع</Button></DialogFooter></DialogContent></Dialog>
-    <Dialog open={shareOptionsOpen} onOpenChange={setShareOptionsOpen}><DialogContent className="max-w-md rounded-2xl" dir="rtl"><DialogHeader><DialogTitle>مشاركة صورة الصنف</DialogTitle><DialogDescription>اختر التطبيق الذي تريد توجيه الصورة إليه.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-2"><Button type="button" onClick={shareWhatsApp} className="h-12 rounded-xl bg-[#25D366] font-black text-white hover:bg-[#1da851]">مشاركة عبر واتساب</Button><Button type="button" onClick={shareByEmail} variant="outline" className="h-12 rounded-xl border-[#0d7180] font-black text-[#0d7180]">مشاركة عبر البريد الإلكتروني</Button></div><DialogFooter><Button type="button" variant="ghost" onClick={() => setShareOptionsOpen(false)} className="rounded-xl">إلغاء</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[96vh] w-[min(94vw,900px)] max-w-[900px] overflow-y-auto rounded-3xl p-0" dir="rtl"><DialogHeader className="border-b border-[#e5eef1] bg-gradient-to-l from-[#eefafa] to-[#fffaf0] px-6 py-5"><DialogTitle className="flex items-center gap-2 text-xl font-black text-[#102a43]"><ImageIcon className="h-5 w-5 text-[#0d7180]" />صورة الصنف</DialogTitle><DialogDescription>{item.name} · الكود {item.code}</DialogDescription></DialogHeader><div className="flex min-h-[45vh] items-center justify-center bg-slate-950/95 p-5 sm:min-h-[58vh]"><img src={item.imageUrl} alt={`صورة ${item.name}`} className="max-h-[58vh] max-w-full rounded-2xl object-contain shadow-2xl" /></div><DialogFooter className="flex flex-wrap items-center justify-between gap-2 px-6 py-4"><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={download} className="rounded-xl border-[#0d4f62] text-[#0d4f62]"><Download className="ml-2 h-4 w-4" />تحميل</Button>{fileShareAvailable ? <Button type="button" variant="outline" onClick={() => void share()} disabled={sharing} className="rounded-xl border-[#0d806c] text-[#0d806c]" title="مشاركة ملف الصورة نفسه عبر تطبيقات الجهاز"><Share2 className="ml-2 h-4 w-4" />{sharing ? "جارٍ تجهيز ملف الصورة" : "مشاركة الصورة"}</Button> : null}<Button type="button" variant="outline" onClick={() => { onOpenChange(false); onEdit(item); }} className="rounded-xl"><Edit3 className="ml-2 h-4 w-4" />تعديل</Button><Button type="button" variant="outline" onClick={() => { if (window.confirm(`حذف صورة الصنف «${item.name}» فقط؟`)) void onClear(item); }} className="rounded-xl border-red-200 text-red-700 hover:bg-red-50"><Trash2 className="ml-2 h-4 w-4" />حذف الصورة</Button></div><Button type="button" onClick={() => onOpenChange(false)} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]"><ArrowRight className="ml-2 h-4 w-4" />رجوع</Button></DialogFooter></DialogContent></Dialog>
   </>;
 }
 
