@@ -2019,14 +2019,18 @@ export async function updateAddition(input: {
       input.warehouseId ?? old.warehouseId,
       input.store === undefined ? old.store : input.store
     );
+    const stockAffectingChange =
+      oldCode !== nextCode ||
+      oldQuantity !== nextQuantity ||
+      oldWarehouse.id !== nextWarehouse.id;
 
-    if (oldCode === nextCode) {
+    if (stockAffectingChange && oldCode === nextCode) {
       await applyStockDelta(tx, lockedItems.get(oldCode), {
         incoming: nextQuantity - oldQuantity,
         outgoing: 0,
         current: nextQuantity - oldQuantity,
       });
-    } else {
+    } else if (stockAffectingChange) {
       await applyStockDelta(tx, lockedItems.get(oldCode), {
         incoming: -oldQuantity,
         outgoing: 0,
@@ -2039,18 +2043,20 @@ export async function updateAddition(input: {
       });
     }
 
-    await applyWarehouseBalanceDelta(
-      tx,
-      lockedItems.get(oldCode).id,
-      oldWarehouse.id,
-      -oldQuantity
-    );
-    await applyWarehouseBalanceDelta(
-      tx,
-      lockedItems.get(nextCode).id,
-      nextWarehouse.id,
-      nextQuantity
-    );
+    if (stockAffectingChange) {
+      await applyWarehouseBalanceDelta(
+        tx,
+        lockedItems.get(oldCode).id,
+        oldWarehouse.id,
+        -oldQuantity
+      );
+      await applyWarehouseBalanceDelta(
+        tx,
+        lockedItems.get(nextCode).id,
+        nextWarehouse.id,
+        nextQuantity
+      );
+    }
 
     const nextItem = lockedItems.get(nextCode);
     const unitPrice = toMoneyScaled(input.unitPrice ?? old.unitPrice);
@@ -2326,14 +2332,18 @@ export async function updateDisbursement(input: {
       input.warehouseId ?? old.warehouseId,
       input.store === undefined ? old.store : input.store
     );
+    const stockAffectingChange =
+      oldCode !== nextCode ||
+      oldQuantity !== nextQuantity ||
+      oldWarehouse.id !== nextWarehouse.id;
 
-    if (oldCode === nextCode) {
+    if (stockAffectingChange && oldCode === nextCode) {
       await applyStockDelta(tx, lockedItems.get(oldCode), {
         incoming: 0,
         outgoing: nextQuantity - oldQuantity,
         current: oldQuantity - nextQuantity,
       });
-    } else {
+    } else if (stockAffectingChange) {
       await applyStockDelta(tx, lockedItems.get(oldCode), {
         incoming: 0,
         outgoing: -oldQuantity,
@@ -2346,18 +2356,20 @@ export async function updateDisbursement(input: {
       });
     }
 
-    await applyWarehouseBalanceDelta(
-      tx,
-      lockedItems.get(oldCode).id,
-      oldWarehouse.id,
-      oldQuantity
-    );
-    await applyWarehouseBalanceDelta(
-      tx,
-      lockedItems.get(nextCode).id,
-      nextWarehouse.id,
-      -nextQuantity
-    );
+    if (stockAffectingChange) {
+      await applyWarehouseBalanceDelta(
+        tx,
+        lockedItems.get(oldCode).id,
+        oldWarehouse.id,
+        oldQuantity
+      );
+      await applyWarehouseBalanceDelta(
+        tx,
+        lockedItems.get(nextCode).id,
+        nextWarehouse.id,
+        -nextQuantity
+      );
+    }
 
     const nextItem = lockedItems.get(nextCode);
     const unitPrice = toMoneyScaled(input.unitPrice ?? old.unitPrice);
@@ -3181,12 +3193,18 @@ export async function updateTransfer(input: {
       input.toWarehouseId === undefined
         ? old.toWarehouseId
         : input.toWarehouseId;
+    const stockAffectingChange =
+      oldCode !== nextCode ||
+      oldQuantity !== nextQuantity ||
+      old.fromWarehouseId !== nextFromWarehouseId ||
+      old.toWarehouseId !== nextToWarehouseId ||
+      old.transferType !== nextTransferType;
     const codes = Array.from(new Set([oldCode, nextCode])).sort();
     const lockedItems = new Map<string, any>();
     for (const code of codes)
       lockedItems.set(code, await getItemForUpdate(tx, code));
 
-    if (old.fromWarehouseId || old.toWarehouseId) {
+    if (stockAffectingChange && (old.fromWarehouseId || old.toWarehouseId)) {
       await applyTransferWarehouseEffect(tx, lockedItems.get(oldCode), {
         transferType: old.transferType,
         fromWarehouseId: old.fromWarehouseId,
@@ -3194,7 +3212,7 @@ export async function updateTransfer(input: {
         quantity: -oldQuantity,
       });
     }
-    if (nextFromWarehouseId || nextToWarehouseId) {
+    if (stockAffectingChange && (nextFromWarehouseId || nextToWarehouseId)) {
       await applyTransferWarehouseEffect(tx, lockedItems.get(nextCode), {
         transferType: nextTransferType,
         fromWarehouseId: nextFromWarehouseId,
