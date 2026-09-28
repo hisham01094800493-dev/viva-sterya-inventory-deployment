@@ -440,6 +440,10 @@ function movementMeta(kind: MovementKind) {
 
 function MovementDialog({ kind, open, onOpenChange, editing, onSaved }: { kind: MovementKind; open: boolean; onOpenChange: (open: boolean) => void; editing?: MovementRow; onSaved: () => void }) {
   const [form, setForm] = useState<MovementForm>(blankMovement());
+  // يمنع النقرات المتتالية قبل أن يعيد React التصيير، ويحفظ الحركة المنشأة
+  // مؤقتاً حتى لا تؤدي إعادة رفع الصورة إلى إنشاء حركة ثانية.
+  const submitLockRef = useRef(false);
+  const pendingMovementRef = useRef<{ kind: MovementKind; movement: MovementRow } | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
   const [clearDocumentRequested, setClearDocumentRequested] = useState(false);
@@ -470,7 +474,7 @@ function MovementDialog({ kind, open, onOpenChange, editing, onSaved }: { kind: 
   const calculatedTotal = Number(form.quantity || 0) * effectiveUnitPrice;
   const busy = createAddition.isPending || updateAddition.isPending || createDisbursement.isPending || updateDisbursement.isPending || createTransfer.isPending || updateTransfer.isPending || uploadAdditionDocument.isPending || uploadDisbursementDocument.isPending || uploadTransferDocument.isPending || clearAdditionDocument.isPending || clearDisbursementDocument.isPending || clearTransferDocument.isPending || uploadStage === "compressing" || uploadStage === "uploading";
 
-  useEffect(() => { if (!editing) { setForm(blankMovement()); setDocumentFile(null); setDocumentPreview(null); setClearDocumentRequested(false); setDocumentSize(0); setRemainingSeconds(0); setUploadStage("idle"); setPreviewOpen(false); setPreviewRotation(0); setPreviewFullscreen(false); return; } setForm({ ...blankMovement(), ...editing, quantity: String(editing.quantity ?? ""), unitPrice: String(editing.unitPrice ?? ""), store: editing.store ?? "", purpose: editing.purpose ?? "", supplier: editing.supplier ?? "", supplierId: String(editing.supplierId ?? ""), customerId: String(editing.customerId ?? "",), category: editing.category ?? "", destination: editing.destination ?? "", notes: editing.notes ?? "", disburseType: editing.disburseType ?? "", fromStore: editing.fromStore ?? "", toStore: editing.toStore ?? "", transferType: editing.transferType ?? "transfer" }); setDocumentFile(null); setDocumentPreview(editing.documentImageUrl ?? null); setClearDocumentRequested(false); setDocumentSize(0); setRemainingSeconds(0); setUploadStage("idle"); setPreviewOpen(false); setPreviewRotation(0); setPreviewFullscreen(false); }, [editing, open]);
+  useEffect(() => { submitLockRef.current = false; pendingMovementRef.current = null; if (!editing) { setForm(blankMovement()); setDocumentFile(null); setDocumentPreview(null); setClearDocumentRequested(false); setDocumentSize(0); setRemainingSeconds(0); setUploadStage("idle"); setPreviewOpen(false); setPreviewRotation(0); setPreviewFullscreen(false); return; } setForm({ ...blankMovement(), ...editing, quantity: String(editing.quantity ?? ""), unitPrice: String(editing.unitPrice ?? ""), store: editing.store ?? "", purpose: editing.purpose ?? "", supplier: editing.supplier ?? "", supplierId: String(editing.supplierId ?? ""), customerId: String(editing.customerId ?? "",), category: editing.category ?? "", destination: editing.destination ?? "", notes: editing.notes ?? "", disburseType: editing.disburseType ?? "", fromStore: editing.fromStore ?? "", toStore: editing.toStore ?? "", transferType: editing.transferType ?? "transfer" }); setDocumentFile(null); setDocumentPreview(editing.documentImageUrl ?? null); setClearDocumentRequested(false); setDocumentSize(0); setRemainingSeconds(0); setUploadStage("idle"); setPreviewOpen(false); setPreviewRotation(0); setPreviewFullscreen(false); }, [editing, open]);
   useEffect(() => { const item = itemQuery.data; if (!item) return; setForm(current => current.itemCode.trim() === item.code ? { ...current, unitPrice: current.unitPrice || String(item.unitPrice ?? ""), category: current.category || item.category || "" } : current); }, [itemQuery.data]);
   useEffect(() => { if (uploadStage !== "compressing" && uploadStage !== "uploading") return; const timer = window.setInterval(() => setRemainingSeconds(current => Math.max(1, current - 1)), 1000); return () => window.clearInterval(timer); }, [uploadStage]);
   useEffect(() => {
@@ -542,33 +546,48 @@ function MovementDialog({ kind, open, onOpenChange, editing, onSaved }: { kind: 
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    // لا تسمح بنقر مزدوج حتى لو لم تتحدث isPending بعد في الواجهة.
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
     try {
       if (!itemCodeInput.code) throw new Error("أدخل كود الصنف أولاً");
       if (!itemQuery.data) throw new Error(navigator.onLine ? "كود الصنف غير مسجل في دليل الأصناف" : "لا يمكن التحقق من كود الصنف دون اتصال. افتح الدليل مرة واحدة بعد عودة الشبكة");
       let savedMovement: MovementRow | undefined;
       let queued = false;
       if (editing && !navigator.onLine) throw new Error("تعديل حركة موجودة يحتاج إلى اتصال بالإنترنت");
-      if (kind === "additions") {
+
+      // إذا تم حفظ الحركة وفشل رفع الصورة، أعد رفع الصورة على نفس id بدلاً من إنشاء حركة جديدة.
+      const pendingMovement = !editing && pendingMovementRef.current?.kind === kind ? pendingMovementRef.current.movement : undefined;
+      if (pendingMovement) savedMovement = pendingMovement;
+      else if (kind === "additions") {
         const payload = { date: form.date, eznNum: form.eznNum, itemCode: form.itemCode, quantity: Number(form.quantity), unitPrice: form.unitPrice === "" ? undefined : Number(form.unitPrice), store: form.store || null, purpose: form.purpose || null, supplier: form.supplier || null, supplierId: form.supplierId ? Number(form.supplierId) : null, category: form.category || null };
         if (editing) savedMovement = await updateAddition.mutateAsync({ id: editing.id, ...payload }) as MovementRow;
         else { savedMovement = await createOrQueue("additions", payload, input => createAddition.mutateAsync(input as never)) as MovementRow | undefined; queued = !savedMovement; }
       }
-      if (kind === "disbursements") {
+      if (!pendingMovement && kind === "disbursements") {
         const payload = { date: form.date, eznNum: form.eznNum, itemCode: form.itemCode, quantity: Number(form.quantity), unitPrice: form.unitPrice === "" ? undefined : Number(form.unitPrice), destination: form.destination || null, customerId: form.customerId ? Number(form.customerId) : null, notes: form.notes || null, store: form.store || null, disburseType: form.disburseType || null };
         if (editing) savedMovement = await updateDisbursement.mutateAsync({ id: editing.id, ...payload }) as MovementRow;
         else { savedMovement = await createOrQueue("disbursements", payload, input => createDisbursement.mutateAsync(input as never)) as MovementRow | undefined; queued = !savedMovement; }
       }
-      if (kind === "transfers") {
+      if (!pendingMovement && kind === "transfers") {
         const payload = { date: form.date, eznNum: form.eznNum, itemCode: form.itemCode, quantity: Number(form.quantity), unitPrice: form.unitPrice === "" ? undefined : Number(form.unitPrice), fromStore: form.fromStore || null, toStore: form.toStore || null, notes: form.notes || null, transferType: form.transferType || null };
         if (editing) savedMovement = await updateTransfer.mutateAsync({ id: editing.id, ...payload }) as MovementRow;
         else { savedMovement = await createOrQueue("transfers", payload, input => createTransfer.mutateAsync(input as never)) as MovementRow | undefined; queued = !savedMovement; }
       }
+      if (savedMovement && !editing && !queued) pendingMovementRef.current = { kind, movement: savedMovement };
       if (clearDocumentRequested && editing && savedMovement) { if (kind === "additions") await clearAdditionDocument.mutateAsync({ movementId: savedMovement.id }); else if (kind === "disbursements") await clearDisbursementDocument.mutateAsync({ movementId: savedMovement.id }); else await clearTransferDocument.mutateAsync({ movementId: savedMovement.id }); }
       if (documentFile && savedMovement && (kind === "additions" || kind === "disbursements" || kind === "transfers")) { setRemainingSeconds(Math.max(2, Math.ceil(documentFile.size / 250000))); setUploadStage("compressing"); const compressed = await compressImageFile(documentFile); setUploadStage("uploading"); const uploadInput = { movementId: savedMovement.id, fileName: createDescriptiveImageFileName(form.eznNum, compressed.fileName, `permit-${savedMovement.id}`), contentType: compressed.contentType, dataBase64: compressed.dataBase64 }; if (kind === "additions") await uploadAdditionDocument.mutateAsync(uploadInput); else if (kind === "disbursements") await uploadDisbursementDocument.mutateAsync(uploadInput); else await uploadTransferDocument.mutateAsync(uploadInput); setUploadStage("complete"); }
+      pendingMovementRef.current = null;
       if (queued) { toast.success("تم حفظ الحركة محلياً وستتم مزامنتها تلقائياً عند عودة الاتصال"); onOpenChange(false); return; }
       await Promise.all([utils.dashboard.summary.invalidate(), utils.items.list.invalidate()]);
       toast.success(editing ? "تم تحديث الحركة" : "تم تسجيل الحركة"); onSaved(); onOpenChange(false);
-    } catch (error: any) { setUploadStage("error"); toast.error(error?.message || "تعذر حفظ الحركة"); }
+    } catch (error: any) {
+      setUploadStage("error");
+      if (pendingMovementRef.current) toast.error("تم تسجيل الحركة، لكن تعذر رفع الصورة. اضغط حفظ مرة أخرى لإعادة رفعها دون تكرار الحركة.");
+      else toast.error(error?.message || "تعذر حفظ الحركة");
+    } finally {
+      submitLockRef.current = false;
+    }
   }
 
   function resetPreviewTransform() { setPreviewZoom(1); setPreviewOffset({ x: 0, y: 0 }); setPreviewRotation(0); }
