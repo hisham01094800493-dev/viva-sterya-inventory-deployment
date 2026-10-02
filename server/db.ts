@@ -73,6 +73,7 @@ export {
   checkDatabaseReadiness,
   closeDatabasePool,
   requireDb,
+  getPool,
 } from "./db/connection";
 export {
   toScaled,
@@ -83,7 +84,7 @@ export {
   calculateStockDelta,
 } from "./db/scale";
 import { InventoryError } from "./db/errors";
-import { getDb, requireDb } from "./db/connection";
+import { getDb, getPool, requireDb } from "./db/connection";
 import {
   toScaled,
   fromScaled,
@@ -4342,10 +4343,8 @@ export function getNextWeeklyBackupExecution(from = new Date()) {
 }
 
 export async function runScheduledBackupVerification() {
-  await requireDb();
-  if (!_pool)
-    throw new InventoryError("UNAVAILABLE", "اتصال قاعدة البيانات غير متاح");
-  const [rows] = (await _pool.query(
+  const pool = await getPool();
+  const [rows] = (await pool.query(
     "SELECT GET_LOCK('smart_inventory_backup_verification', 0) AS acquired"
   )) as any;
   if (Number(rows?.[0]?.acquired ?? 0) !== 1)
@@ -4358,7 +4357,7 @@ export async function runScheduledBackupVerification() {
     const result = await runIsolatedFullBackupRestore();
     return { ...result, backupRecordId: backup.record.id };
   } finally {
-    await _pool.query(
+    await pool.query(
       "SELECT RELEASE_LOCK('smart_inventory_backup_verification')"
     );
   }

@@ -108,3 +108,11 @@ export async function requireDb() {
   }
   return db;
 }
+
+export async function getPool() {
+  await getDb();
+  if (!_pool) {
+    throw new InventoryError("UNAVAILABLE", "اتصال قاعدة البيانات غير متاح");
+  }
+  return _pool;
+}
