@@ -41,9 +41,17 @@ export function getDatabaseSsl() {
   return { rejectUnauthorized };
 }
 
+function getCookieSecret() {
+  const secret = clean(process.env.SESSION_SECRET || process.env.JWT_SECRET);
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET is required in production");
+  }
+  return secret;
+}
+
 export const ENV = {
   appId: process.env.APP_ID ?? "smart-inventory",
-  cookieSecret: process.env.SESSION_SECRET ?? process.env.JWT_SECRET ?? "",
+  cookieSecret: getCookieSecret(),
   databaseUrl: getDatabaseUrl(),
   backupRestoreTestDatabase: clean(process.env.BACKUP_RESTORE_TEST_DATABASE),
   databaseSsl: getDatabaseSsl(),

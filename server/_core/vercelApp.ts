@@ -10,12 +10,18 @@ import { registerMigrationImportRoutes } from "../migrationImport";
 export async function createVercelApp() {
   const app = express();
   app.set("trust proxy", 1);
-  const allowedOrigins = new Set([
-    "https://viva-sterya-inventory.vercel.app",
-    "https://viva-sterya-inventory-hisham20.vercel.app",
-    "https://viva-sterya-inventory-git-main-hisham20.vercel.app",
-    process.env.APP_URL?.replace(/\/$/, ""),
-  ].filter((origin): origin is string => Boolean(origin)));
+  const allowedOrigins = new Set(
+    [
+      "https://viva-sterya-inventory.vercel.app",
+      "https://viva-sterya-inventory-hisham20.vercel.app",
+      "https://viva-sterya-inventory-git-main-hisham20.vercel.app",
+      process.env.APP_URL?.replace(/\/$/, ""),
+      ...(process.env.ALLOWED_ORIGINS ?? "")
+        .split(",")
+        .map((origin) => origin.trim().replace(/\/$/, ""))
+        .filter(Boolean),
+    ].filter((origin): origin is string => Boolean(origin)),
+  );
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin && allowedOrigins.has(origin)) {

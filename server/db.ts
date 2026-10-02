@@ -103,7 +103,7 @@ export async function getDb() {
         password: decodeURIComponent(databaseUrl.password),
         database: decodeURIComponent(databaseUrl.pathname.replace(/^\//, "")),
         ssl,
-        connectionLimit: 5,
+        connectionLimit: 3,
         enableKeepAlive: true,
       });
       _db = drizzle(_pool as any);
