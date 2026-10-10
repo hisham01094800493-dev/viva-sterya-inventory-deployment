@@ -2571,6 +2571,7 @@ export async function getReportDataset(
     returnTotals,
     supplierGroups,
     customerGroups,
+    customerReturnGroups,
     supplierRows,
     customerRows,
     allItems,
@@ -2635,6 +2636,17 @@ export async function getReportDataset(
       .from(disbursements)
       .where(disbursementsWhere)
       .groupBy(disbursements.customerId, disbursements.destination),
+    db
+      .select({
+        partyId: transfers.fromCustomerId,
+        count: count(),
+        quantity: sum(transfers.quantity),
+      })
+      .from(transfers)
+      .where(
+        and(returnWhere, not(isNull(transfers.fromCustomerId)))
+      )
+      .groupBy(transfers.fromCustomerId),
     db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers),
     db.select({ id: customers.id, name: customers.name }).from(customers),
     allowedWarehouseIds.length
@@ -2834,9 +2846,39 @@ export async function getReportDataset(
       suppliers: supplierGroups
         .map(row => toAccountRow(row, suppliersById))
         .sort((left, right) => right.value - left.value),
-      customers: customerGroups
-        .map(row => toAccountRow(row, customersById))
-        .sort((left, right) => right.value - left.value),
+      customers: Array.from(
+        customerGroups
+          .map(row => toAccountRow(row, customersById))
+          .map(row => ({ ...row, returns: 0, returnMovements: 0 }))
+          .concat(
+            customerReturnGroups.map(row => ({
+              name: customersById.get(row.partyId ?? 0) ?? "—",
+              movements: 0,
+              quantity: 0,
+              value: 0,
+              returns: Number(row.quantity ?? 0),
+              returnMovements: Number(row.count ?? 0),
+            }))
+          )
+          .reduce((groups, row) => {
+            const current = groups.get(row.name) ?? {
+              name: row.name,
+              movements: 0,
+              quantity: 0,
+              value: 0,
+              returns: 0,
+              returnMovements: 0,
+            };
+            current.movements += row.movements;
+            current.quantity += row.quantity;
+            current.value += row.value;
+            current.returns += row.returns;
+            current.returnMovements += row.returnMovements ?? 0;
+            groups.set(row.name, current);
+            return groups;
+          }, new Map<string, { name: string; movements: number; quantity: number; value: number; returns: number; returnMovements: number }>())
+          .values()
+      ).sort((left, right) => right.value - left.value),
     },
     purposeOptions: {
       additions: additionPurposeGroups
