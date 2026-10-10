@@ -1726,6 +1726,25 @@ export async function listSupplierAccount(
     : eq(additions.supplierId, supplierId);
   return db.select().from(additions).where(where).orderBy(desc(additions.id));
 }
+export function buildCustomerTransferAccountRows(transferRows: Array<any>, customerId: number) {
+  return transferRows.map(row => {
+    const isSource = row.fromCustomerId === customerId;
+    const isReturn = isReturnTransfer(row.transferType);
+    return {
+      ...row,
+      customerId,
+      destination: isReturn
+        ? "مرتجع إلى المخزن"
+        : isSource
+          ? `تحويل إلى جهة ${row.toCustomerId}`
+          : `تحويل من جهة ${row.fromCustomerId}`,
+      quantity: isSource ? String(-Number(row.quantity)) : String(row.quantity),
+      totalValue: isSource ? String(-Number(row.totalValue ?? 0)) : String(row.totalValue ?? 0),
+      warehouseId: null,
+      disburseType: isReturn ? "مرتجع من العميل" : "تحويل بين جهات الصرف",
+    };
+  });
+}
 export async function listCustomerAccount(
   customerId: number,
   allowedWarehouseIds: number[] = []
@@ -1739,15 +1758,7 @@ export async function listCustomerAccount(
     : eq(disbursements.customerId, customerId);
   const disbursementRows = await db.select().from(disbursements).where(where);
   const transferRows = await db.select().from(transfers).where(or(eq(transfers.fromCustomerId, customerId), eq(transfers.toCustomerId, customerId)));
-  const syntheticRows = transferRows.map(row => ({
-    ...row,
-    customerId,
-    destination: row.fromCustomerId === customerId ? `تحويل إلى جهة ${row.toCustomerId}` : `تحويل من جهة ${row.fromCustomerId}`,
-    quantity: row.fromCustomerId === customerId ? String(-Number(row.quantity)) : String(row.quantity),
-    totalValue: row.fromCustomerId === customerId ? String(-Number(row.totalValue ?? 0)) : String(row.totalValue ?? 0),
-    warehouseId: null,
-    disburseType: "تحويل بين جهات الصرف",
-  }));
+  const syntheticRows = buildCustomerTransferAccountRows(transferRows, customerId);
   return [...disbursementRows, ...syntheticRows].sort((a, b) => Number(b.id) - Number(a.id));
 }
 
@@ -3001,7 +3012,7 @@ export async function createTransfer(input: {
       toStore: input.toStore?.trim() || null,
       fromWarehouseId: warehouseLinks.fromWarehouseId,
       toWarehouseId: warehouseLinks.toWarehouseId,
-      fromCustomerId: isCustomerTransfer(input.transferType) ? input.fromCustomerId ?? null : null,
+      fromCustomerId: isCustomerTransfer(input.transferType) || isReturnTransfer(input.transferType) ? input.fromCustomerId ?? null : null,
       toCustomerId: isCustomerTransfer(input.transferType) ? input.toCustomerId ?? null : null,
       quantity: fromScaled(quantity),
       unitPrice: fromMoneyScaled(unitPrice),
@@ -3124,7 +3135,7 @@ export async function updateTransfer(input: {
             : input.toStore?.trim() || null,
         fromWarehouseId: nextFromWarehouseId ?? null,
         toWarehouseId: nextToWarehouseId ?? null,
-        fromCustomerId: isCustomerTransfer(nextTransferType) ? nextFromCustomerId ?? null : null,
+        fromCustomerId: isCustomerTransfer(nextTransferType) || isReturnTransfer(nextTransferType) ? nextFromCustomerId ?? null : null,
         toCustomerId: isCustomerTransfer(nextTransferType) ? nextToCustomerId ?? null : null,
         quantity: fromScaled(nextQuantity),
         unitPrice: fromMoneyScaled(unitPrice),
