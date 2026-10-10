@@ -1917,7 +1917,7 @@ export async function updateAddition(input: {
       store:
         input.store === undefined ? old.store : input.store?.trim() || null,
       warehouseId: nextWarehouse.id,
-      quantity: fromScaled(-nextQuantity),
+      quantity: fromScaled(nextQuantity),
       unitPrice: fromMoneyScaled(unitPrice),
       totalValue: fromMoneyScaled(totalValue),
       purpose:
@@ -2112,7 +2112,7 @@ export async function createDisbursement(input: {
       itemName: item.name,
       destination: input.destination?.trim() || null,
       customerId: input.customerId ?? null,
-      quantity: fromScaled(-quantity),
+      quantity: fromScaled(enteredQuantity),
       unitPrice: fromMoneyScaled(unitPrice),
       totalValue: fromMoneyScaled(totalValue),
       notes: input.notes?.trim() || null,
@@ -2158,9 +2158,10 @@ export async function updateDisbursement(input: {
 
     const oldCode = old.itemCode;
     const nextCode = normalizeItemCode(input.itemCode ?? oldCode);
-    const oldQuantity = Math.abs(toScaled(old.quantity));
+    const oldSignedQuantity = toScaled(old.quantity);
+    const oldQuantity = Math.abs(oldSignedQuantity);
     const enteredNextQuantity =
-      input.quantity === undefined ? oldQuantity : toScaled(input.quantity);
+      input.quantity === undefined ? oldSignedQuantity : toScaled(input.quantity);
     if (enteredNextQuantity === 0)
       throw new InventoryError(
         "BAD_REQUEST",

@@ -48,7 +48,7 @@ export function buildAccountStatementRows(rows: Array<{ id: number; date: string
   return rows.filter(row => (kind === "supplier" ? row.supplierId === entityId : row.customerId === entityId)).map(row => {
     const quantity = Number(row.quantity ?? 0);
     const totalValue = Number(row.totalValue ?? 0);
-    return { id: row.id, date: row.date, number: row.eznNum, item: row.itemName, quantity: kind === "customer" ? -Math.abs(quantity) : quantity, unitPrice: Number(row.unitPrice ?? 0), total: kind === "customer" ? -Math.abs(totalValue) : totalValue, type: kind === "supplier" ? "إضافة" : "صرف", documentImageUrl: row.documentImageUrl ?? null };
+    return { id: row.id, date: row.date, number: row.eznNum, item: row.itemName, quantity, unitPrice: Number(row.unitPrice ?? 0), total: totalValue, type: kind === "supplier" ? "إضافة" : "صرف", documentImageUrl: row.documentImageUrl ?? null };
   });
 }
 
