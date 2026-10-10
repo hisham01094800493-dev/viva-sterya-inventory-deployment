@@ -351,6 +351,8 @@ export const transfers = mysqlTable("transfers", {
   toStore: varchar("to_store", { length: 128 }), // إلى مخزن
   fromWarehouseId: int("from_warehouse_id"), // مخزن المصدر للتحويل الداخلي
   toWarehouseId: int("to_warehouse_id"), // مخزن الوجهة للتحويل أو المرتجع
+  fromCustomerId: int("from_customer_id"), // جهة الصرف المصدر
+  toCustomerId: int("to_customer_id"), // جهة الصرف المستلمة
   quantity: decimal("quantity", { precision: 12, scale: 3 }).notNull(),
   unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).default("0").notNull(), // سعر الوحدة وقت التحويل أو المرتجع
   totalValue: decimal("total_value", { precision: 14, scale: 2 }).default("0").notNull(), // إجمالي القيمة

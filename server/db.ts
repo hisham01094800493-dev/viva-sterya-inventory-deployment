@@ -1737,11 +1737,18 @@ export async function listCustomerAccount(
         inArray(disbursements.warehouseId, allowedWarehouseIds)
       )
     : eq(disbursements.customerId, customerId);
-  return db
-    .select()
-    .from(disbursements)
-    .where(where)
-    .orderBy(desc(disbursements.id));
+  const disbursementRows = await db.select().from(disbursements).where(where);
+  const transferRows = await db.select().from(transfers).where(or(eq(transfers.fromCustomerId, customerId), eq(transfers.toCustomerId, customerId)));
+  const syntheticRows = transferRows.map(row => ({
+    ...row,
+    customerId,
+    destination: row.fromCustomerId === customerId ? `تحويل إلى جهة ${row.toCustomerId}` : `تحويل من جهة ${row.fromCustomerId}`,
+    quantity: row.fromCustomerId === customerId ? String(-Number(row.quantity)) : String(row.quantity),
+    totalValue: row.fromCustomerId === customerId ? String(-Number(row.totalValue ?? 0)) : String(row.totalValue ?? 0),
+    warehouseId: null,
+    disburseType: "تحويل بين جهات الصرف",
+  }));
+  return [...disbursementRows, ...syntheticRows].sort((a, b) => Number(b.id) - Number(a.id));
 }
 
 export async function createAddition(input: {
@@ -2072,13 +2079,12 @@ export async function createDisbursement(input: {
   clientRequestId?: string | null;
 }) {
   const db = await requireDb();
-  const enteredQuantity = toScaled(input.quantity);
-  if (enteredQuantity === 0)
+  const quantity = toScaled(input.quantity);
+  if (quantity <= 0)
     throw new InventoryError(
       "BAD_REQUEST",
-      "كمية الصرف يجب ألا تساوي صفراً"
+      "كمية الصرف يجب أن تكون أكبر من صفر"
     );
-  const quantity = Math.abs(enteredQuantity);
   const clientRequestId = input.clientRequestId?.trim() || null;
 
   return db.transaction(async (tx: any) => {
@@ -2112,7 +2118,7 @@ export async function createDisbursement(input: {
       itemName: item.name,
       destination: input.destination?.trim() || null,
       customerId: input.customerId ?? null,
-      quantity: fromScaled(enteredQuantity),
+      quantity: fromScaled(quantity),
       unitPrice: fromMoneyScaled(unitPrice),
       totalValue: fromMoneyScaled(totalValue),
       notes: input.notes?.trim() || null,
@@ -2158,16 +2164,14 @@ export async function updateDisbursement(input: {
 
     const oldCode = old.itemCode;
     const nextCode = normalizeItemCode(input.itemCode ?? oldCode);
-    const oldSignedQuantity = toScaled(old.quantity);
-    const oldQuantity = Math.abs(oldSignedQuantity);
-    const enteredNextQuantity =
-      input.quantity === undefined ? oldSignedQuantity : toScaled(input.quantity);
-    if (enteredNextQuantity === 0)
+    const oldQuantity = toScaled(old.quantity);
+    const nextQuantity =
+      input.quantity === undefined ? oldQuantity : toScaled(input.quantity);
+    if (nextQuantity <= 0)
       throw new InventoryError(
         "BAD_REQUEST",
-        "كمية الصرف يجب ألا تساوي صفراً"
+        "كمية الصرف يجب أن تكون أكبر من صفر"
       );
-    const nextQuantity = Math.abs(enteredNextQuantity);
 
     const codes = Array.from(new Set([oldCode, nextCode])).sort();
     const lockedItems = new Map<string, any>();
@@ -2857,6 +2861,9 @@ export function isInternalTransfer(type: string | null | undefined) {
     (type ?? "").trim().toLowerCase()
   );
 }
+export function isCustomerTransfer(type: string | null | undefined) {
+  return ["customer_transfer", "تحويل بين جهات الصرف", "تحويل من جهة صرف لجهة صرف"].includes((type ?? "").trim().toLowerCase());
+}
 
 /** Returns replenish available stock but are not new procurement/incoming supply. */
 export function getCustomerReturnStockDelta(quantity: number) {
@@ -2870,11 +2877,20 @@ async function applyTransferWarehouseEffect(
     transferType?: string | null;
     fromWarehouseId?: number | null;
     toWarehouseId?: number | null;
+    fromCustomerId?: number | null;
+    toCustomerId?: number | null;
     fromStore?: string | null;
     toStore?: string | null;
     quantity: number;
   }
 ) {
+  if (isCustomerTransfer(input.transferType)) {
+    if (!input.fromCustomerId || !input.toCustomerId || input.fromCustomerId === input.toCustomerId)
+      throw new InventoryError("BAD_REQUEST", "اختر جهتي صرف مختلفتين للتحويل");
+    const parties = await tx.select({ id: customers.id }).from(customers).where(or(eq(customers.id, input.fromCustomerId), eq(customers.id, input.toCustomerId)));
+    if (parties.length !== 2) throw new InventoryError("BAD_REQUEST", "جهة الصرف غير موجودة");
+    return { fromWarehouseId: null, toWarehouseId: null };
+  }
   if (isInternalTransfer(input.transferType)) {
     const source = await resolveWarehouseId(
       tx,
@@ -2936,6 +2952,8 @@ export async function createTransfer(input: {
   toStore?: string | null;
   fromWarehouseId?: number | null;
   toWarehouseId?: number | null;
+  fromCustomerId?: number | null;
+  toCustomerId?: number | null;
   quantity: number;
   notes?: string | null;
   transferType?: string | null;
@@ -2968,6 +2986,8 @@ export async function createTransfer(input: {
       transferType: input.transferType,
       fromWarehouseId: input.fromWarehouseId,
       toWarehouseId: input.toWarehouseId,
+      fromCustomerId: input.fromCustomerId,
+      toCustomerId: input.toCustomerId,
       fromStore: input.fromStore,
       toStore: input.toStore,
       quantity,
@@ -2981,6 +3001,8 @@ export async function createTransfer(input: {
       toStore: input.toStore?.trim() || null,
       fromWarehouseId: warehouseLinks.fromWarehouseId,
       toWarehouseId: warehouseLinks.toWarehouseId,
+      fromCustomerId: isCustomerTransfer(input.transferType) ? input.fromCustomerId ?? null : null,
+      toCustomerId: isCustomerTransfer(input.transferType) ? input.toCustomerId ?? null : null,
       quantity: fromScaled(quantity),
       unitPrice: fromMoneyScaled(unitPrice),
       totalValue: fromMoneyScaled(totalValue),
@@ -3007,6 +3029,8 @@ export async function updateTransfer(input: {
   toStore?: string | null;
   fromWarehouseId?: number | null;
   toWarehouseId?: number | null;
+  fromCustomerId?: number | null;
+  toCustomerId?: number | null;
   quantity?: number;
   notes?: string | null;
   transferType?: string | null;
@@ -3044,12 +3068,16 @@ export async function updateTransfer(input: {
       input.toWarehouseId === undefined
         ? old.toWarehouseId
         : input.toWarehouseId;
+    const nextFromCustomerId = input.fromCustomerId === undefined ? old.fromCustomerId : input.fromCustomerId;
+    const nextToCustomerId = input.toCustomerId === undefined ? old.toCustomerId : input.toCustomerId;
     const stockAffectingChange =
       oldCode !== nextCode ||
       oldQuantity !== nextQuantity ||
       old.fromWarehouseId !== nextFromWarehouseId ||
       old.toWarehouseId !== nextToWarehouseId ||
-      old.transferType !== nextTransferType;
+      old.transferType !== nextTransferType ||
+      old.fromCustomerId !== nextFromCustomerId ||
+      old.toCustomerId !== nextToCustomerId;
     const codes = Array.from(new Set([oldCode, nextCode])).sort();
     const lockedItems = new Map<string, any>();
     for (const code of codes)
@@ -3060,6 +3088,8 @@ export async function updateTransfer(input: {
         transferType: old.transferType,
         fromWarehouseId: old.fromWarehouseId,
         toWarehouseId: old.toWarehouseId,
+        fromCustomerId: old.fromCustomerId,
+        toCustomerId: old.toCustomerId,
         quantity: -oldQuantity,
       });
     }
@@ -3068,6 +3098,8 @@ export async function updateTransfer(input: {
         transferType: nextTransferType,
         fromWarehouseId: nextFromWarehouseId,
         toWarehouseId: nextToWarehouseId,
+        fromCustomerId: nextFromCustomerId,
+        toCustomerId: nextToCustomerId,
         quantity: nextQuantity,
       });
     }
@@ -3092,6 +3124,8 @@ export async function updateTransfer(input: {
             : input.toStore?.trim() || null,
         fromWarehouseId: nextFromWarehouseId ?? null,
         toWarehouseId: nextToWarehouseId ?? null,
+        fromCustomerId: isCustomerTransfer(nextTransferType) ? nextFromCustomerId ?? null : null,
+        toCustomerId: isCustomerTransfer(nextTransferType) ? nextToCustomerId ?? null : null,
         quantity: fromScaled(nextQuantity),
         unitPrice: fromMoneyScaled(unitPrice),
         totalValue: fromMoneyScaled(totalValue),

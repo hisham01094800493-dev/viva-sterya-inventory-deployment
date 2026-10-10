@@ -211,6 +211,13 @@
       "when": 1789551109817,
       "tag": "0029_add_allowed_warehouses",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "5",
+      "when": 1791618047520,
+      "tag": "0030_sad_weapon_omega",
+      "breakpoints": true
     }
   ]
 }
