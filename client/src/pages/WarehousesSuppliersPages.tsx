@@ -45,7 +45,11 @@ export function filterAndSortDirectory<T extends { name: string; phone?: string 
 }
 
 export function buildAccountStatementRows(rows: Array<{ id: number; date: string; eznNum: string; itemName: string | null; quantity: unknown; unitPrice?: unknown; totalValue?: unknown; documentImageUrl?: string | null; supplierId?: number | null; customerId?: number | null }>, kind: "supplier" | "customer", entityId: number) {
-  return rows.filter(row => (kind === "supplier" ? row.supplierId === entityId : row.customerId === entityId)).map(row => ({ id: row.id, date: row.date, number: row.eznNum, item: row.itemName, quantity: Number(row.quantity), unitPrice: Number(row.unitPrice ?? 0), total: Number(row.totalValue ?? 0), type: kind === "supplier" ? "إضافة" : "صرف", documentImageUrl: row.documentImageUrl ?? null }));
+  return rows.filter(row => (kind === "supplier" ? row.supplierId === entityId : row.customerId === entityId)).map(row => {
+    const quantity = Number(row.quantity ?? 0);
+    const totalValue = Number(row.totalValue ?? 0);
+    return { id: row.id, date: row.date, number: row.eznNum, item: row.itemName, quantity: kind === "customer" ? -Math.abs(quantity) : quantity, unitPrice: Number(row.unitPrice ?? 0), total: kind === "customer" ? -Math.abs(totalValue) : totalValue, type: kind === "supplier" ? "إضافة" : "صرف", documentImageUrl: row.documentImageUrl ?? null };
+  });
 }
 
 function DirectoryToolbar({ search, onSearch, sortKey, onSortKey, direction, onDirection }: { search: string; onSearch: (value: string) => void; sortKey: "name" | "phone" | "email"; onSortKey: (value: "name" | "phone" | "email") => void; direction: "asc" | "desc"; onDirection: () => void }) {

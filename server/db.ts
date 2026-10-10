@@ -1917,7 +1917,7 @@ export async function updateAddition(input: {
       store:
         input.store === undefined ? old.store : input.store?.trim() || null,
       warehouseId: nextWarehouse.id,
-      quantity: fromScaled(nextQuantity),
+      quantity: fromScaled(-nextQuantity),
       unitPrice: fromMoneyScaled(unitPrice),
       totalValue: fromMoneyScaled(totalValue),
       purpose:
@@ -2072,12 +2072,13 @@ export async function createDisbursement(input: {
   clientRequestId?: string | null;
 }) {
   const db = await requireDb();
-  const quantity = toScaled(input.quantity);
-  if (quantity <= 0)
+  const enteredQuantity = toScaled(input.quantity);
+  if (enteredQuantity === 0)
     throw new InventoryError(
       "BAD_REQUEST",
-      "كمية الصرف يجب أن تكون أكبر من صفر"
+      "كمية الصرف يجب ألا تساوي صفراً"
     );
+  const quantity = Math.abs(enteredQuantity);
   const clientRequestId = input.clientRequestId?.trim() || null;
 
   return db.transaction(async (tx: any) => {
@@ -2111,7 +2112,7 @@ export async function createDisbursement(input: {
       itemName: item.name,
       destination: input.destination?.trim() || null,
       customerId: input.customerId ?? null,
-      quantity: fromScaled(quantity),
+      quantity: fromScaled(-quantity),
       unitPrice: fromMoneyScaled(unitPrice),
       totalValue: fromMoneyScaled(totalValue),
       notes: input.notes?.trim() || null,
@@ -2157,14 +2158,15 @@ export async function updateDisbursement(input: {
 
     const oldCode = old.itemCode;
     const nextCode = normalizeItemCode(input.itemCode ?? oldCode);
-    const oldQuantity = toScaled(old.quantity);
-    const nextQuantity =
+    const oldQuantity = Math.abs(toScaled(old.quantity));
+    const enteredNextQuantity =
       input.quantity === undefined ? oldQuantity : toScaled(input.quantity);
-    if (nextQuantity <= 0)
+    if (enteredNextQuantity === 0)
       throw new InventoryError(
         "BAD_REQUEST",
-        "كمية الصرف يجب أن تكون أكبر من صفر"
+        "كمية الصرف يجب ألا تساوي صفراً"
       );
+    const nextQuantity = Math.abs(enteredNextQuantity);
 
     const codes = Array.from(new Set([oldCode, nextCode])).sort();
     const lockedItems = new Map<string, any>();
@@ -2274,7 +2276,7 @@ export async function deleteDisbursement(id: number) {
     if (!disbursement)
       throw new InventoryError("NOT_FOUND", "سجل الصرف غير موجود");
     const item = await getItemForUpdate(tx, disbursement.itemCode);
-    const quantity = toScaled(disbursement.quantity);
+    const quantity = Math.abs(toScaled(disbursement.quantity));
     const warehouse = await resolveWarehouseId(
       tx,
       disbursement.warehouseId,
@@ -2574,7 +2576,7 @@ export async function getReportDataset(
     db
       .select({
         count: count(),
-        quantity: sum(disbursements.quantity),
+        quantity: sql<string>`sum(abs(${disbursements.quantity}))`,
         value: sum(disbursements.totalValue),
       })
       .from(disbursements)
@@ -2611,7 +2613,7 @@ export async function getReportDataset(
         partyId: disbursements.customerId,
         fallbackName: disbursements.destination,
         count: count(),
-        quantity: sum(disbursements.quantity),
+        quantity: sql<string>`sum(abs(${disbursements.quantity}))`,
         value: sum(disbursements.totalValue),
       })
       .from(disbursements)
@@ -2660,7 +2662,7 @@ export async function getReportDataset(
     db
       .select({
         itemCode: disbursements.itemCode,
-        quantity: sum(disbursements.quantity),
+        quantity: sql<string>`sum(abs(${disbursements.quantity}))`,
       })
       .from(disbursements)
       .where(
@@ -2747,7 +2749,7 @@ export async function getReportDataset(
     allAdditionGroups.map(row => [row.itemCode, Number(row.quantity ?? 0)])
   );
   const disbursementsByCode = new Map(
-    allDisbursementGroups.map(row => [row.itemCode, Number(row.quantity ?? 0)])
+    allDisbursementGroups.map(row => [row.itemCode, Math.abs(Number(row.quantity ?? 0))])
   );
   const returnsByCode = new Map(
     allReturnGroups.map(row => [row.itemCode, Number(row.quantity ?? 0)])
@@ -5528,7 +5530,7 @@ export function buildMovementAnalytics(
     ensureBucket(row.date).additions += Number(row.quantity ?? 0);
   });
   movements.disbursements.forEach(row => {
-    ensureBucket(row.date).disbursements += Number(row.quantity ?? 0);
+    ensureBucket(row.date).disbursements += Math.abs(Number(row.quantity ?? 0));
   });
   movements.transfers.forEach(row => {
     ensureBucket(row.date).transfers += Number(row.quantity ?? 0);
@@ -5556,7 +5558,7 @@ export function buildMovementAnalytics(
         0
       ),
       disbursements: movements.disbursements.reduce(
-        (sum, row) => sum + Number(row.quantity ?? 0),
+        (sum, row) => sum + Math.abs(Number(row.quantity ?? 0)),
         0
       ),
       transfers: movements.transfers.reduce(

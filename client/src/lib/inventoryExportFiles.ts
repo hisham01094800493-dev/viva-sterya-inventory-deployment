@@ -353,9 +353,9 @@ export function buildItemCardMovementRows(card: ItemCardPdfData): ItemCardMoveme
   return movements.map((row, index) => {
     const addition = row.movement === "إضافة" ? row.quantity : 0;
     const returned = row.movement === "مرتجع" || row.movement === "تحويل" ? row.quantity : 0;
-    const disbursement = row.movement === "صرف" ? row.quantity : 0;
+    const disbursement = row.movement === "صرف" ? Math.abs(row.quantity) : 0;
     runningStock = Number((runningStock + addition + returned - disbursement).toFixed(3));
-    return { date: formatItemCardPdfDate(row.date ?? ""), rawDate: row.date, detail: String(row.detail ?? "—"), movement: row.movement, openingStock: index === 0 ? initialStock : null, addition, returned, disbursement, runningStock, unitPrice: row.unitPrice, totalValue: Number((row.quantity * row.unitPrice).toFixed(2)), permitNumber: String(row.eznNum ?? "—") };
+    return { date: formatItemCardPdfDate(row.date ?? ""), rawDate: row.date, detail: String(row.detail ?? "—"), movement: row.movement, openingStock: index === 0 ? initialStock : null, addition, returned, disbursement, runningStock, unitPrice: row.unitPrice, totalValue: Number((Math.abs(row.quantity) * row.unitPrice).toFixed(2)), permitNumber: String(row.eznNum ?? "—") };
   });
 }
 
@@ -402,7 +402,7 @@ export async function buildMainWarehousePdf(cards: ItemCardPdfData[], options: {
   const logo = await resolveLogo(options.logo);
   const watermarkLogo = null;
   for (let index = 0; index < cards.length; index += 1) {
-    const card = cards[index]; const additions = card.additions.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0); const returns = card.returns.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0); const disbursements = card.disbursements.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0); const available = Number(card.item.currentStock ?? 0);
+    const card = cards[index]; const additions = card.additions.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0); const returns = card.returns.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0); const disbursements = card.disbursements.reduce((sum, row) => sum + Math.abs(Number(row.quantity ?? 0)), 0); const available = Number(card.item.currentStock ?? 0);
     if (index > 0) doc.addPage();
     drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
     logoAndDate(doc, `تقرير ${options.warehouseName ?? "المخزن الرئيسي"} - ${card.item.name}`, logo, options.date);
