@@ -15,4 +15,12 @@ describe("تصحيح أذونات الصرف بالكميات السالبة", (
       { incoming: 0, outgoing: -5000, current: -5000 },
     )).toThrow("الرصيد الحالي للصنف 10001 لا يكفي");
   });
+
+  it("يسمح بعكس حركة محذوفة دون حظر إصلاح سجل برصيد سالب", () => {
+    expect(calculateStockDelta(
+      { code: "10001", incomingStock: "10.000", outgoingStock: "8.000", currentStock: "-2.000" },
+      { incoming: 0, outgoing: -1000, current: 1000 },
+      { allowNegativeCurrent: true },
+    )).toEqual({ incomingStock: "10.000", outgoingStock: "7.000", currentStock: "-1.000" });
+  });
 });

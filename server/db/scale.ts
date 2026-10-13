@@ -40,7 +40,8 @@ export function calculateStockDelta(
     outgoingStock: string | number;
     currentStock: string | number;
   },
-  deltas: { incoming: number; outgoing: number; current: number }
+  deltas: { incoming: number; outgoing: number; current: number },
+  options: { allowNegativeCurrent?: boolean } = {}
 ) {
   const nextIncoming = toScaled(item.incomingStock) + deltas.incoming;
   const nextOutgoing = toScaled(item.outgoingStock) + deltas.outgoing;
@@ -49,7 +50,7 @@ export function calculateStockDelta(
   if (nextIncoming < 0) {
     throw new InventoryError("CONFLICT", "لا يمكن أن تصبح حركة الوارد سالبة");
   }
-  if (nextCurrent < 0) {
+  if (nextCurrent < 0 && !options.allowNegativeCurrent) {
     throw new InventoryError(
       "CONFLICT",
       `الرصيد الحالي للصنف ${item.code} لا يكفي لتنفيذ عملية الصرف`

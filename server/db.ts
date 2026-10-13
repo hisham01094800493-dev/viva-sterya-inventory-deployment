@@ -135,9 +135,10 @@ async function getItemByIdForUpdate(tx: any, id: number) {
 async function applyStockDelta(
   tx: any,
   item: any,
-  deltas: { incoming: number; outgoing: number; current: number }
+  deltas: { incoming: number; outgoing: number; current: number },
+  options: { allowNegativeCurrent?: boolean } = {}
 ) {
-  const next = calculateStockDelta(item, deltas);
+  const next = calculateStockDelta(item, deltas, options);
   await tx.update(items).set(next).where(eq(items.id, item.id));
 }
 
@@ -515,7 +516,8 @@ async function applyWarehouseBalanceDelta(
   tx: any,
   itemId: number,
   warehouseId: number,
-  delta: number
+  delta: number,
+  options: { allowNegativeCurrent?: boolean } = {}
 ) {
   if (!delta) return;
   const rows = await tx
@@ -531,7 +533,7 @@ async function applyWarehouseBalanceDelta(
     .for("update");
   const balance = rows[0];
   const next = toScaled(balance?.currentStock ?? 0) + delta;
-  if (next < 0)
+  if (next < 0 && !options.allowNegativeCurrent)
     throw new InventoryError(
       "BAD_REQUEST",
       "لا يمكن أن يصبح رصيد المخزن سالباً"
@@ -2304,8 +2306,8 @@ export async function deleteDisbursement(id: number) {
       incoming: 0,
       outgoing: -quantity,
       current: quantity,
-    });
-    await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity);
+    }, { allowNegativeCurrent: true });
+    await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity, { allowNegativeCurrent: true });
     await tx.delete(disbursements).where(eq(disbursements.id, id));
     return { id };
   });
