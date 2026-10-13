@@ -13,6 +13,7 @@ import {
   deleteDisbursement,
   deleteItem,
   deleteTransfer,
+  undoDeletedMovement,
   getInventoryRows,
   getItemByCode,
   getItemCard,
@@ -391,7 +392,7 @@ export const appRouter = router({
     }),
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteAddition(input.id)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "addition", entityId: input.id }); return result; }),
+      .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteAddition(input.id)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "addition", entityId: input.id, details: { deletedSnapshot: result.snapshot } }); return { id: result.id, undoAuditLogId }; }),
   }),
 
   disbursements: router({
@@ -423,7 +424,7 @@ export const appRouter = router({
     }),
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteDisbursement(input.id)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "disbursement", entityId: input.id }); return result; }),
+      .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteDisbursement(input.id)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "disbursement", entityId: input.id, details: { deletedSnapshot: result.snapshot } }); return { id: result.id, undoAuditLogId }; }),
   }),
 
   transfers: router({
@@ -447,7 +448,7 @@ export const appRouter = router({
     }),
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteTransfer(input.id)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "transfer", entityId: input.id }); return result; }),
+      .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteTransfer(input.id)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "transfer", entityId: input.id, details: { deletedSnapshot: result.snapshot } }); return { id: result.id, undoAuditLogId }; }),
   }),
 
   reports: router({
@@ -549,6 +550,7 @@ export const appRouter = router({
 
   governance: router({
     audit: managementProcedure.query(() => safe(() => listAuditLogs(300))),
+    undoDeletedMovement: adminProcedure.input(z.object({ auditLogId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await safe(() => undoDeletedMovement(input.auditLogId)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "undo_delete", entity: result.entity, entityId: result.originalId, details: { originalAuditLogId: input.auditLogId } }); return result; }),
     shareActivity: managementProcedure.query(() => safe(() => listShareActivity(300))),
     clearShareActivity: adminProcedure.mutation(async ({ ctx }) => { const result = await safe(() => clearShareActivity()); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_activity", entity: "share_activity", details: buildActivityCleanupAuditDetails(result.deleted) }); return result; }),
     clearLoginActivity: adminProcedure.mutation(async ({ ctx }) => { const result = await safe(() => clearLoginActivity()); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_activity", entity: "login_activity", details: buildActivityCleanupAuditDetails(result.deleted) }); return result; }),

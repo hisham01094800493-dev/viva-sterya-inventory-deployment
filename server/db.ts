@@ -1997,7 +1997,7 @@ export async function deleteAddition(id: number) {
       -toScaled(addition.quantity)
     );
     await tx.delete(additions).where(eq(additions.id, id));
-    return { id };
+    return { id, snapshot: addition };
   });
 }
 
@@ -2309,7 +2309,7 @@ export async function deleteDisbursement(id: number) {
     }, { allowNegativeCurrent: true });
     await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity, { allowNegativeCurrent: true });
     await tx.delete(disbursements).where(eq(disbursements.id, id));
-    return { id };
+    return { id, snapshot: disbursement };
   });
 }
 
@@ -3224,7 +3224,45 @@ export async function deleteTransfer(id: number) {
       });
     }
     await tx.delete(transfers).where(eq(transfers.id, id));
-    return { id };
+    return { id, snapshot: transfer };
+  });
+}
+
+export async function undoDeletedMovement(auditLogId: number) {
+  const db = await requireDb();
+  return db.transaction(async (tx: any) => {
+    const logs = await tx.select().from(auditLogs).where(eq(auditLogs.id, auditLogId)).limit(1).for("update");
+    const log = logs[0];
+    if (!log || log.action !== "delete" || !["addition", "disbursement", "transfer"].includes(log.entity)) throw new InventoryError("BAD_REQUEST", "هذا السجل لا يمثل حذف إذن قابل للتراجع");
+    const createdAt = new Date(log.createdAt).getTime();
+    if (!Number.isFinite(createdAt) || Date.now() - createdAt > 24 * 60 * 60 * 1000) throw new InventoryError("CONFLICT", "انتهت مدة التراجع المسموح بها لهذا الحذف");
+    const undone = await tx.select({ id: auditLogs.id }).from(auditLogs).where(and(eq(auditLogs.action, "undo_delete"), like(auditLogs.details, `%\"originalAuditLogId\":${auditLogId}%`))).limit(1);
+    if (undone[0]) throw new InventoryError("CONFLICT", "تم التراجع عن هذا الحذف من قبل");
+    let snapshot: any;
+    try { snapshot = JSON.parse(log.details || "{}").deletedSnapshot; } catch { snapshot = null; }
+    if (!snapshot || !snapshot.itemCode || snapshot.quantity == null) throw new InventoryError("CONFLICT", "لا توجد نسخة كاملة من الإذن لاستعادتها");
+    const { id: _id, createdAt: _createdAt, ...values } = snapshot;
+    if (log.entity === "addition") {
+      const item = await getItemForUpdate(tx, snapshot.itemCode);
+      const warehouse = await resolveWarehouseId(tx, snapshot.warehouseId, snapshot.store);
+      const quantity = toScaled(snapshot.quantity);
+      await applyStockDelta(tx, item, { incoming: quantity, outgoing: 0, current: quantity });
+      await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity);
+      await tx.insert(additions).values(values);
+    } else if (log.entity === "disbursement") {
+      const item = await getItemForUpdate(tx, snapshot.itemCode);
+      const warehouse = await resolveWarehouseId(tx, snapshot.warehouseId, snapshot.store);
+      const quantity = toScaled(snapshot.quantity);
+      await applyStockDelta(tx, item, { incoming: 0, outgoing: quantity, current: -quantity });
+      await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, -quantity);
+      await tx.insert(disbursements).values(values);
+    } else {
+      const item = await getItemForUpdate(tx, snapshot.itemCode);
+      const quantity = toScaled(snapshot.quantity);
+      if (snapshot.fromWarehouseId || snapshot.toWarehouseId) await applyTransferWarehouseEffect(tx, item, { transferType: snapshot.transferType, fromWarehouseId: snapshot.fromWarehouseId, toWarehouseId: snapshot.toWarehouseId, quantity });
+      await tx.insert(transfers).values(values);
+    }
+    return { auditLogId, entity: log.entity, originalId: Number(log.entityId) };
   });
 }
 
@@ -3309,7 +3347,7 @@ export async function createAuditLog(input: {
   details?: Record<string, unknown> | string | null;
 }) {
   const db = await requireDb();
-  await db.insert(auditLogs).values({
+  const result = await db.insert(auditLogs).values({
     userId: input.userId ?? null,
     userName: input.userName ?? null,
     action: input.action,
@@ -3322,6 +3360,7 @@ export async function createAuditLog(input: {
           ? input.details
           : JSON.stringify(input.details),
   });
+  return resultInsertId(result);
 }
 
 export async function listAuditLogs(limit = 200) {
