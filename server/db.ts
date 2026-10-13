@@ -2091,10 +2091,10 @@ export async function createDisbursement(input: {
 }) {
   const db = await requireDb();
   const quantity = toScaled(input.quantity);
-  if (quantity <= 0)
+  if (quantity === 0)
     throw new InventoryError(
       "BAD_REQUEST",
-      "كمية الصرف يجب أن تكون أكبر من صفر"
+      "كمية الصرف لا يمكن أن تساوي صفراً"
     );
   const clientRequestId = input.clientRequestId?.trim() || null;
 
@@ -2178,10 +2178,10 @@ export async function updateDisbursement(input: {
     const oldQuantity = toScaled(old.quantity);
     const nextQuantity =
       input.quantity === undefined ? oldQuantity : toScaled(input.quantity);
-    if (nextQuantity <= 0)
+    if (nextQuantity === 0)
       throw new InventoryError(
         "BAD_REQUEST",
-        "كمية الصرف يجب أن تكون أكبر من صفر"
+        "كمية الصرف لا يمكن أن تساوي صفراً"
       );
 
     const codes = Array.from(new Set([oldCode, nextCode])).sort();

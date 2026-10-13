@@ -46,8 +46,8 @@ export function calculateStockDelta(
   const nextOutgoing = toScaled(item.outgoingStock) + deltas.outgoing;
   const nextCurrent = toScaled(item.currentStock) + deltas.current;
 
-  if (nextIncoming < 0 || nextOutgoing < 0) {
-    throw new InventoryError("CONFLICT", "لا يمكن أن تصبح حركة المخزون سالبة");
+  if (nextIncoming < 0) {
+    throw new InventoryError("CONFLICT", "لا يمكن أن تصبح حركة الوارد سالبة");
   }
   if (nextCurrent < 0) {
     throw new InventoryError(

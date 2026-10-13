@@ -221,7 +221,7 @@ const disbursementInput = z.object({
   itemCode: z.string().trim().min(1, "كود الصنف مطلوب").max(64),
   destination: z.string().trim().max(128).nullable().optional(),
   customerId: z.number().int().positive().nullable().optional(),
-  quantity: z.coerce.number().positive("الكمية يجب أن تكون أكبر من صفر"),
+  quantity: z.coerce.number().refine(value => value !== 0, "الكمية لا يمكن أن تساوي صفراً"),
   notes: z.string().trim().max(1000).nullable().optional(),
   store: z.string().trim().max(128).nullable().optional(),
   warehouseId: z.number().int().positive().nullable().optional(),
