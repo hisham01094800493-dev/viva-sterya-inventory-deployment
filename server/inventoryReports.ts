@@ -25,7 +25,7 @@ export function getLowStockItems(rows: InventoryReportRow[], thresholdPercentage
 }
 
 function formatNumber(value: string | number | null | undefined) {
-  return new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 3 }).format(Number(value ?? 0));
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 3, useGrouping: false }).format(Number(value ?? 0));
 }
 
 export function buildInventoryReportHtml(rows: InventoryReportRow[], thresholdPercentage: number, title: string) {

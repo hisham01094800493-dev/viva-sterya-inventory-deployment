@@ -20,4 +20,12 @@ describe("inventory reports", () => {
     expect(html).toContain("يحتاج متابعة");
     expect(html).toContain("إجمالي الأصناف");
   });
+
+  it("uses a dot for decimal quantities instead of a comma", () => {
+    const html = buildInventoryReportHtml([
+      { ...rows[0], currentStock: "2.736" },
+    ], 20, "تقرير الكميات");
+    expect(html).toContain(">2.736 قطعة<");
+    expect(html).not.toContain(">2,736 قطعة<");
+  });
 });
