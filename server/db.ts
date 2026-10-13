@@ -2292,7 +2292,9 @@ export async function deleteDisbursement(id: number) {
     if (!disbursement)
       throw new InventoryError("NOT_FOUND", "سجل الصرف غير موجود");
     const item = await getItemForUpdate(tx, disbursement.itemCode);
-    const quantity = Math.abs(toScaled(disbursement.quantity));
+    // Keep the sign: creation applies outgoing += quantity and current -= quantity.
+    // This also correctly reverses legacy correction rows with negative quantities.
+    const quantity = toScaled(disbursement.quantity);
     const warehouse = await resolveWarehouseId(
       tx,
       disbursement.warehouseId,
