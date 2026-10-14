@@ -14,6 +14,9 @@ import {
   deleteItem,
   deleteTransfer,
   undoDeletedMovement,
+  undoUpdatedMovement,
+  getMovementSnapshot,
+  clearAuditLogs,
   getInventoryRows,
   getItemByCode,
   getItemCard,
@@ -379,7 +382,7 @@ export const appRouter = router({
     create: writePermissionProcedure("additions").input(additionInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createAddition(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "addition", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
     update: writePermissionProcedure("additions")
       .input(additionInput.partial().extend({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("addition", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const result = await safe(() => updateAddition(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "addition", entityId: input.id, details: input }); return result; }),
+      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("addition", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const previousSnapshot = await safe(() => getMovementSnapshot("addition", input.id)); const result = await safe(() => updateAddition(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "addition", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
     uploadDocumentImage: writePermissionProcedure("additions")
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
       .mutation(async ({ input, ctx }) => { await assertExistingMovementAccess("addition", input.movementId, ctx.permissions); return safe(() => uploadDocumentImage({ ...input, movementType: "addition" })); }),
@@ -411,7 +414,7 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createDisbursement(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "disbursement", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
     update: writePermissionProcedure("disbursements")
       .input(disbursementInput.partial().extend({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("disbursement", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const result = await safe(() => updateDisbursement(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "disbursement", entityId: input.id, details: input }); return result; }),
+      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("disbursement", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const previousSnapshot = await safe(() => getMovementSnapshot("disbursement", input.id)); const result = await safe(() => updateDisbursement(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "disbursement", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
     uploadDocumentImage: writePermissionProcedure("disbursements")
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
       .mutation(async ({ input, ctx }) => { await assertExistingMovementAccess("disbursement", input.movementId, ctx.permissions); return safe(() => uploadDocumentImage({ ...input, movementType: "disbursement" })); }),
@@ -435,7 +438,7 @@ export const appRouter = router({
     create: writePermissionProcedure("transfers").input(transferInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId, input.toWarehouseId]); const result = await safe(() => createTransfer(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "transfer", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity, transferType: input.transferType } }); return result; }),
     update: writePermissionProcedure("transfers")
       .input(transferInput.partial().extend({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("transfer", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId ?? existing[0], input.toWarehouseId ?? existing[1]]); const result = await safe(() => updateTransfer(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "transfer", entityId: input.id, details: input }); return result; }),
+      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("transfer", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId ?? existing[0], input.toWarehouseId ?? existing[1]]); const previousSnapshot = await safe(() => getMovementSnapshot("transfer", input.id)); const result = await safe(() => updateTransfer(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "transfer", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
     uploadDocumentImage: writePermissionProcedure("transfers")
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
       .mutation(async ({ input, ctx }) => { await assertExistingMovementAccess("transfer", input.movementId, ctx.permissions); return safe(() => uploadDocumentImage({ ...input, movementType: "transfer" })); }),
@@ -551,6 +554,8 @@ export const appRouter = router({
   governance: router({
     audit: managementProcedure.query(() => safe(() => listAuditLogs(300))),
     undoDeletedMovement: adminProcedure.input(z.object({ auditLogId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await safe(() => undoDeletedMovement(input.auditLogId)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "undo_delete", entity: result.entity, entityId: result.originalId, details: { originalAuditLogId: input.auditLogId } }); return result; }),
+    undoUpdatedMovement: adminProcedure.input(z.object({ auditLogId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await safe(() => undoUpdatedMovement(input.auditLogId)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "undo_update", entity: result.entity, entityId: result.originalId, details: { originalAuditLogId: input.auditLogId } }); return result; }),
+    clearAuditLogs: adminProcedure.mutation(async ({ ctx }) => { const result = await safe(() => clearAuditLogs()); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_audit", entity: "audit_logs", details: { deleted: result.deleted } }); return result; }),
     shareActivity: managementProcedure.query(() => safe(() => listShareActivity(300))),
     clearShareActivity: adminProcedure.mutation(async ({ ctx }) => { const result = await safe(() => clearShareActivity()); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_activity", entity: "share_activity", details: buildActivityCleanupAuditDetails(result.deleted) }); return result; }),
     clearLoginActivity: adminProcedure.mutation(async ({ ctx }) => { const result = await safe(() => clearLoginActivity()); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_activity", entity: "login_activity", details: buildActivityCleanupAuditDetails(result.deleted) }); return result; }),

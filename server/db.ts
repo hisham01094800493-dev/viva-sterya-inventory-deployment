@@ -3228,6 +3228,14 @@ export async function deleteTransfer(id: number) {
   });
 }
 
+export async function getMovementSnapshot(type: "addition" | "disbursement" | "transfer", id: number) {
+  const db = await requireDb();
+  const table = type === "addition" ? additions : type === "disbursement" ? disbursements : transfers;
+  const rows = await db.select().from(table).where(eq(table.id, id)).limit(1);
+  if (!rows[0]) throw new InventoryError("NOT_FOUND", "سجل الحركة غير موجود");
+  return rows[0];
+}
+
 export async function undoDeletedMovement(auditLogId: number) {
   const db = await requireDb();
   return db.transaction(async (tx: any) => {
@@ -3264,6 +3272,30 @@ export async function undoDeletedMovement(auditLogId: number) {
     }
     return { auditLogId, entity: log.entity, originalId: Number(log.entityId) };
   });
+}
+
+export async function undoUpdatedMovement(auditLogId: number) {
+  const db = await requireDb();
+  const rows = await db.select().from(auditLogs).where(eq(auditLogs.id, auditLogId)).limit(1);
+  const log = rows[0];
+  if (!log || log.action !== "update" || !["addition", "disbursement", "transfer"].includes(log.entity)) throw new InventoryError("BAD_REQUEST", "هذا السجل لا يمثل تعديلًا قابلًا للتراجع");
+  const createdAt = new Date(log.createdAt).getTime();
+  if (!Number.isFinite(createdAt) || Date.now() - createdAt > 24 * 60 * 60 * 1000) throw new InventoryError("CONFLICT", "انتهت مدة التراجع المسموح بها لهذا التعديل");
+  const undone = await db.select({ id: auditLogs.id }).from(auditLogs).where(and(eq(auditLogs.action, "undo_update"), like(auditLogs.details, `%\"originalAuditLogId\":${auditLogId}%`))).limit(1);
+  if (undone[0]) throw new InventoryError("CONFLICT", "تم التراجع عن هذا التعديل من قبل");
+  let previousSnapshot: any;
+  try { previousSnapshot = JSON.parse(log.details || "{}").previousSnapshot; } catch { previousSnapshot = null; }
+  if (!previousSnapshot?.id) throw new InventoryError("CONFLICT", "لا توجد نسخة سابقة كاملة لهذا التعديل");
+  if (log.entity === "addition") await updateAddition(previousSnapshot);
+  else if (log.entity === "disbursement") await updateDisbursement(previousSnapshot);
+  else await updateTransfer(previousSnapshot);
+  return { auditLogId, entity: log.entity, originalId: Number(log.entityId) };
+}
+
+export async function clearAuditLogs() {
+  const db = await requireDb();
+  const result = await db.delete(auditLogs);
+  return { deleted: Number(result[0]?.affectedRows ?? 0) };
 }
 
 export type MovementImportRow = {
