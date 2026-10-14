@@ -353,9 +353,9 @@ export function buildItemCardMovementRows(card: ItemCardPdfData): ItemCardMoveme
   return movements.map((row, index) => {
     const addition = row.movement === "إضافة" ? row.quantity : 0;
     const returned = row.movement === "مرتجع" || row.movement === "تحويل" ? row.quantity : 0;
-    // الصرف حركة سالبة في كارت الصنف، سواء كانت قيمة الإذن محفوظة موجبة أو سالبة.
-    const disbursement = row.movement === "صرف" ? -Math.abs(row.quantity) : 0;
-    runningStock = Number((runningStock + addition + returned + disbursement).toFixed(3));
+    // يحافظ كارت الصنف على الإشارة المدخلة: الصرف الموجب يخصم، والصرف السالب يعكس الخصم.
+    const disbursement = row.movement === "صرف" ? row.quantity : 0;
+    runningStock = Number((runningStock + addition + returned - disbursement).toFixed(3));
     return { date: formatItemCardPdfDate(row.date ?? ""), rawDate: row.date, detail: String(row.detail ?? "—"), movement: row.movement, openingStock: index === 0 ? initialStock : null, addition, returned, disbursement, runningStock, unitPrice: row.unitPrice, totalValue: Number((Math.abs(row.quantity) * row.unitPrice).toFixed(2)), permitNumber: String(row.eznNum ?? "—") };
   });
 }
