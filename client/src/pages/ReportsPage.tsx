@@ -323,7 +323,7 @@ export default function ReportsPage() {
     setAppliedReportFilters(current => ({ ...current, from: nextFrom, to: nextTo, incomingFrom: incomingFrom || "", outgoingTo: outgoingTo || "", movement: nextMovement }));
     setReportType("movements"); setSearchResultView(true);
   }, [location]);
-  const reportRowsRequired = reportType === "movements" || reportType === "returns" || reportType === "unlinked" || (reportType === "variance" && Boolean(selectedVarianceCode));
+  const reportRowsRequired = reportType === "movements" || reportType === "returns" || reportType === "unlinked" || Boolean(summaryItemCode) || (reportType === "variance" && Boolean(selectedVarianceCode));
   const reportDatasetInput = useMemo(() => ({ includeRows: reportRowsRequired, fromDate: appliedReportFilters.from || undefined, toDate: appliedReportFilters.to || undefined, permitSearch: appliedReportFilters.permit || undefined, incomingFromSearch: appliedReportFilters.incomingFrom || undefined, outgoingToSearch: appliedReportFilters.outgoingTo || undefined, additionPurposeSearch: appliedReportFilters.additionPurpose || undefined, disbursementPurposeSearch: appliedReportFilters.disbursementPurpose || undefined, returnPurposeSearch: appliedReportFilters.returnPurpose || undefined }), [reportRowsRequired, appliedReportFilters.from, appliedReportFilters.to, appliedReportFilters.permit, appliedReportFilters.incomingFrom, appliedReportFilters.outgoingTo, appliedReportFilters.additionPurpose, appliedReportFilters.disbursementPurpose, appliedReportFilters.returnPurpose]);
   const items = trpc.items.list.useQuery(undefined, inventoryQueryOptions);
   const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
@@ -439,8 +439,8 @@ export default function ReportsPage() {
       const category = movementCategory(row.type);
       const quantity = Number(row.quantity ?? 0);
       if (category === "إضافة") result.additions += quantity;
-      else if (category === "صرف") result.disbursements += quantity;
-      else if (category === "مرتجع") result.returns += quantity;
+      else if (category === "صرف") result.disbursements += Math.abs(quantity);
+      else if (category === "مرتجع") result.returns += Math.abs(quantity);
       return result;
     }, { additions: 0, disbursements: 0, returns: 0 });
     return { itemName: item?.name ?? rows[0]?.name ?? summaryItemCode, itemCode: summaryItemCode, balance: item?.currentStock ?? null, ...totals, parties: Array.from(new Set(rows.map(row => row.type).filter(Boolean))) };
