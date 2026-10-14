@@ -2,10 +2,12 @@ import DashboardLayout, { GoogleSearchButton } from "@/components/DashboardLayou
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { dashboardQueryOptions, inventoryQueryOptions } from "@/lib/queryOptions";
+import { ItemCardPreviewDialog } from "@/pages/InventoryPages";
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -23,6 +25,8 @@ import {
   RefreshCcw,
   RotateCcw,
   Warehouse,
+  FileText,
+  Search,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
@@ -287,6 +291,14 @@ export default function Home() {
   const [movementRange, setMovementRange] = useState<7 | 30 | 90>(30);
   const [timelineWarehouseId, setTimelineWarehouseId] = useState<number | "all">("all");
   const [warehouseCardsExpanded, setWarehouseCardsExpanded] = useState(false);
+  const [itemCardLookupOpen, setItemCardLookupOpen] = useState(false);
+  const [itemCardSearch, setItemCardSearch] = useState("");
+  const [selectedItemCardId, setSelectedItemCardId] = useState<number>();
+  const [itemCardOpen, setItemCardOpen] = useState(false);
+  const itemCardResults = trpc.items.list.useQuery(
+    { search: itemCardSearch.trim() || undefined },
+    { ...inventoryQueryOptions, enabled: itemCardLookupOpen && Boolean(itemCardSearch.trim()) },
+  );
   const analytics = summary.data?.analytics;
   const timelineAnalyticsInput = useMemo(() => ({ warehouseId: timelineWarehouseId === "all" ? null : timelineWarehouseId }), [timelineWarehouseId]);
   const timelineAnalytics = trpc.dashboard.movementAnalytics.useQuery(timelineAnalyticsInput, dashboardQueryOptions);
@@ -340,6 +352,26 @@ export default function Home() {
             <div className="flex flex-col items-start gap-3 md:items-end">
               <button type="button" onClick={() => setAbsenceDetailsOpen(true)} className="w-full max-w-sm rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-right shadow-inner backdrop-blur-sm transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#f5c27b]/70" dir="rtl" aria-label="فتح تفاصيل أيام الغياب"><div className="flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#f5c27b]/20 text-[#f5c27b]"><CalendarCheck className="h-4 w-4" /></span><p className="text-xs font-black text-white">ملخص الغياب</p><span className="mr-auto rounded-full bg-[#f5c27b] px-3 py-1 text-sm font-black text-[#102a43]">{absenceDays} {absenceDays === 1 ? "يوم" : "أيام"}</span></div><p className="mt-2 text-[11px] text-white/60">اضغط لعرض تفاصيل التواريخ المسجلة</p></button>
               <Dialog open={absenceDetailsOpen} onOpenChange={setAbsenceDetailsOpen}><DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto" dir="rtl"><DialogHeader><DialogTitle className="text-xl font-black text-[#102a43]">تفاصيل أيام الغياب</DialogTitle><DialogDescription>الفترات المسجلة لحسابك وإجماليها {absenceDays} يوم.</DialogDescription></DialogHeader><div className="space-y-3">{(absences.data ?? []).length ? [...(absences.data ?? [])].sort((a, b) => String(b.startDate).localeCompare(String(a.startDate))).map(row => <div key={row.id} className="rounded-2xl border border-[#dcebee] bg-[#f7fbfc] p-4"><div className="flex items-center justify-between gap-3"><span className="text-sm font-black text-[#102a43]">{formatAbsenceDate(row.startDate)}</span><span className="rounded-full bg-[#e8f7f6] px-3 py-1 text-xs font-black text-[#0d7180]">{row.days} {row.days === 1 ? "يوم" : "أيام"}</span></div><p className="mt-2 text-xs text-slate-500">حتى {formatAbsenceDate(getAbsenceEndDate(row.startDate, Number(row.days)))}</p></div>) : <div className="rounded-2xl bg-slate-50 p-6 text-center text-sm text-slate-500">لا توجد فترات غياب مسجلة حتى الآن.</div>}</div></DialogContent></Dialog>
+              <div className="flex flex-wrap gap-2">
+                <Dialog open={itemCardLookupOpen} onOpenChange={setItemCardLookupOpen}>
+                  <Button type="button" variant="outline" onClick={() => setItemCardLookupOpen(true)} className="h-10 rounded-xl border-[#f5c27b]/55 bg-[#f5c27b]/15 px-3.5 text-sm font-bold text-white hover:bg-[#f5c27b]/25 hover:text-white" title="فتح كارت صنف">
+                    <FileText className="ml-1.5 h-4 w-4" />كارت صنف
+                  </Button>
+                  <DialogContent className="w-[calc(100vw-2rem)] max-w-xl rounded-[1.5rem]" dir="rtl">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2 text-xl font-black text-[#102a43]"><FileText className="h-5 w-5 text-[#0d7180]" />فتح كارت صنف</DialogTitle>
+                      <DialogDescription>ابحث باسم الصنف أو الكود، ثم اختر الصنف لعرض الكارت التفصيلي والحركات والرصيد.</DialogDescription>
+                    </DialogHeader>
+                    <div className="relative">
+                      <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Input autoFocus value={itemCardSearch} onChange={event => setItemCardSearch(event.target.value)} placeholder="اكتب اسم الصنف أو الكود..." className="h-11 rounded-xl border-[#b9d4d9] pr-10" />
+                    </div>
+                    <div className="max-h-80 space-y-2 overflow-y-auto">
+                      {!itemCardSearch.trim() ? <p className="rounded-xl bg-[#f7fbfc] p-5 text-center text-sm text-slate-500">ابدأ بكتابة اسم الصنف أو الكود.</p> : itemCardResults.isLoading ? <p className="p-5 text-center text-sm text-slate-500">جارٍ البحث...</p> : itemCardResults.error ? <p className="rounded-xl bg-red-50 p-5 text-center text-sm text-red-600">تعذر البحث عن الصنف.</p> : (itemCardResults.data ?? []).length ? (itemCardResults.data ?? []).slice(0, 20).map(item => <button key={item.id} type="button" onClick={() => { setSelectedItemCardId(item.id); setItemCardLookupOpen(false); setItemCardOpen(true); }} className="flex w-full items-center justify-between gap-3 rounded-xl border border-[#e5eef1] bg-white p-3 text-right transition hover:border-[#0d7180] hover:bg-[#f7fbfc]"><span className="min-w-0"><span className="block truncate font-black text-[#102a43]">{item.name}</span><span className="mt-1 block font-mono text-xs text-slate-400">{item.code}</span></span><span className="shrink-0 rounded-lg bg-[#e8f7f6] px-2 py-1 text-xs font-black text-[#0d7180]">الرصيد {formatNumber(item.currentStock)}</span></button>) : <p className="rounded-xl bg-[#f7fbfc] p-5 text-center text-sm text-slate-500">لا يوجد صنف بهذا الاسم أو الكود.</p>}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
               {!isReadOnly && <div className="flex flex-wrap gap-2">
                 <Button onClick={() => setLocation("/additions")} className="h-10 rounded-xl bg-white px-3.5 text-sm font-bold text-[#0d4f62] hover:bg-[#f5f7f8]"><Plus className="ml-1.5 h-4 w-4" />إضافة وارد</Button>
                 <Button onClick={() => setLocation("/disbursements")} variant="outline" className="h-10 rounded-xl border-white/25 bg-white/10 px-3.5 text-sm font-bold text-white hover:bg-white/15 hover:text-white"><ArrowUpFromLine className="ml-1.5 h-4 w-4" />إذن صرف</Button>
@@ -347,6 +379,7 @@ export default function Home() {
                 <QuickCalculator />
                 <div className="flex items-center gap-2 rounded-xl border border-[#7dd3fc]/45 bg-[#0369a1]/25 px-2 py-1.5 text-white"><GoogleSearchButton /><span className="hidden text-xs font-black sm:inline">بحث Google</span></div>
               </div>}
+              <ItemCardPreviewDialog itemId={selectedItemCardId} open={itemCardOpen} onOpenChange={setItemCardOpen} />
             </div>
           </div>
         </section>

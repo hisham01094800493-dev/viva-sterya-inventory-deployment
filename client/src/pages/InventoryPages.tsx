@@ -225,7 +225,7 @@ function ItemImagePreviewDialog({ item, open, onOpenChange, onEdit, onClear }: {
 }
 
 
-function ItemCardPreviewDialog({ itemId, open, onOpenChange }: { itemId?: number; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function ItemCardPreviewDialog({ itemId, open, onOpenChange }: { itemId?: number; open: boolean; onOpenChange: (open: boolean) => void }) {
   const cardQuery = trpc.items.card.useQuery({ id: itemId as number }, { enabled: open && Boolean(itemId) });
   const settings = trpc.settings.list.useQuery(undefined, { enabled: open });
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
