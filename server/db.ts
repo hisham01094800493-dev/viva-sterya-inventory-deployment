@@ -135,9 +135,10 @@ async function getItemByIdForUpdate(tx: any, id: number) {
 async function applyStockDelta(
   tx: any,
   item: any,
-  deltas: { incoming: number; outgoing: number; current: number }
+  deltas: { incoming: number; outgoing: number; current: number },
+  options: { allowNegativeCurrent?: boolean } = {}
 ) {
-  const next = calculateStockDelta(item, deltas);
+  const next = calculateStockDelta(item, deltas, options);
   await tx.update(items).set(next).where(eq(items.id, item.id));
 }
 
@@ -515,7 +516,8 @@ async function applyWarehouseBalanceDelta(
   tx: any,
   itemId: number,
   warehouseId: number,
-  delta: number
+  delta: number,
+  options: { allowNegativeCurrent?: boolean } = {}
 ) {
   if (!delta) return;
   const rows = await tx
@@ -531,7 +533,7 @@ async function applyWarehouseBalanceDelta(
     .for("update");
   const balance = rows[0];
   const next = toScaled(balance?.currentStock ?? 0) + delta;
-  if (next < 0)
+  if (next < 0 && !options.allowNegativeCurrent)
     throw new InventoryError(
       "BAD_REQUEST",
       "لا يمكن أن يصبح رصيد المخزن سالباً"
@@ -1995,7 +1997,7 @@ export async function deleteAddition(id: number) {
       -toScaled(addition.quantity)
     );
     await tx.delete(additions).where(eq(additions.id, id));
-    return { id };
+    return { id, snapshot: addition };
   });
 }
 
@@ -2094,7 +2096,7 @@ export async function createDisbursement(input: {
   if (enteredQuantity === 0)
     throw new InventoryError(
       "BAD_REQUEST",
-      "كمية الصرف يجب ألا تساوي صفراً"
+      "كمية الصرف لا يمكن أن تساوي صفراً"
     );
   const quantity = Math.abs(enteredQuantity);
   const clientRequestId = input.clientRequestId?.trim() || null;
@@ -2183,7 +2185,7 @@ export async function updateDisbursement(input: {
     if (enteredNextQuantity === 0)
       throw new InventoryError(
         "BAD_REQUEST",
-        "كمية الصرف يجب ألا تساوي صفراً"
+        "كمية الصرف لا يمكن أن تساوي صفراً"
       );
     const nextQuantity = Math.abs(enteredNextQuantity);
 
@@ -2307,10 +2309,10 @@ export async function deleteDisbursement(id: number) {
       incoming: 0,
       outgoing: -quantity,
       current: quantity,
-    });
-    await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity);
+    }, { allowNegativeCurrent: true });
+    await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity, { allowNegativeCurrent: true });
     await tx.delete(disbursements).where(eq(disbursements.id, id));
-    return { id };
+    return { id, snapshot: disbursement };
   });
 }
 
@@ -3225,8 +3227,78 @@ export async function deleteTransfer(id: number) {
       });
     }
     await tx.delete(transfers).where(eq(transfers.id, id));
-    return { id };
+    return { id, snapshot: transfer };
   });
+}
+
+export async function getMovementSnapshot(type: "addition" | "disbursement" | "transfer", id: number) {
+  const db = await requireDb();
+  const table = type === "addition" ? additions : type === "disbursement" ? disbursements : transfers;
+  const rows = await db.select().from(table).where(eq(table.id, id)).limit(1);
+  if (!rows[0]) throw new InventoryError("NOT_FOUND", "سجل الحركة غير موجود");
+  return rows[0];
+}
+
+export async function undoDeletedMovement(auditLogId: number) {
+  const db = await requireDb();
+  return db.transaction(async (tx: any) => {
+    const logs = await tx.select().from(auditLogs).where(eq(auditLogs.id, auditLogId)).limit(1).for("update");
+    const log = logs[0];
+    if (!log || log.action !== "delete" || !["addition", "disbursement", "transfer"].includes(log.entity)) throw new InventoryError("BAD_REQUEST", "هذا السجل لا يمثل حذف إذن قابل للتراجع");
+    const createdAt = new Date(log.createdAt).getTime();
+    if (!Number.isFinite(createdAt) || Date.now() - createdAt > 24 * 60 * 60 * 1000) throw new InventoryError("CONFLICT", "انتهت مدة التراجع المسموح بها لهذا الحذف");
+    const undone = await tx.select({ id: auditLogs.id }).from(auditLogs).where(and(eq(auditLogs.action, "undo_delete"), like(auditLogs.details, `%\"originalAuditLogId\":${auditLogId}%`))).limit(1);
+    if (undone[0]) throw new InventoryError("CONFLICT", "تم التراجع عن هذا الحذف من قبل");
+    let snapshot: any;
+    try { snapshot = JSON.parse(log.details || "{}").deletedSnapshot; } catch { snapshot = null; }
+    if (!snapshot || !snapshot.itemCode || snapshot.quantity == null) throw new InventoryError("CONFLICT", "لا توجد نسخة كاملة من الإذن لاستعادتها");
+    const { id: _id, createdAt: _createdAt, ...values } = snapshot;
+    if (log.entity === "addition") {
+      const item = await getItemForUpdate(tx, snapshot.itemCode);
+      const warehouse = await resolveWarehouseId(tx, snapshot.warehouseId, snapshot.store);
+      const quantity = toScaled(snapshot.quantity);
+      await applyStockDelta(tx, item, { incoming: quantity, outgoing: 0, current: quantity });
+      await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity);
+      await tx.insert(additions).values(values);
+    } else if (log.entity === "disbursement") {
+      const item = await getItemForUpdate(tx, snapshot.itemCode);
+      const warehouse = await resolveWarehouseId(tx, snapshot.warehouseId, snapshot.store);
+      const quantity = toScaled(snapshot.quantity);
+      await applyStockDelta(tx, item, { incoming: 0, outgoing: quantity, current: -quantity });
+      await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, -quantity);
+      await tx.insert(disbursements).values(values);
+    } else {
+      const item = await getItemForUpdate(tx, snapshot.itemCode);
+      const quantity = toScaled(snapshot.quantity);
+      if (snapshot.fromWarehouseId || snapshot.toWarehouseId) await applyTransferWarehouseEffect(tx, item, { transferType: snapshot.transferType, fromWarehouseId: snapshot.fromWarehouseId, toWarehouseId: snapshot.toWarehouseId, quantity });
+      await tx.insert(transfers).values(values);
+    }
+    return { auditLogId, entity: log.entity, originalId: Number(log.entityId) };
+  });
+}
+
+export async function undoUpdatedMovement(auditLogId: number) {
+  const db = await requireDb();
+  const rows = await db.select().from(auditLogs).where(eq(auditLogs.id, auditLogId)).limit(1);
+  const log = rows[0];
+  if (!log || log.action !== "update" || !["addition", "disbursement", "transfer"].includes(log.entity)) throw new InventoryError("BAD_REQUEST", "هذا السجل لا يمثل تعديلًا قابلًا للتراجع");
+  const createdAt = new Date(log.createdAt).getTime();
+  if (!Number.isFinite(createdAt) || Date.now() - createdAt > 24 * 60 * 60 * 1000) throw new InventoryError("CONFLICT", "انتهت مدة التراجع المسموح بها لهذا التعديل");
+  const undone = await db.select({ id: auditLogs.id }).from(auditLogs).where(and(eq(auditLogs.action, "undo_update"), like(auditLogs.details, `%\"originalAuditLogId\":${auditLogId}%`))).limit(1);
+  if (undone[0]) throw new InventoryError("CONFLICT", "تم التراجع عن هذا التعديل من قبل");
+  let previousSnapshot: any;
+  try { previousSnapshot = JSON.parse(log.details || "{}").previousSnapshot; } catch { previousSnapshot = null; }
+  if (!previousSnapshot?.id) throw new InventoryError("CONFLICT", "لا توجد نسخة سابقة كاملة لهذا التعديل");
+  if (log.entity === "addition") await updateAddition(previousSnapshot);
+  else if (log.entity === "disbursement") await updateDisbursement(previousSnapshot);
+  else await updateTransfer(previousSnapshot);
+  return { auditLogId, entity: log.entity, originalId: Number(log.entityId) };
+}
+
+export async function clearAuditLogs() {
+  const db = await requireDb();
+  const result = await db.delete(auditLogs);
+  return { deleted: Number(result[0]?.affectedRows ?? 0) };
 }
 
 export type MovementImportRow = {
@@ -3310,7 +3382,7 @@ export async function createAuditLog(input: {
   details?: Record<string, unknown> | string | null;
 }) {
   const db = await requireDb();
-  await db.insert(auditLogs).values({
+  const result = await db.insert(auditLogs).values({
     userId: input.userId ?? null,
     userName: input.userName ?? null,
     action: input.action,
@@ -3323,6 +3395,7 @@ export async function createAuditLog(input: {
           ? input.details
           : JSON.stringify(input.details),
   });
+  return resultInsertId(result);
 }
 
 export async function listAuditLogs(limit = 200) {
