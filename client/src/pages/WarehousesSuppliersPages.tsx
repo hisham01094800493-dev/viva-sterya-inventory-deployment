@@ -54,10 +54,27 @@ export function buildAccountStatementRows(rows: Array<{ id: number; date: string
   });
 }
 
+export function normalizeAccountSearch(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .toLocaleLowerCase("ar-EG")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function filterAccountStatementRows(rows: AccountStatementRow[], search: { permit: string; item: string }) {
-  const permit = search.permit.trim().toLocaleLowerCase("ar-EG");
-  const item = search.item.trim().toLocaleLowerCase("ar-EG");
-  return rows.filter(row => (!permit || row.number.toLocaleLowerCase("ar-EG").includes(permit)) && (!item || `${row.item ?? ""} ${row.itemCode}`.toLocaleLowerCase("ar-EG").includes(item)));
+  const permit = normalizeAccountSearch(search.permit);
+  const itemTokens = normalizeAccountSearch(search.item).split(" ").filter(Boolean);
+  return rows.filter(row => {
+    const permitMatch = !permit || normalizeAccountSearch(row.number).includes(permit);
+    const itemText = normalizeAccountSearch(`${row.item ?? ""} ${row.itemCode}`);
+    const itemMatch = !itemTokens.length || itemTokens.every(token => itemText.includes(token));
+    return permitMatch && itemMatch;
+  });
 }
 
 function DirectoryToolbar({ search, onSearch, sortKey, onSortKey, direction, onDirection }: { search: string; onSearch: (value: string) => void; sortKey: "name" | "phone" | "email"; onSortKey: (value: "name" | "phone" | "email") => void; direction: "asc" | "desc"; onDirection: () => void }) {
