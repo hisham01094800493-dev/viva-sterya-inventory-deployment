@@ -44,12 +44,20 @@ export function filterAndSortDirectory<T extends { name: string; phone?: string 
   return rows.filter(row => !normalized || [row.name, row.phone, row.email].some(value => String(value ?? "").toLocaleLowerCase().includes(normalized))).sort((a, b) => { const left = String(a[sortKey] ?? a.name); const right = String(b[sortKey] ?? b.name); return direction === "asc" ? left.localeCompare(right, "ar") : right.localeCompare(left, "ar"); });
 }
 
-export function buildAccountStatementRows(rows: Array<{ id: number; date: string; eznNum: string; itemName: string | null; quantity: unknown; unitPrice?: unknown; totalValue?: unknown; documentImageUrl?: string | null; supplierId?: number | null; customerId?: number | null }>, kind: "supplier" | "customer", entityId: number) {
+export type AccountStatementRow = { id: number; date: string; number: string; item: string | null; itemCode: string; quantity: number; unitPrice: number; total: number; type: "إضافة" | "صرف" | "مرتجع" | "تحويل"; documentImageUrl: string | null };
+
+export function buildAccountStatementRows(rows: Array<{ id: number; date: string; eznNum: string; itemName: string | null; itemCode?: string | null; quantity: unknown; unitPrice?: unknown; totalValue?: unknown; documentImageUrl?: string | null; supplierId?: number | null; customerId?: number | null }>, kind: "supplier" | "customer", entityId: number): AccountStatementRow[] {
   return rows.filter(row => (kind === "supplier" ? row.supplierId === entityId : row.customerId === entityId)).map(row => {
     const quantity = Number(row.quantity ?? 0);
     const totalValue = Number(row.totalValue ?? 0);
-    return { id: row.id, date: row.date, number: row.eznNum, item: row.itemName, quantity, unitPrice: Number(row.unitPrice ?? 0), total: totalValue, type: kind === "supplier" ? "إضافة" : "صرف", documentImageUrl: row.documentImageUrl ?? null };
+    return { id: row.id, date: row.date, number: row.eznNum, item: row.itemName, itemCode: row.itemCode ?? "", quantity, unitPrice: Number(row.unitPrice ?? 0), total: totalValue, type: kind === "supplier" ? "إضافة" : "صرف", documentImageUrl: row.documentImageUrl ?? null };
   });
+}
+
+export function filterAccountStatementRows(rows: AccountStatementRow[], search: { permit: string; item: string }) {
+  const permit = search.permit.trim().toLocaleLowerCase("ar-EG");
+  const item = search.item.trim().toLocaleLowerCase("ar-EG");
+  return rows.filter(row => (!permit || row.number.toLocaleLowerCase("ar-EG").includes(permit)) && (!item || `${row.item ?? ""} ${row.itemCode}`.toLocaleLowerCase("ar-EG").includes(item)));
 }
 
 function DirectoryToolbar({ search, onSearch, sortKey, onSortKey, direction, onDirection }: { search: string; onSearch: (value: string) => void; sortKey: "name" | "phone" | "email"; onSortKey: (value: "name" | "phone" | "email") => void; direction: "asc" | "desc"; onDirection: () => void }) {
@@ -249,6 +257,8 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const [financialPreferenceVisible, setFinancialPreferenceVisible] = useState(false);
   const [permitFilter, setPermitFilter] = useState("");
   const [appliedPermitFilter, setAppliedPermitFilter] = useState("");
+  const [itemSearch, setItemSearch] = useState("");
+  const [appliedItemSearch, setAppliedItemSearch] = useState("");
   const [permitImage, setPermitImage] = useState<{ url: string; name: string } | null>(null);
   const pdfIframeRef = useRef<HTMLIFrameElement>(null);
   const accountColumnLabels: Record<string, string> = {
@@ -272,10 +282,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const allRows = kind === "supplier"
     ? buildAccountStatementRows(additions.data ?? [], "supplier", id)
     : buildAccountStatementRows(disbursements.data ?? [], "customer", id);
-  const rows = useMemo(() => {
-    const query = appliedPermitFilter.trim().toLocaleLowerCase("en-US");
-    return query ? allRows.filter(row => row.number.toLocaleLowerCase("en-US").includes(query)) : allRows;
-  }, [allRows, appliedPermitFilter]);
+  const rows = useMemo(() => filterAccountStatementRows(allRows, { permit: appliedPermitFilter, item: appliedItemSearch }), [allRows, appliedPermitFilter, appliedItemSearch]);
   const permitDetails = trpc.reports.permitDetails.useQuery({ permitNumber: appliedPermitFilter || "__none__" }, { enabled: kind === "customer" && Boolean(appliedPermitFilter) });
   const permitDetailRows = useMemo(() => {
     const data = permitDetails.data;
@@ -452,9 +459,13 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
         </div>
       </div>
       <Card className={surface}>
-        <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-end">
-          <label className="min-w-0 flex-1 space-y-2 text-xs font-black text-slate-500"><span>فلترة كشف الحساب برقم الإذن</span><Input value={permitFilter} onChange={event => setPermitFilter(event.target.value)} onKeyDown={event => { if (event.key === "Enter") setAppliedPermitFilter(permitFilter.trim()); }} placeholder="مثال: 5207" className="h-11 rounded-xl font-bold" /></label>
-          <div className="flex gap-2"><Button type="button" onClick={() => setAppliedPermitFilter(permitFilter.trim())} className="h-11 rounded-xl bg-[#0d7180] font-black text-white hover:bg-[#095d69]">تطبيق الفلتر</Button><Button type="button" variant="outline" onClick={() => { setPermitFilter(""); setAppliedPermitFilter(""); }} disabled={!permitFilter && !appliedPermitFilter} className="h-11 rounded-xl">مسح</Button></div>
+        <CardContent className="flex flex-col gap-4 p-5">
+          <div><p className="text-sm font-black text-[#102a43]">فلترة كشف الحساب</p><p className="mt-1 text-xs text-slate-400">ابحث برقم الإذن أو باسم الصنف أو كوده، ثم اضغط تطبيق الفلتر.</p></div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="space-y-2 text-xs font-black text-slate-500"><span>رقم الإذن</span><Input value={permitFilter} onChange={event => setPermitFilter(event.target.value)} onKeyDown={event => { if (event.key === "Enter") setAppliedPermitFilter(permitFilter.trim()); }} placeholder="مثال: 5207" className="h-11 rounded-xl font-bold" /></label>
+            <label className="space-y-2 text-xs font-black text-slate-500"><span>اسم الصنف أو الكود</span><Input value={itemSearch} onChange={event => setItemSearch(event.target.value)} onKeyDown={event => { if (event.key === "Enter") setAppliedItemSearch(itemSearch.trim()); }} placeholder="اكتب اسم الصنف أو الكود" className="h-11 rounded-xl font-bold" /></label>
+          </div>
+          <div className="flex gap-2"><Button type="button" onClick={() => { setAppliedPermitFilter(permitFilter.trim()); setAppliedItemSearch(itemSearch.trim()); }} className="h-11 rounded-xl bg-[#0d7180] font-black text-white hover:bg-[#095d69]">تطبيق الفلتر</Button><Button type="button" variant="outline" onClick={() => { setPermitFilter(""); setAppliedPermitFilter(""); setItemSearch(""); setAppliedItemSearch(""); }} disabled={!permitFilter && !appliedPermitFilter && !itemSearch && !appliedItemSearch} className="h-11 rounded-xl">مسح</Button></div>
         </CardContent>
       </Card>
       <div className={`grid gap-4 ${showAccountFinancialDetails ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
