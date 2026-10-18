@@ -29,6 +29,7 @@ import {
   getRecentMovements,
   getMovementAnalytics,
   getReportDataset,
+  getPermitDetails,
   getCompanyInventoryAuditReport,
   getSettingValue,
   getUserPreferences,
@@ -456,6 +457,7 @@ export const appRouter = router({
 
   reports: router({
     dataset: permissionProcedure("reports").input(z.object({ includeRows: z.boolean().default(false), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), permitSearch: z.string().trim().optional(), incomingFromSearch: z.string().trim().optional(), outgoingToSearch: z.string().trim().optional(), additionPurposeSearch: z.string().trim().optional(), disbursementPurposeSearch: z.string().trim().optional(), returnPurposeSearch: z.string().trim().optional() })).query(({ input, ctx }) => safe(() => getReportDataset(input, ctx.permissions.allowedWarehouseIds))),
+    permitDetails: permissionProcedure("reports").input(z.object({ permitNumber: z.string().trim().min(1).max(64) })).query(({ input, ctx }) => safe(() => getPermitDetails(input.permitNumber, ctx.permissions.allowedWarehouseIds))),
     inventoryAudit: permissionProcedure("reports").query(({ ctx }) => safe(() => getCompanyInventoryAuditReport(ctx.permissions.allowedWarehouseIds))),
   }),
 

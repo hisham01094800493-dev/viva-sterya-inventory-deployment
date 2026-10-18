@@ -1764,6 +1764,32 @@ export async function listCustomerAccount(
   return [...disbursementRows, ...syntheticRows].sort((a, b) => Number(b.id) - Number(a.id));
 }
 
+export async function getPermitDetails(
+  permitNumber: string,
+  allowedWarehouseIds: number[] = []
+) {
+  const db = await requireDb();
+  const normalizedPermit = permitNumber.trim();
+  if (!normalizedPermit) return { permitNumber: normalizedPermit, additions: [], disbursements: [], transfers: [] };
+
+  const additionWhere = allowedWarehouseIds.length
+    ? and(eq(additions.eznNum, normalizedPermit), inArray(additions.warehouseId, allowedWarehouseIds))
+    : eq(additions.eznNum, normalizedPermit);
+  const disbursementWhere = allowedWarehouseIds.length
+    ? and(eq(disbursements.eznNum, normalizedPermit), inArray(disbursements.warehouseId, allowedWarehouseIds))
+    : eq(disbursements.eznNum, normalizedPermit);
+  const transferWhere = allowedWarehouseIds.length
+    ? and(eq(transfers.eznNum, normalizedPermit), or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)))
+    : eq(transfers.eznNum, normalizedPermit);
+
+  const [additionRows, disbursementRows, transferRows] = await Promise.all([
+    db.select().from(additions).where(additionWhere).orderBy(asc(additions.id)),
+    db.select().from(disbursements).where(disbursementWhere).orderBy(asc(disbursements.id)),
+    db.select().from(transfers).where(transferWhere).orderBy(asc(transfers.id)),
+  ]);
+  return { permitNumber: normalizedPermit, additions: additionRows, disbursements: disbursementRows, transfers: transferRows };
+}
+
 export async function createAddition(input: {
   date: string;
   eznNum: string;
