@@ -472,12 +472,17 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   return <DashboardLayout>
     <div className="mx-auto w-full min-w-0 max-w-[1500px] space-y-7">
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
-        <div>
+        <div className="min-w-0">
           <p className="mb-2 text-[10px] font-black uppercase tracking-[0.27em] text-[#d08a3b]">ACCOUNT STATEMENT / {kind === "supplier" ? "SUPPLIER" : "CUSTOMER"}</p>
           <h2 className="text-3xl font-black tracking-tight text-[#102a43]">كشف حساب {kind === "supplier" ? "المورد" : "العميل/الجهة"}</h2>
           <p className="mt-2 text-sm leading-7 text-slate-500">تفاصيل الحركات المسجلة للجهة مع الكميات ومعلومات الأذونات.</p>
+          <div className="mt-4 inline-flex max-w-full items-center gap-3 rounded-2xl border border-[#9ed9e1] bg-gradient-to-l from-[#e8f8f8] to-[#f8fcfc] px-4 py-3 shadow-sm" aria-label={`${kind === "supplier" ? "اسم المورد" : "اسم العميل"}: ${entity.name}`}>
+            <span className="shrink-0 rounded-xl bg-[#0d7180] px-3 py-2 text-xs font-black text-white">{kind === "supplier" ? "اسم المورد" : "اسم العميل"}</span>
+            <span className="truncate text-lg font-black text-[#102a43] sm:text-xl">{entity.name}</span>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => { window.location.href = kind === "supplier" ? "/suppliers" : "/customers"; }} className="h-9 rounded-xl border-[#9fcbd0] px-3 text-xs font-black text-[#0d4f62] hover:bg-[#e8f7f6]" title={kind === "supplier" ? "العودة إلى دليل الموردين" : "العودة إلى دليل العملاء"}><ArrowRight className="ml-1 h-3.5 w-3.5" />العودة لكشوف الحساب</Button>
           <Badge className="w-fit rounded-full bg-[#e8f1f2] px-4 py-2 text-[#0d4f62]">{entity.name}</Badge>
           {canViewAccountFinancialDetails ? <Button type="button" variant="outline" size="sm" onClick={() => void toggleAccountFinancialDetails()} disabled={updatePreferences.isPending || permissions.isLoading || preferences.isLoading} aria-pressed={showAccountFinancialDetails} className="movement-financial-toggle rounded-xl px-2 text-[10px] font-black sm:px-3 sm:text-xs"><Eye className="ml-1 h-3.5 w-3.5" />{showAccountFinancialDetails ? "إخفاء التفاصيل المالية" : "إظهار التفاصيل المالية"}</Button> : null}
           <Button type="button" variant="outline" onClick={() => void exportStatement("excel")} disabled={Boolean(exportBusy)} className="rounded-xl"><FileText className="ml-1 h-4 w-4" />{exportBusy === "excel" ? "جارٍ التصدير..." : "Excel"}</Button>
