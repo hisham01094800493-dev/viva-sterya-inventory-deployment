@@ -93,6 +93,9 @@ export function WarehousesPage() {
   const updatePreferences = trpc.preferences.update.useMutation();
   const canViewFinancialDetails = permissions.data?.allowedReports.includes(WAREHOUSE_FINANCIAL_PERMISSION) ?? false;
   const [financialPreferenceVisible, setFinancialPreferenceVisible] = useState(false);
+  const [permitFilter, setPermitFilter] = useState("");
+  const [appliedPermitFilter, setAppliedPermitFilter] = useState("");
+  const [permitImage, setPermitImage] = useState<{ url: string; name: string } | null>(null);
   const [itemReferenceSearch, setItemReferenceSearch] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
@@ -244,6 +247,9 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const [selectedPdfColumns, setSelectedPdfColumns] = useState<ExportColumnKey[]>([]);
   const [pdfBuilding, setPdfBuilding] = useState(false);
   const [financialPreferenceVisible, setFinancialPreferenceVisible] = useState(false);
+  const [permitFilter, setPermitFilter] = useState("");
+  const [appliedPermitFilter, setAppliedPermitFilter] = useState("");
+  const [permitImage, setPermitImage] = useState<{ url: string; name: string } | null>(null);
   const pdfIframeRef = useRef<HTMLIFrameElement>(null);
   const accountColumnLabels: Record<string, string> = {
     name: "اسم الصنف",
@@ -263,9 +269,30 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const baseAccountColumns: ExportColumnKey[] = ["name", "date", "eznNum", "type", "quantity"];
   const accountColumns = useMemo<ExportColumnKey[]>(() => canViewAccountFinancialDetails ? [...baseAccountColumns, "unitPrice", "totalValue"] : baseAccountColumns, [canViewAccountFinancialDetails]);
   const showAccountFinancialDetails = canViewAccountFinancialDetails && financialPreferenceVisible;
-  const rows = kind === "supplier"
+  const allRows = kind === "supplier"
     ? buildAccountStatementRows(additions.data ?? [], "supplier", id)
     : buildAccountStatementRows(disbursements.data ?? [], "customer", id);
+  const rows = useMemo(() => {
+    const query = appliedPermitFilter.trim().toLocaleLowerCase("en-US");
+    return query ? allRows.filter(row => row.number.toLocaleLowerCase("en-US").includes(query)) : allRows;
+  }, [allRows, appliedPermitFilter]);
+  const permitDetails = trpc.reports.permitDetails.useQuery({ permitNumber: appliedPermitFilter || "__none__" }, { enabled: kind === "customer" && Boolean(appliedPermitFilter) });
+  const permitDetailRows = useMemo(() => {
+    const data = permitDetails.data;
+    if (!data) return [] as Array<{ type: string; row: any }>;
+    return [
+      ...data.additions.map(row => ({ type: "إضافة", row })),
+      ...data.disbursements.map(row => ({ type: "صرف", row })),
+      ...data.transfers.map(row => ({ type: String(row.transferType || "تحويل/مرتجع"), row })),
+    ];
+  }, [permitDetails.data]);
+  const permitTotals = useMemo(() => permitDetailRows.reduce((summary, entry) => {
+    const quantity = Math.abs(Number(entry.row.quantity ?? 0));
+    if (entry.type === "إضافة") summary.additions += quantity;
+    else if (entry.type === "صرف") summary.disbursements += quantity;
+    else summary.returns += quantity;
+    return summary;
+  }, { additions: 0, disbursements: 0, returns: 0 }), [permitDetailRows]);
   const totalQuantity = rows.reduce((sum, row) => sum + row.quantity, 0);
   const total = rows.reduce((sum, row) => sum + row.total, 0);
   const exportRows = rows.map(row => ({
@@ -416,15 +443,26 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
           <Button type="button" onClick={openAccountColumns} disabled={Boolean(exportBusy)} className="rounded-xl bg-[#0d4f62] text-white"><FileText className="ml-1 h-4 w-4" />{pdfBuilding ? "جاري تجهيز PDF" : "معاينة PDF"}</Button>
         </div>
       </div>
+      <Card className={surface}>
+        <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-end">
+          <label className="min-w-0 flex-1 space-y-2 text-xs font-black text-slate-500"><span>فلترة كشف الحساب برقم الإذن</span><Input value={permitFilter} onChange={event => setPermitFilter(event.target.value)} onKeyDown={event => { if (event.key === "Enter") setAppliedPermitFilter(permitFilter.trim()); }} placeholder="مثال: 5207" className="h-11 rounded-xl font-bold" /></label>
+          <div className="flex gap-2"><Button type="button" onClick={() => setAppliedPermitFilter(permitFilter.trim())} className="h-11 rounded-xl bg-[#0d7180] font-black text-white hover:bg-[#095d69]">تطبيق الفلتر</Button><Button type="button" variant="outline" onClick={() => { setPermitFilter(""); setAppliedPermitFilter(""); }} disabled={!permitFilter && !appliedPermitFilter} className="h-11 rounded-xl">مسح</Button></div>
+        </CardContent>
+      </Card>
       <div className={`grid gap-4 ${showAccountFinancialDetails ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">عدد الحركات</p><p className="mt-2 text-2xl font-black text-[#102a43]">{rows.length}</p></CardContent></Card>
         <Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">إجمالي الكميات</p><p className="mt-2 text-2xl font-black text-[#0d806c]">{totalQuantity.toLocaleString("en-US")}</p></CardContent></Card>
         {showAccountFinancialDetails ? <Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">إجمالي القيمة</p><p className="mt-2 text-2xl font-black text-[#bd5147]">{total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م</p></CardContent></Card> : null}
       </div>
+      {kind === "customer" && appliedPermitFilter ? <Card className={`${surface} overflow-hidden`}>
+        <CardHeader className="border-b border-[#edf2f5] bg-gradient-to-l from-[#eef8f7] to-white pb-4"><CardTitle className="flex items-center gap-2 text-lg font-black text-[#102a43]"><FileText className="h-5 w-5 text-[#0d7180]" />ملخص الإذن رقم {appliedPermitFilter}</CardTitle><p className="mt-1 text-xs text-slate-500">تفاصيل مجمعة من جداول الإضافة والصرف والارتجاع.</p></CardHeader>
+        <CardContent className="space-y-4 p-5">{permitDetails.isLoading ? <div className="flex items-center justify-center gap-2 py-8 text-sm font-bold text-slate-500"><Loader2 className="h-5 w-5 animate-spin" />جارٍ تحميل تفاصيل الإذن...</div> : permitDetails.error ? <div className="rounded-2xl border border-red-100 bg-red-50 p-5 text-center text-sm font-bold text-red-700">تعذر تحميل تفاصيل الإذن. تأكد من صلاحية التقارير.</div> : <><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-2xl bg-[#fbeceb] p-4"><p className="text-xs font-bold text-[#bd5147]">وزن الصرف</p><p className="mt-1 text-2xl font-black text-[#bd5147]">{permitTotals.disbursements.toLocaleString("en-US")}</p></div><div className="rounded-2xl bg-[#fff4df] p-4"><p className="text-xs font-bold text-[#a96821]">وزن الارتجاع</p><p className="mt-1 text-2xl font-black text-[#a96821]">{permitTotals.returns.toLocaleString("en-US")}</p></div><div className="rounded-2xl bg-[#e8f7f6] p-4"><p className="text-xs font-bold text-[#0d806c]">وزن الإضافة</p><p className="mt-1 text-2xl font-black text-[#0d806c]">{permitTotals.additions.toLocaleString("en-US")}</p></div></div>{permitDetailRows.length ? <div className="overflow-x-auto rounded-2xl border border-[#dce7ee]"><table className="w-full min-w-[900px] text-right text-sm"><thead className="bg-[#0d4f62] text-xs font-black text-white"><tr><th className="px-4 py-3">الحركة</th><th className="px-4 py-3">التاريخ</th><th className="px-4 py-3">الصنف</th><th className="px-4 py-3">الكود</th><th className="px-4 py-3">الكمية</th><th className="px-4 py-3">البيان</th><th className="px-4 py-3">عرض الإذن</th></tr></thead><tbody className="divide-y divide-[#eef3f5]">{permitDetailRows.map(({ type, row }) => <tr key={`${type}-${row.id}`} className="odd:bg-[#fbfdff] hover:bg-[#eef8f7]"><td className="px-4 py-3"><Badge className={type === "صرف" ? "bg-red-50 text-red-700" : type === "إضافة" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}>{type}</Badge></td><td className="px-4 py-3 text-slate-500">{row.date}</td><td className="px-4 py-3 font-black text-[#102a43]">{row.itemName || "—"}</td><td className="px-4 py-3 font-mono text-xs text-slate-500">{row.itemCode || "—"}</td><td className="px-4 py-3 font-black text-[#0d4f62]">{Number(row.quantity ?? 0).toLocaleString("en-US")}</td><td className="px-4 py-3 text-slate-500">{row.purpose || row.disburseType || row.transferType || row.notes || "—"}</td><td className="px-4 py-3">{row.documentImageUrl ? <Button type="button" variant="outline" onClick={() => setPermitImage({ url: row.documentImageUrl, name: `permit-${appliedPermitFilter}.jpg` })} className="h-9 rounded-lg border-[#b9d4d9] px-3 text-xs font-black text-[#0d4f62]"><Eye className="ml-1 h-4 w-4" />عرض الصورة</Button> : <span className="text-xs text-slate-300">غير مرفق</span>}</td></tr>)}</tbody></table></div> : <div className="rounded-2xl border border-dashed border-[#b9d4d9] bg-[#f7fbfc] p-8 text-center text-sm font-bold text-slate-500">لا توجد بيانات إضافية بهذا الرقم في جداول الإضافة أو الصرف أو الارتجاع.</div>}</>}</CardContent>
+      </Card> : null}
       <Card className={surface}>
         <CardHeader className="border-b border-[#edf2f5] pb-4"><CardTitle className="text-lg font-black text-[#102a43]">حركات {entity.name}</CardTitle></CardHeader>
         <CardContent className="p-0">
           {rows.length ? <div className="overflow-x-auto account-statement-scroll-region"><table data-account-statement-table="true" dir="rtl" className="table-auto w-max min-w-[780px] text-right text-[13px]"><thead className="bg-[#f7fbfc] text-[11px] font-black text-slate-400"><tr><th className="px-4 py-3">التاريخ</th><th className="px-4 py-3">رقم الإذن</th><th className="px-4 py-3">الحركة</th><th className="px-4 py-3">الصنف</th><th className="px-4 py-3">الكمية</th>{showAccountFinancialDetails ? <><th className="px-4 py-3">سعر الوحدة</th><th className="px-4 py-3">الإجمالي</th></> : null}</tr></thead><tbody className="divide-y divide-[#eef3f5]">{rows.map(row => <tr key={row.id}><td className="px-4 py-3 text-slate-500">{row.date}</td><td className="px-4 py-3 font-mono text-xs text-[#0d4f62]">{row.number}</td><td className="px-4 py-3 font-bold">{row.type}</td><td className="px-4 py-3 font-black text-[#102a43]">{row.item}</td><td className="px-4 py-3">{row.quantity.toLocaleString("en-US")}</td>{showAccountFinancialDetails ? <><td className="px-4 py-3">{row.unitPrice.toLocaleString("en-US")} ج.م</td><td className="px-4 py-3 font-black text-[#0d4f62]">{row.total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م</td></> : null}</tr>)}</tbody></table></div> : <div className="p-12 text-center text-sm text-slate-400">لا توجد حركات مرتبطة بهذه الجهة حتى الآن.</div>}
+          <Dialog open={Boolean(permitImage)} onOpenChange={open => { if (!open) setPermitImage(null); }}><DialogContent className="max-w-4xl rounded-2xl bg-white p-4" dir="rtl"><DialogHeader><DialogTitle className="font-black text-[#102a43]">صورة الإذن رقم {appliedPermitFilter}</DialogTitle><DialogDescription>يمكنك معاينة صورة الإذن ثم تنزيلها.</DialogDescription></DialogHeader>{permitImage ? <div className="flex min-h-[45vh] items-center justify-center rounded-2xl bg-slate-950/5 p-3"><img src={permitImage.url} alt={`صورة إذن ${appliedPermitFilter}`} className="max-h-[65vh] max-w-full rounded-xl object-contain" /></div> : null}<DialogFooter><Button type="button" variant="outline" onClick={() => setPermitImage(null)} className="rounded-xl">إغلاق</Button>{permitImage ? <a href={permitImage.url} download={permitImage.name} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0d4f62] px-4 text-sm font-bold text-white"><Download className="ml-2 h-4 w-4" />تنزيل الصورة</a> : null}</DialogFooter></DialogContent></Dialog>
           <Dialog open={pdfColumnsOpen} onOpenChange={setPdfColumnsOpen}>
             <DialogContent className="max-w-2xl rounded-2xl bg-white" dir="rtl">
               <DialogHeader><DialogTitle className="text-xl font-black text-[#102a43]">اختيار أعمدة كشف الحساب</DialogTitle><DialogDescription>اسحب الأعمدة لترتيبها من اليمين إلى اليسار، ثم اختر الأعمدة التي تريد ظهورها في PDF وExcel.</DialogDescription></DialogHeader>
