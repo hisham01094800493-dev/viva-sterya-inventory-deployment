@@ -3007,3 +3007,22 @@ body {
     background-color: #ffffff !important;
   }
 }
+
+/* Explicit contrast for the item-image dialog header on mobile browsers. */
+@media screen {
+  .dark .item-image-preview-dialog {
+    background: #182934 !important;
+    color: #edf8fa !important;
+  }
+  .dark .item-image-preview-header {
+    background: #203d47 !important;
+    border-color: rgba(158, 213, 220, 0.32) !important;
+    color: #f1fbfc !important;
+  }
+  .dark .item-image-preview-header [data-slot="dialog-title"] {
+    color: #f1fbfc !important;
+  }
+  .dark .item-image-preview-header [data-slot="dialog-description"] {
+    color: #c7dadd !important;
+  }
+}
