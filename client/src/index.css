@@ -2876,9 +2876,15 @@ body {
     background-color: #235157 !important;
     color: #bff1eb !important;
   }
+  .dark [class~="bg-[#e8f1f2]"] {
+    background-color: #203d47 !important;
+    color: #d8f1f2 !important;
+  }
   .dark [class~="bg-[#fff7e8]"],
   .dark [class~="bg-[#fff4df]"],
-  .dark [class~="bg-[#fffaf5]"] {
+  .dark [class~="bg-[#fffaf5]"],
+  .dark [class~="bg-[#fff4f2]"],
+  .dark [class~="bg-[#fff8e9]"] {
     background-color: #453722 !important;
     color: #ffe2a3 !important;
   }
