@@ -2738,3 +2738,100 @@ body {
   .dark [class*="border-amber-100"],
   .dark [class*="border-sky-100"] { border-color: rgba(170, 224, 230, 0.28) !important; }
 }
+
+/* طبقة توحيد نهائية للوضع الداكن: تمنع بقاء الأسطح البيضاء أو الباهتة في أي صفحة. */
+@media screen {
+  @layer components {
+    .dark { color-scheme: dark; }
+
+    .dark [class~="bg-white"],
+    .dark [class~="bg-white/95"],
+    .dark [class~="bg-white/90"],
+    .dark [class~="bg-white/85"],
+    .dark [class~="bg-white/80"],
+    .dark [class~="bg-white/75"],
+    .dark [class~="bg-white/65"],
+    .dark [class~="bg-white/60"],
+    .dark [class~="bg-white/55"] {
+      background-color: #182934 !important;
+      color: #edf8fa !important;
+    }
+    .dark [class~="bg-white/50"] { background-color: rgba(24, 55, 68, 0.72) !important; }
+    .dark [class~="bg-white/35"] { background-color: rgba(24, 55, 68, 0.52) !important; }
+    .dark [class~="bg-white/25"] { background-color: rgba(24, 55, 68, 0.38) !important; }
+    .dark [class~="bg-white/20"] { background-color: rgba(24, 55, 68, 0.30) !important; }
+    .dark [class~="bg-white/15"] { background-color: rgba(24, 55, 68, 0.24) !important; }
+    .dark [class~="bg-white/10"] { background-color: rgba(255, 255, 255, 0.08) !important; }
+    .dark [class~="bg-white/5"] { background-color: rgba(255, 255, 255, 0.05) !important; }
+
+    .dark [class~="bg-slate-50"],
+    .dark [class~="bg-gray-50"],
+    .dark [class~="bg-zinc-50"],
+    .dark [class~="bg-neutral-50"],
+    .dark [class~="bg-stone-50"],
+    .dark [class~="bg-slate-100"],
+    .dark [class~="bg-gray-100"],
+    .dark [class~="bg-zinc-100"],
+    .dark [class~="bg-neutral-100"],
+    .dark [class~="bg-stone-100"] {
+      background-color: #1b303b !important;
+      color: #eaf6f8 !important;
+    }
+
+    /* ألوان hex الفاتحة المستخدمة مباشرة داخل className. */
+    .dark [class*="bg-[#f"],
+    .dark [class*="bg-[#e"],
+    .dark [class*="bg-[#dfe"],
+    .dark [class*="bg-[#edf"],
+    .dark [class*="bg-[#f0"] {
+      background-color: #1b303b !important;
+      color: #eaf6f8 !important;
+    }
+    .dark [class*="hover:bg-[#f"]:hover,
+    .dark [class*="hover:bg-[#e"]:hover,
+    .dark [class*="focus:bg-[#f"]:focus,
+    .dark [class*="focus:bg-[#e"]:focus {
+      background-color: #294650 !important;
+    }
+
+    /* حالات التنبيه تبقى مميزة، لكن بخلفيات داكنة غير بيضاء. */
+    .dark [class*="bg-emerald-50"],
+    .dark [class*="bg-emerald-100"] { background-color: #173b3a !important; color: #b8f1df !important; }
+    .dark [class*="bg-red-50"],
+    .dark [class*="bg-red-100"] { background-color: #43282b !important; color: #ffd0ca !important; }
+    .dark [class*="bg-amber-50"],
+    .dark [class*="bg-amber-100"] { background-color: #453722 !important; color: #ffe2a3 !important; }
+    .dark [class*="bg-blue-50"],
+    .dark [class*="bg-blue-100"],
+    .dark [class*="bg-cyan-50"],
+    .dark [class*="bg-cyan-100"] { background-color: #203b50 !important; color: #bfe5ff !important; }
+    .dark [class*="bg-purple-50"],
+    .dark [class*="bg-violet-50"] { background-color: #352d4c !important; color: #e0d4ff !important; }
+
+    .dark [class*="border-[#f"],
+    .dark [class*="border-[#e"],
+    .dark [class~="border-slate-100"],
+    .dark [class~="border-slate-200"],
+    .dark [class~="border-gray-100"],
+    .dark [class~="border-gray-200"] {
+      border-color: rgba(158, 213, 220, 0.26) !important;
+    }
+    .dark [class*="divide-[#f"] > :not([hidden]) ~ :not([hidden]),
+    .dark [class*="divide-[#e"] > :not([hidden]) ~ :not([hidden]) {
+      border-color: rgba(158, 213, 220, 0.22) !important;
+    }
+
+    .dark option,
+    .dark optgroup {
+      background-color: #182934 !important;
+      color: #edf8fa !important;
+    }
+    .dark input[type="checkbox"],
+    .dark input[type="radio"] { accent-color: #72d8d4; }
+
+    /* استثناء مقصود: مستندات PDF تبقى بيضاء حتى لا تتغير ألوان المستند المطبوع. */
+    .dark iframe[title*="PDF"],
+    .dark iframe[title*="pdf"],
+    .dark .pdf-preview-frame { background-color: #ffffff !important; }
+  }
+}
