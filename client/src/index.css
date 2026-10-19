@@ -2899,3 +2899,111 @@ body {
   .dark table[data-account-statement-table] thead th { color: #d8edf0 !important; }
   .dark table[data-account-statement-table] tbody tr { background-color: #182934 !important; }
 }
+
+/* Dark-mode surface normalization: keep the application readable even for legacy pages
+   that still use direct light Tailwind colors. PDF canvases/iframes remain intentionally white. */
+@media screen {
+  .dark {
+    color-scheme: dark;
+  }
+
+  .dark .modern-shell,
+  .dark [data-sidebar="inset"],
+  .dark main {
+    background: transparent !important;
+    color: #eaf6f8 !important;
+  }
+
+  .dark [class~="bg-white"],
+  .dark [class~="bg-white/95"],
+  .dark [class~="bg-white/90"],
+  .dark [class~="bg-white/85"],
+  .dark [class~="bg-white/80"],
+  .dark [class~="bg-white/75"],
+  .dark [class~="bg-white/70"],
+  .dark [class~="bg-white/65"],
+  .dark [class~="bg-white/60"],
+  .dark [class~="bg-white/55"] {
+    background-color: #182934 !important;
+    color: #edf8fa !important;
+  }
+
+  .dark [class*="to-white"],
+  .dark [class*="from-white"],
+  .dark [class*="via-white"] {
+    --tw-gradient-to: #182934 var(--tw-gradient-to-position) !important;
+    --tw-gradient-from: #182934 var(--tw-gradient-from-position) !important;
+    --tw-gradient-via: #1b303b var(--tw-gradient-via-position) !important;
+  }
+
+  .dark [class*="bg-[#f"],
+  .dark [class*="bg-[#e"],
+  .dark [class*="bg-[#dfe"],
+  .dark [class*="bg-[#edf"],
+  .dark [class*="bg-[#eef"],
+  .dark [class*="bg-[#fb"],
+  .dark [class*="bg-[#fc"] {
+    background-color: #1b303b !important;
+    color: #eaf6f8 !important;
+  }
+
+  .dark [class~="bg-slate-50"],
+  .dark [class~="bg-slate-100"],
+  .dark [class~="bg-gray-50"],
+  .dark [class~="bg-gray-100"],
+  .dark [class~="bg-zinc-50"],
+  .dark [class~="bg-neutral-50"] {
+    background-color: #1b303b !important;
+    color: #eaf6f8 !important;
+  }
+
+  .dark .text-\[\#102a43\],
+  .dark [class~="text-slate-700"],
+  .dark [class~="text-slate-800"],
+  .dark [class~="text-gray-700"],
+  .dark [class~="text-gray-800"] {
+    color: #edf8fa !important;
+  }
+
+  .dark [class~="text-slate-500"],
+  .dark [class~="text-slate-600"],
+  .dark [class~="text-slate-400"],
+  .dark [class~="text-gray-500"],
+  .dark [class~="text-gray-600"] {
+    color: #bfd3d8 !important;
+  }
+
+  .dark [class*="border-[#d"],
+  .dark [class*="border-[#e"],
+  .dark [class~="border-slate-100"],
+  .dark [class~="border-slate-200"],
+  .dark [class~="border-gray-100"],
+  .dark [class~="border-gray-200"] {
+    border-color: rgba(158, 213, 220, 0.28) !important;
+  }
+
+  .dark header {
+    background: rgba(24, 41, 52, 0.92) !important;
+    border-color: rgba(158, 213, 220, 0.24) !important;
+  }
+
+  .dark input,
+  .dark textarea,
+  .dark select {
+    background-color: #122d39 !important;
+    color: #edf8fa !important;
+    border-color: rgba(158, 213, 220, 0.32) !important;
+  }
+
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: #9db9c0 !important;
+  }
+
+  .dark iframe[title*="PDF"],
+  .dark iframe[title*="pdf"],
+  .dark canvas.pdf-reading-canvas,
+  .dark .pdf-preview-frame {
+    background-color: #ffffff !important;
+  }
+}
