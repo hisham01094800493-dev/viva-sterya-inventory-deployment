@@ -476,9 +476,9 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
           <p className="mb-2 text-[10px] font-black uppercase tracking-[0.27em] text-[#d08a3b]">ACCOUNT STATEMENT / {kind === "supplier" ? "SUPPLIER" : "CUSTOMER"}</p>
           <h2 className="text-3xl font-black tracking-tight text-[#102a43]">كشف حساب {kind === "supplier" ? "المورد" : "العميل/الجهة"}</h2>
           <p className="mt-2 text-sm leading-7 text-slate-500">تفاصيل الحركات المسجلة للجهة مع الكميات ومعلومات الأذونات.</p>
-          <div className="mt-4 inline-flex max-w-full items-center gap-3 rounded-2xl border border-[#9ed9e1] bg-gradient-to-l from-[#e8f8f8] to-[#f8fcfc] px-4 py-3 shadow-sm dark:border-[#5b7e84] dark:bg-[#203d47]" aria-label={`${kind === "supplier" ? "اسم المورد" : "اسم العميل"}: ${entity.name}`}>
+          <div className="account-entity-badge mt-4 inline-flex max-w-full items-center gap-3 rounded-2xl border border-[#9ed9e1] bg-gradient-to-l from-[#e8f8f8] to-[#f8fcfc] px-4 py-3 shadow-sm dark:border-[#5b7e84] dark:bg-[#203d47]" aria-label={`${kind === "supplier" ? "اسم المورد" : "اسم العميل"}: ${entity.name}`}>
             <span className="shrink-0 rounded-xl bg-[#0d7180] px-3 py-2 text-xs font-black text-white">{kind === "supplier" ? "اسم المورد" : "اسم العميل"}</span>
-            <span className="truncate text-lg font-black text-[#102a43] dark:text-[#f1fbfc] sm:text-xl">{entity.name}</span>
+            <span className="account-entity-name truncate text-lg font-black text-[#102a43] dark:text-[#f1fbfc] sm:text-xl">{entity.name}</span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">

@@ -3026,3 +3026,16 @@ body {
     color: #c7dadd !important;
   }
 }
+
+
+/* Account statement entity name: force readable contrast in dark mode. */
+@media screen {
+  .dark .account-entity-badge {
+    background: #203d47 !important;
+    border-color: rgba(158, 213, 220, 0.42) !important;
+  }
+  .dark .account-entity-name {
+    color: #f1fbfc !important;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.22);
+  }
+}
