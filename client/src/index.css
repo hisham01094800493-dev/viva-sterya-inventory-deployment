@@ -2847,3 +2847,49 @@ body {
     }
   }
 }
+
+/* أولوية أخيرة لبطاقات وتقارير التفاصيل؛ تأتي خارج @layer لتتغلب على Utilities المباشرة. */
+@media screen {
+  .dark [class~="bg-white"],
+  .dark [class~="bg-white/95"],
+  .dark [class~="bg-white/90"],
+  .dark [class~="bg-white/85"] {
+    background-color: #182934 !important;
+    color: #edf8fa !important;
+  }
+  .dark thead[class~="bg-white"] {
+    background-color: #203b47 !important;
+    color: #e5f4f7 !important;
+  }
+  .dark thead[class~="bg-white"] th { color: #d8edf0 !important; }
+  .dark [class~="bg-[#f7fbfc]"],
+  .dark [class~="bg-[#fbfdff]"],
+  .dark [class~="bg-[#eef8f7]"],
+  .dark [class~="bg-[#f4fafb]"],
+  .dark [class~="bg-[#f8fcfc]"],
+  .dark [class~="bg-[#eef7f7]"],
+  .dark [class~="bg-slate-100"] {
+    background-color: #1b303b !important;
+    color: #eaf6f8 !important;
+  }
+  .dark [class~="bg-[#e8f7f6]"] {
+    background-color: #235157 !important;
+    color: #bff1eb !important;
+  }
+  .dark [class~="bg-[#fff7e8]"],
+  .dark [class~="bg-[#fff4df]"],
+  .dark [class~="bg-[#fffaf5]"] {
+    background-color: #453722 !important;
+    color: #ffe2a3 !important;
+  }
+  .dark [class~="bg-[#fbeceb]"] {
+    background-color: #43282b !important;
+    color: #ffd0ca !important;
+  }
+  .dark table[data-account-statement-table] thead {
+    background-color: #203b47 !important;
+    color: #e5f4f7 !important;
+  }
+  .dark table[data-account-statement-table] thead th { color: #d8edf0 !important; }
+  .dark table[data-account-statement-table] tbody tr { background-color: #182934 !important; }
+}
