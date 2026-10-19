@@ -2833,5 +2833,17 @@ body {
     .dark iframe[title*="PDF"],
     .dark iframe[title*="pdf"],
     .dark .pdf-preview-frame { background-color: #ffffff !important; }
+
+    /* العناوين يجب أن تبقى واضحة حتى عندما تستخدم الصفحة لونًا صريحًا منخفض التباين. */
+    .dark h1,
+    .dark h2,
+    .dark h3,
+    .dark h4,
+    .dark h5,
+    .dark h6,
+    .dark [role="heading"] {
+      color: #f1fbfc !important;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
+    }
   }
 }
