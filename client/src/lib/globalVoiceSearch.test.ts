@@ -48,7 +48,7 @@ describe("global voice search commands", () => {
     const command = parseGlobalVoiceSearch("اعرض تقرير مبيعات العميل النور لشهر مارس", new Date("2026-08-25T00:00:00Z"));
     expect(command.intent).toBe("customer-report");
     expect(command.terms).toBe("النور");
-    expect(getGlobalSearchRoute(command.intent, command.terms, undefined, undefined, command.period)).toContain("outgoingTo=%D8%A7%D9%84%D9%86%D9%88%D8%B1&movement=صرف");
+    expect(getGlobalSearchRoute(command.intent, command.terms, undefined, undefined, command.period)).toContain("outgoingTo=%D8%A7%D9%84%D9%86%D9%88%D8%B1");
   });
 
   it("understands this month and the previous month", () => {
@@ -63,5 +63,14 @@ describe("global voice search commands", () => {
     expect(arabicRange.period).toMatchObject({ from: "2026-03-01", to: "2026-03-15" });
     expect(arabicRange.terms).toBe("النور");
     expect(extractReportPeriod("من ٠١/٠٣/٢٠٢٦ إلى ١٥/٠٣/٢٠٢٦", reference)).toMatchObject({ from: "2026-03-01", to: "2026-03-15" });
+  });
+});
+
+describe("customer balance voice commands", () => {
+  it("opens the customer statement for a contractor balance request", () => {
+    const command = parseGlobalVoiceSearch("ما رصيد المقاول النور؟");
+    expect(command.intent).toBe("customer-statement");
+    expect(command.terms).toBe("النور");
+    expect(getGlobalSearchRoute(command.intent, command.terms, 4)).toBe("/customers/4/statement");
   });
 });

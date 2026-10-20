@@ -45,12 +45,14 @@ export function filterAndSortDirectory<T extends { name: string; phone?: string 
 }
 
 export type AccountStatementRow = { id: number; date: string; number: string; item: string | null; itemCode: string; quantity: number; unitPrice: number; total: number; type: "إضافة" | "صرف" | "مرتجع" | "تحويل"; documentImageUrl: string | null };
+function isReturnMovement(value: unknown) { return /مرتجع|ارتجاع|return/i.test(String(value ?? "")); }
 
-export function buildAccountStatementRows(rows: Array<{ id: number; date: string; eznNum: string; itemName: string | null; itemCode?: string | null; quantity: unknown; unitPrice?: unknown; totalValue?: unknown; documentImageUrl?: string | null; supplierId?: number | null; customerId?: number | null }>, kind: "supplier" | "customer", entityId: number): AccountStatementRow[] {
+export function buildAccountStatementRows(rows: Array<{ id: number; date: string; eznNum: string; itemName?: string | null; itemCode?: string | null; quantity: unknown; unitPrice?: unknown; totalValue?: unknown; documentImageUrl?: string | null; supplierId?: number | null; customerId?: number | null; transferType?: string | null }>, kind: "supplier" | "customer", entityId: number): AccountStatementRow[] {
   return rows.filter(row => (kind === "supplier" ? row.supplierId === entityId : row.customerId === entityId)).map(row => {
     const quantity = Number(row.quantity ?? 0);
     const totalValue = Number(row.totalValue ?? 0);
-    return { id: row.id, date: row.date, number: row.eznNum, item: row.itemName, itemCode: row.itemCode ?? "", quantity, unitPrice: Number(row.unitPrice ?? 0), total: totalValue, type: kind === "supplier" ? "إضافة" : "صرف", documentImageUrl: row.documentImageUrl ?? null };
+    const type = kind === "supplier" ? "إضافة" : row.transferType ? (isReturnMovement(row.transferType) ? "مرتجع" : "تحويل") : "صرف";
+    return { id: row.id, date: row.date, number: row.eznNum, item: row.itemName ?? null, itemCode: row.itemCode ?? "", quantity, unitPrice: Number(row.unitPrice ?? 0), total: totalValue, type, documentImageUrl: row.documentImageUrl ?? null };
   });
 }
 
@@ -319,6 +321,15 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   }, { additions: 0, disbursements: 0, returns: 0 }), [permitDetailRows]);
   const totalQuantity = rows.reduce((sum, row) => sum + row.quantity, 0);
   const total = rows.reduce((sum, row) => sum + row.total, 0);
+  const accountTotals = rows.reduce((summary, row) => {
+    if (kind === "customer") {
+      if (row.type === "صرف") row.quantity >= 0 ? summary.disbursed += row.quantity : summary.negative += Math.abs(row.quantity);
+      else if (row.type === "مرتجع") summary.returns += Math.abs(row.quantity);
+      else if (row.type === "تحويل") summary.transferNet += row.quantity;
+    }
+    summary.net = summary.disbursed - summary.negative - summary.returns + summary.transferNet;
+    return summary;
+  }, { disbursed: 0, negative: 0, returns: 0, transferNet: 0, net: 0 });
   const exportRows = rows.map(row => ({
     id: row.id,
     type: row.type,
@@ -335,6 +346,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const reportSummary = [
     `الجهة: ${entity?.name ?? "—"}`,
     `إجمالي الكمية: ${totalQuantity.toLocaleString("en-US")}`,
+    ...(kind === "customer" ? [`الصرف: ${accountTotals.disbursed.toLocaleString("en-US")}`, `السالب: ${accountTotals.negative.toLocaleString("en-US")}`, `المرتجعات: ${accountTotals.returns.toLocaleString("en-US")}`, `صافي التحويلات: ${accountTotals.transferNet.toLocaleString("en-US")}`, `الرصيد الصافي: ${accountTotals.net.toLocaleString("en-US")}`] : []),
     ...(canViewAccountFinancialDetails ? [`إجمالي القيمة: ${total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م`] : []),
   ];
 
@@ -500,10 +512,11 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
           <div className="flex gap-2"><Button type="button" onClick={() => { setAppliedPermitFilter(permitFilter.trim()); setAppliedItemSearch(itemSearch.trim()); }} className="h-11 rounded-xl bg-[#0d7180] font-black text-white hover:bg-[#095d69]">تطبيق الفلتر</Button><Button type="button" variant="outline" onClick={() => { setPermitFilter(""); setAppliedPermitFilter(""); setItemSearch(""); setAppliedItemSearch(""); }} disabled={!permitFilter && !appliedPermitFilter && !itemSearch && !appliedItemSearch} className="h-11 rounded-xl">مسح</Button></div>
         </CardContent>
       </Card>
-      <div className={`grid gap-4 ${showAccountFinancialDetails ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+      <div className={`grid gap-4 ${kind === "customer" ? "sm:grid-cols-3 lg:grid-cols-6" : showAccountFinancialDetails ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">عدد الحركات</p><p className="mt-2 text-2xl font-black text-[#102a43]">{rows.length}</p></CardContent></Card>
         <Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">إجمالي الكميات</p><p className="mt-2 text-2xl font-black text-[#0d806c]">{totalQuantity.toLocaleString("en-US")}</p></CardContent></Card>
-        {showAccountFinancialDetails ? <Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">إجمالي القيمة</p><p className="mt-2 text-2xl font-black text-[#bd5147]">{total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م</p></CardContent></Card> : null}
+        {kind === "customer" ? <><Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">إجمالي الصرف</p><p className="mt-2 text-2xl font-black text-[#bd5147]">{accountTotals.disbursed.toLocaleString("en-US")}</p></CardContent></Card><Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">السالب والمرتجع</p><p className="mt-2 text-2xl font-black text-[#a96821]">{(accountTotals.negative + accountTotals.returns).toLocaleString("en-US")}</p></CardContent></Card><Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">صافي التحويلات</p><p className="mt-2 text-2xl font-black text-[#0d7180]">{accountTotals.transferNet.toLocaleString("en-US")}</p></CardContent></Card><Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">الرصيد الصافي</p><p className="mt-2 text-2xl font-black text-[#0d4f62]">{accountTotals.net.toLocaleString("en-US")}</p></CardContent></Card></> : null}
+        {kind === "supplier" && showAccountFinancialDetails ? <Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">إجمالي القيمة</p><p className="mt-2 text-2xl font-black text-[#bd5147]">{total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م</p></CardContent></Card> : null}
       </div>
       {appliedPermitFilter ? <Card id="account-permit-details-card" className={`${surface} overflow-hidden`}>
         <CardHeader className="border-b border-[#edf2f5] bg-gradient-to-l from-[#eef8f7] to-white pb-4"><CardTitle className="flex items-center gap-2 text-lg font-black text-[#102a43]"><FileText className="h-5 w-5 text-[#0d7180]" />ملخص الإذن رقم {appliedPermitFilter}</CardTitle><p className="mt-1 text-xs text-slate-500">{kind === "supplier" ? "تفاصيل مجمعة من حركات الإضافة والصرف والارتجاع." : "تفاصيل مجمعة من حركات الصرف والارتجاع."}</p></CardHeader>
