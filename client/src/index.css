@@ -2739,303 +2739,41 @@ body {
   .dark [class*="border-sky-100"] { border-color: rgba(170, 224, 230, 0.28) !important; }
 }
 
-/* طبقة توحيد نهائية للوضع الداكن: تمنع بقاء الأسطح البيضاء أو الباهتة في أي صفحة. */
-@media screen {
-  @layer components {
-    .dark { color-scheme: dark; }
-
-    .dark [class~="bg-white"],
-    .dark [class~="bg-white/95"],
-    .dark [class~="bg-white/90"],
-    .dark [class~="bg-white/85"],
-    .dark [class~="bg-white/80"],
-    .dark [class~="bg-white/75"],
-    .dark [class~="bg-white/65"],
-    .dark [class~="bg-white/60"],
-    .dark [class~="bg-white/55"] {
-      background-color: #182934 !important;
-      color: #edf8fa !important;
-    }
-    .dark [class~="bg-white/50"] { background-color: rgba(24, 55, 68, 0.72) !important; }
-    .dark [class~="bg-white/35"] { background-color: rgba(24, 55, 68, 0.52) !important; }
-    .dark [class~="bg-white/25"] { background-color: rgba(24, 55, 68, 0.38) !important; }
-    .dark [class~="bg-white/20"] { background-color: rgba(24, 55, 68, 0.30) !important; }
-    .dark [class~="bg-white/15"] { background-color: rgba(24, 55, 68, 0.24) !important; }
-    .dark [class~="bg-white/10"] { background-color: rgba(255, 255, 255, 0.08) !important; }
-    .dark [class~="bg-white/5"] { background-color: rgba(255, 255, 255, 0.05) !important; }
-
-    .dark [class~="bg-slate-50"],
-    .dark [class~="bg-gray-50"],
-    .dark [class~="bg-zinc-50"],
-    .dark [class~="bg-neutral-50"],
-    .dark [class~="bg-stone-50"],
-    .dark [class~="bg-slate-100"],
-    .dark [class~="bg-gray-100"],
-    .dark [class~="bg-zinc-100"],
-    .dark [class~="bg-neutral-100"],
-    .dark [class~="bg-stone-100"] {
-      background-color: #1b303b !important;
-      color: #eaf6f8 !important;
-    }
-
-    /* ألوان hex الفاتحة المستخدمة مباشرة داخل className. */
-    .dark [class*="bg-[#f"],
-    .dark [class*="bg-[#e"],
-    .dark [class*="bg-[#dfe"],
-    .dark [class*="bg-[#edf"],
-    .dark [class*="bg-[#f0"] {
-      background-color: #1b303b !important;
-      color: #eaf6f8 !important;
-    }
-    .dark [class*="hover:bg-[#f"]:hover,
-    .dark [class*="hover:bg-[#e"]:hover,
-    .dark [class*="focus:bg-[#f"]:focus,
-    .dark [class*="focus:bg-[#e"]:focus {
-      background-color: #294650 !important;
-    }
-
-    /* حالات التنبيه تبقى مميزة، لكن بخلفيات داكنة غير بيضاء. */
-    .dark [class*="bg-emerald-50"],
-    .dark [class*="bg-emerald-100"] { background-color: #173b3a !important; color: #b8f1df !important; }
-    .dark [class*="bg-red-50"],
-    .dark [class*="bg-red-100"] { background-color: #43282b !important; color: #ffd0ca !important; }
-    .dark [class*="bg-amber-50"],
-    .dark [class*="bg-amber-100"] { background-color: #453722 !important; color: #ffe2a3 !important; }
-    .dark [class*="bg-blue-50"],
-    .dark [class*="bg-blue-100"],
-    .dark [class*="bg-cyan-50"],
-    .dark [class*="bg-cyan-100"] { background-color: #203b50 !important; color: #bfe5ff !important; }
-    .dark [class*="bg-purple-50"],
-    .dark [class*="bg-violet-50"] { background-color: #352d4c !important; color: #e0d4ff !important; }
-
-    .dark [class*="border-[#f"],
-    .dark [class*="border-[#e"],
-    .dark [class~="border-slate-100"],
-    .dark [class~="border-slate-200"],
-    .dark [class~="border-gray-100"],
-    .dark [class~="border-gray-200"] {
-      border-color: rgba(158, 213, 220, 0.26) !important;
-    }
-    .dark [class*="divide-[#f"] > :not([hidden]) ~ :not([hidden]),
-    .dark [class*="divide-[#e"] > :not([hidden]) ~ :not([hidden]) {
-      border-color: rgba(158, 213, 220, 0.22) !important;
-    }
-
-    .dark option,
-    .dark optgroup {
-      background-color: #182934 !important;
-      color: #edf8fa !important;
-    }
-    .dark input[type="checkbox"],
-    .dark input[type="radio"] { accent-color: #72d8d4; }
-
-    /* استثناء مقصود: مستندات PDF تبقى بيضاء حتى لا تتغير ألوان المستند المطبوع. */
-    .dark iframe[title*="PDF"],
-    .dark iframe[title*="pdf"],
-    .dark .pdf-preview-frame { background-color: #ffffff !important; }
-
-    /* العناوين يجب أن تبقى واضحة حتى عندما تستخدم الصفحة لونًا صريحًا منخفض التباين. */
-    .dark h1,
-    .dark h2,
-    .dark h3,
-    .dark h4,
-    .dark h5,
-    .dark h6,
-    .dark [role="heading"] {
-      color: #f1fbfc !important;
-      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.18);
-    }
-  }
-}
-
-/* أولوية أخيرة لبطاقات وتقارير التفاصيل؛ تأتي خارج @layer لتتغلب على Utilities المباشرة. */
-@media screen {
-  .dark [class~="bg-white"],
-  .dark [class~="bg-white/95"],
-  .dark [class~="bg-white/90"],
-  .dark [class~="bg-white/85"] {
-    background-color: #182934 !important;
-    color: #edf8fa !important;
-  }
-  .dark thead[class~="bg-white"] {
-    background-color: #203b47 !important;
-    color: #e5f4f7 !important;
-  }
-  .dark thead[class~="bg-white"] th { color: #d8edf0 !important; }
-  .dark [class~="bg-[#f7fbfc]"],
-  .dark [class~="bg-[#fbfdff]"],
-  .dark [class~="bg-[#eef8f7]"],
-  .dark [class~="bg-[#f4fafb]"],
-  .dark [class~="bg-[#f8fcfc]"],
-  .dark [class~="bg-[#eef7f7]"],
-  .dark [class~="bg-slate-100"] {
-    background-color: #1b303b !important;
-    color: #eaf6f8 !important;
-  }
-  .dark [class~="bg-[#e8f7f6]"] {
-    background-color: #235157 !important;
-    color: #bff1eb !important;
-  }
-  .dark [class~="bg-[#e8f1f2]"] {
-    background-color: #203d47 !important;
-    color: #d8f1f2 !important;
-  }
-  .dark [class~="bg-[#fff7e8]"],
-  .dark [class~="bg-[#fff4df]"],
-  .dark [class~="bg-[#fffaf5]"],
-  .dark [class~="bg-[#fff4f2]"],
-  .dark [class~="bg-[#fff8e9]"] {
-    background-color: #453722 !important;
-    color: #ffe2a3 !important;
-  }
-  .dark [class~="bg-[#fbeceb]"] {
-    background-color: #43282b !important;
-    color: #ffd0ca !important;
-  }
-  .dark table[data-account-statement-table] thead {
-    background-color: #203b47 !important;
-    color: #e5f4f7 !important;
-  }
-  .dark table[data-account-statement-table] thead th { color: #d8edf0 !important; }
-  .dark table[data-account-statement-table] tbody tr { background-color: #182934 !important; }
-}
-
-/* Dark-mode surface normalization: keep the application readable even for legacy pages
-   that still use direct light Tailwind colors. PDF canvases/iframes remain intentionally white. */
-@media screen {
-  .dark {
-    color-scheme: dark;
-  }
-
-  .dark .modern-shell,
-  .dark [data-sidebar="inset"],
-  .dark main {
-    background: transparent !important;
-    color: #eaf6f8 !important;
-  }
-
-  .dark [class~="bg-white"],
-  .dark [class~="bg-white/95"],
-  .dark [class~="bg-white/90"],
-  .dark [class~="bg-white/85"],
-  .dark [class~="bg-white/80"],
-  .dark [class~="bg-white/75"],
-  .dark [class~="bg-white/70"],
-  .dark [class~="bg-white/65"],
-  .dark [class~="bg-white/60"],
-  .dark [class~="bg-white/55"] {
-    background-color: #182934 !important;
-    color: #edf8fa !important;
-  }
-
-  .dark [class*="to-white"],
-  .dark [class*="from-white"],
-  .dark [class*="via-white"] {
-    --tw-gradient-to: #182934 var(--tw-gradient-to-position) !important;
-    --tw-gradient-from: #182934 var(--tw-gradient-from-position) !important;
-    --tw-gradient-via: #1b303b var(--tw-gradient-via-position) !important;
-  }
-
-  .dark [class*="bg-[#f"],
-  .dark [class*="bg-[#e"],
-  .dark [class*="bg-[#dfe"],
-  .dark [class*="bg-[#edf"],
-  .dark [class*="bg-[#eef"],
+/* معالجة عامة نهائية: لا أسطح بيضاء أو نصوص رمادية منخفضة التباين في الوضع الداكن */
+@layer components {
+  .dark [class*="bg-white"],
+  .dark [class*="bg-[#f7"],
+  .dark [class*="bg-[#f8"],
+  .dark [class*="bg-[#f9"],
+  .dark [class*="bg-[#fa"],
   .dark [class*="bg-[#fb"],
-  .dark [class*="bg-[#fc"] {
-    background-color: #1b303b !important;
-    color: #eaf6f8 !important;
+  .dark [class*="bg-[#fc"],
+  .dark [class*="bg-[#e7"],
+  .dark [class*="bg-[#e8"],
+  .dark [class*="bg-[#e9"] {
+    background-color: #1c3039 !important;
+    color: #edf8fb !important;
   }
-
-  .dark [class~="bg-slate-50"],
-  .dark [class~="bg-slate-100"],
-  .dark [class~="bg-gray-50"],
-  .dark [class~="bg-gray-100"],
-  .dark [class~="bg-zinc-50"],
-  .dark [class~="bg-neutral-50"] {
-    background-color: #1b303b !important;
-    color: #eaf6f8 !important;
+  .dark [class*="text-slate-300"],
+  .dark [class*="text-slate-400"],
+  .dark [class*="text-slate-500"],
+  .dark [class*="text-slate-600"],
+  .dark [class*="text-gray-300"],
+  .dark [class*="text-gray-400"],
+  .dark [class*="text-gray-500"],
+  .dark [class*="text-gray-600"] {
+    color: #d1e0e5 !important;
   }
-
-  .dark .text-\[\#102a43\],
-  .dark [class~="text-slate-700"],
-  .dark [class~="text-slate-800"],
-  .dark [class~="text-gray-700"],
-  .dark [class~="text-gray-800"] {
-    color: #edf8fa !important;
+  .dark [class*="border-slate-100"],
+  .dark [class*="border-slate-200"],
+  .dark [class*="border-gray-100"],
+  .dark [class*="border-gray-200"] {
+    border-color: rgba(169, 218, 226, 0.28) !important;
   }
-
-  .dark [class~="text-slate-500"],
-  .dark [class~="text-slate-600"],
-  .dark [class~="text-slate-400"],
-  .dark [class~="text-gray-500"],
-  .dark [class~="text-gray-600"] {
-    color: #bfd3d8 !important;
-  }
-
-  .dark [class*="border-[#d"],
-  .dark [class*="border-[#e"],
-  .dark [class~="border-slate-100"],
-  .dark [class~="border-slate-200"],
-  .dark [class~="border-gray-100"],
-  .dark [class~="border-gray-200"] {
-    border-color: rgba(158, 213, 220, 0.28) !important;
-  }
-
-  .dark header {
-    background: rgba(24, 41, 52, 0.92) !important;
-    border-color: rgba(158, 213, 220, 0.24) !important;
-  }
-
-  .dark input,
-  .dark textarea,
-  .dark select {
-    background-color: #122d39 !important;
-    color: #edf8fa !important;
-    border-color: rgba(158, 213, 220, 0.32) !important;
-  }
-
-  .dark input::placeholder,
-  .dark textarea::placeholder {
-    color: #9db9c0 !important;
-  }
-
-  .dark iframe[title*="PDF"],
-  .dark iframe[title*="pdf"],
-  .dark canvas.pdf-reading-canvas,
-  .dark .pdf-preview-frame {
-    background-color: #ffffff !important;
-  }
-}
-
-/* Explicit contrast for the item-image dialog header on mobile browsers. */
-@media screen {
-  .dark .item-image-preview-dialog {
-    background: #182934 !important;
-    color: #edf8fa !important;
-  }
-  .dark .item-image-preview-header {
-    background: #203d47 !important;
-    border-color: rgba(158, 213, 220, 0.32) !important;
-    color: #f1fbfc !important;
-  }
-  .dark .item-image-preview-header [data-slot="dialog-title"] {
-    color: #f1fbfc !important;
-  }
-  .dark .item-image-preview-header [data-slot="dialog-description"] {
-    color: #c7dadd !important;
-  }
-}
-
-
-/* Account statement entity name: force readable contrast in dark mode. */
-@media screen {
-  .dark .account-entity-badge {
-    background: #203d47 !important;
-    border-color: rgba(158, 213, 220, 0.42) !important;
-  }
-  .dark .account-entity-name {
-    color: #f1fbfc !important;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.22);
+  .dark [class*="divide-slate-100"] > :not([hidden]) ~ :not([hidden]),
+  .dark [class*="divide-slate-200"] > :not([hidden]) ~ :not([hidden]),
+  .dark [class*="divide-gray-100"] > :not([hidden]) ~ :not([hidden]),
+  .dark [class*="divide-gray-200"] > :not([hidden]) ~ :not([hidden]) {
+    border-color: rgba(169, 218, 226, 0.24) !important;
   }
 }
