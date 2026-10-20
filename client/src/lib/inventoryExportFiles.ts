@@ -85,8 +85,20 @@ function drawAccountStatementHeader(doc: jsPDF, logo: string | null, date: Date,
   const separatorIndex = Math.max(entityLine.indexOf(":"), entityLine.indexOf("："));
   const entityName = separatorIndex >= 0 ? entityLine.slice(separatorIndex + 1).trim() : entityLine;
   const isCustomer = entityLine.includes("جهة") || entityLine.includes("عميل");
+  const valueOf = (line: string) => line.split(/[:：]/).slice(1).join(":").trim() || "0";
   const totalLine = lines.find(line => line.includes("إجمالي الكمية")) ?? "إجمالي الكمية: 0";
-  const totalQuantity = totalLine.split(/[:：]/).slice(1).join(":").trim() || "0";
+  const optionalLines = lines.filter(line => line !== entityLine && !line.includes("إجمالي الكمية"));
+  const metricEntries: Array<{ label: string; value: string; color: [number, number, number]; valueColor: [number, number, number] }> = [
+    { label: "عدد الحركات", value: String(recordCount), color: [246, 250, 251], valueColor: [16, 42, 67] },
+    { label: "إجمالي الكمية", value: valueOf(totalLine), color: [255, 248, 235], valueColor: [169, 104, 33] },
+    ...optionalLines.map(line => {
+      const split = Math.max(line.indexOf(":"), line.indexOf("："));
+      const label = split >= 0 ? line.slice(0, split).trim() : line;
+      const value = split >= 0 ? valueOf(line) : "0";
+      const financial = label.includes("القيمة") || label.includes("الصرف") || label.includes("السالب") || label.includes("المرتجع");
+      return { label, value, color: financial ? [255, 248, 235] as [number, number, number] : [246, 250, 251] as [number, number, number], valueColor: financial ? [169, 104, 33] as [number, number, number] : [16, 42, 67] as [number, number, number] };
+    }),
+  ];
   doc.setFillColor(13, 79, 98);
   doc.rect(0, 0, pageWidth, 8, "F");
   if (logo) {
@@ -123,21 +135,28 @@ function drawAccountStatementHeader(doc: jsPDF, logo: string | null, date: Date,
   doc.text(shapeArabic(doc, "كشف رسمي"), left + 50, 95, { align: "center" });
   const metricY = 128;
   const gap = 10;
-  const metricWidth = (right - left - gap * 2) / 3;
-  const metrics: Array<[string, string, [number, number, number]]> = [["عدد الحركات", String(recordCount), [246, 250, 251]], ["إجمالي الكمية", totalQuantity, [255, 248, 235]], ["حالة التقرير", "مكتمل", [246, 250, 251]]];
-  metrics.forEach(([label, value, color], index) => {
-    const x = left + index * (metricWidth + gap);
-    doc.setFillColor(...color);
+  const columnsPerRow = metricEntries.length > 4 ? 4 : 3;
+  const metricWidth = (right - left - gap * (columnsPerRow - 1)) / columnsPerRow;
+  const metricHeight = 30;
+  const rowGap = 8;
+  metricEntries.forEach((metric, index) => {
+    const column = index % columnsPerRow;
+    const row = Math.floor(index / columnsPerRow);
+    const x = left + column * (metricWidth + gap);
+    const y = metricY + row * (metricHeight + rowGap);
+    doc.setFillColor(...metric.color);
     doc.setDrawColor(224, 234, 237);
-    doc.roundedRect(x, metricY, metricWidth, 30, 6, 6, "FD");
+    doc.roundedRect(x, y, metricWidth, metricHeight, 6, 6, "FD");
     doc.setTextColor(120, 144, 156);
     doc.setFontSize(8);
-    doc.text(shapeArabic(doc, String(label)), x + metricWidth - 10, metricY + 11, { align: "right" });
-    doc.setTextColor(String(label) === "إجمالي الكمية" ? 169 : 16, String(label) === "إجمالي الكمية" ? 104 : 42, String(label) === "إجمالي الكمية" ? 33 : 67);
-    doc.setFontSize(12);
-    doc.text(shapeArabic(doc, String(value)), x + metricWidth - 10, metricY + 24, { align: "right" });
+    doc.text(shapeArabic(doc, metric.label), x + metricWidth - 10, y + 11, { align: "right" });
+    doc.setTextColor(...metric.valueColor);
+    doc.setFontSize(11);
+    doc.text(shapeArabic(doc, metric.value), x + metricWidth - 10, y + 24, { align: "right" });
   });
+  return metricY + Math.ceil(metricEntries.length / columnsPerRow) * metricHeight + (Math.ceil(metricEntries.length / columnsPerRow) - 1) * rowGap;
 }
+
 export function selectExportColumns(keys: readonly ExportColumnKey[], requested?: ExportColumnKey[]) { return requested?.length ? requested.filter(key => keys.some(allowed => allowed === key)) : [...keys]; }
 function selected(keys: readonly ExportColumnKey[], requested?: ExportColumnKey[]) { return selectExportColumns(keys, requested); }
 
@@ -271,12 +290,13 @@ export async function buildMovementPdf(rows: MovementExportItem[], options: { co
   const resolvedLogo = await resolveLogo(options.logo);
   const watermarkLogo = options.watermarkEnabled === false ? null : resolvedLogo;
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
+  let detailsStartY: number;
   if (options.accountLayout) {
-    drawAccountStatementHeader(doc, resolvedLogo, options.date ?? new Date(), options.summary, options.recordCount ?? safeRows.length);
+    detailsStartY = drawAccountStatementHeader(doc, resolvedLogo, options.date ?? new Date(), options.summary, options.recordCount ?? safeRows.length) + 14;
   } else {
     logoAndDate(doc, options.title ?? "تقرير حركات المخزون - Smart Inventory", resolvedLogo, options.date, options.summary, options.headerDateFirst);
+    detailsStartY = getReportHeaderHeight(options.summary);
   }
-  let detailsStartY = options.accountLayout ? 170 : getReportHeaderHeight(options.summary);
   if (options.itemSummary?.length) {
     const pageWidth = doc.internal.pageSize.getWidth();
     const accountSummary = Boolean(options.accountLayout);
