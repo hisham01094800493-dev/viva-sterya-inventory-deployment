@@ -1,6 +1,6 @@
 import type { MovementExportItem } from "./inventoryExportFiles";
 
-export type AccountItemSummary = { itemCode: string; itemName: string; netQuantity: number };
+export type AccountItemSummary = { itemCode: string; itemName: string; netQuantity: number; currentStock?: number };
 
 /** Summarizes signed item quantities without changing or collapsing statement detail rows. */
 export function summarizeAccountStatementItems(rows: MovementExportItem[]): AccountItemSummary[] {
@@ -13,7 +13,7 @@ export function summarizeAccountStatementItems(rows: MovementExportItem[]): Acco
     let summary = summaries.get(identity);
 
     if (!summary) {
-      summary = { itemCode, itemName: itemName && itemName !== "—" ? itemName : itemCode || "—", netQuantity: 0 };
+      summary = { itemCode, itemName: itemName && itemName !== "—" ? itemName : itemCode || "—", netQuantity: 0, currentStock: Number.isFinite(Number(row.currentStock)) ? Number(row.currentStock) : undefined };
       summaries.set(identity, summary);
     }
 

@@ -12,7 +12,7 @@ import { formatDisbursementPurpose, splitMixedArabicLatinForPdf } from "./moveme
 import type { StockVarianceRow } from "./stockVariance";
 import type { AccountItemSummary } from "./accountStatementGrouping";
 
-export type MovementExportItem = { id?: number; type: string; date: string; eznNum: string; itemCode: string; name?: string; quantity: number; detail: string; purpose?: string | null; additionPurpose?: string | null; disbursementPurpose?: string | null; returnPurpose?: string | null; unitPrice: number; totalValue: number; imageUrl?: string | null; documentImageUrl?: string | null; isNegativeCorrection?: boolean };
+export type MovementExportItem = { id?: number; currentStock?: number; type: string; date: string; eznNum: string; itemCode: string; name?: string; quantity: number; detail: string; purpose?: string | null; additionPurpose?: string | null; disbursementPurpose?: string | null; returnPurpose?: string | null; unitPrice: number; totalValue: number; imageUrl?: string | null; documentImageUrl?: string | null; isNegativeCorrection?: boolean };
 export const inventoryExportColumns = ["code", "name", "category", "unit", "currentStock", "reorderLevel", "unitPrice", "totalValue", "image"] as const;
 export const movementExportColumns = ["name", "type", "date", "eznNum", "itemCode", "quantity", "additionPurpose", "disbursementPurpose", "returnPurpose", "unitPrice", "totalValue", "image", "documentImage", "detail"] as const;
 export type ExportColumnKey = typeof inventoryExportColumns[number] | typeof movementExportColumns[number];
@@ -300,22 +300,25 @@ export async function buildMovementPdf(rows: MovementExportItem[], options: { co
   if (options.itemSummary?.length) {
     const pageWidth = doc.internal.pageSize.getWidth();
     const accountSummary = Boolean(options.accountLayout);
-    const quantityColumnWidth = accountSummary ? 150 : 62;
+    const hasCurrentStock = accountSummary && options.itemSummary.some(item => item.currentStock !== undefined);
+    const summaryColumnCount = hasCurrentStock ? 3 : 2;
+    const quantityColumnWidth = accountSummary ? (hasCurrentStock ? 120 : 150) : 62;
+    const stockColumnWidth = hasCurrentStock ? 120 : 0;
     const maximumSummaryWidth = accountSummary ? pageWidth - 72 : pageWidth - 72 - 150;
     doc.setFont(getArabicPdfFont(doc), "bold");
     doc.setFontSize(accountSummary ? 8.5 : 8.2);
     const widestItemName = Math.max(...options.itemSummary.map(item => doc.getTextWidth(shapeArabic(doc, item.itemName))));
-    const itemNameColumnWidth = accountSummary ? Math.max(maximumSummaryWidth - quantityColumnWidth, 280) : Math.min(maximumSummaryWidth - quantityColumnWidth, Math.max(74, widestItemName + 16));
-    const summaryWidth = itemNameColumnWidth + quantityColumnWidth;
+    const itemNameColumnWidth = accountSummary ? Math.max(maximumSummaryWidth - quantityColumnWidth - stockColumnWidth, 220) : Math.min(maximumSummaryWidth - quantityColumnWidth, Math.max(74, widestItemName + 16));
+    const summaryWidth = itemNameColumnWidth + quantityColumnWidth + stockColumnWidth;
     const summaryLeft = accountSummary ? 36 : pageWidth - summaryWidth - 150;
     const summaryFontSize = accountSummary ? 9 : Math.min(8.2, Math.max(5.8, 8.2 * (itemNameColumnWidth - 12) / Math.max(widestItemName, 1)));
     autoTable(doc, {
       startY: detailsStartY,
-      head: [[{ content: shapeArabic(doc, accountSummary ? "ملخص الكميات حسب الصنف" : "بيانات مجمعة"), colSpan: 2, styles: { fillColor: [13, 79, 98], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", lineColor: [8, 58, 72], lineWidth: 0.8 } }], ["الصنف", "صافي الكمية"].map(cell => shapeArabic(doc, cell))],
-      body: options.itemSummary.map(item => [item.itemName, Number(item.netQuantity).toLocaleString("en-US")].map(cell => shapeArabic(doc, cell))),
+      head: [[{ content: shapeArabic(doc, accountSummary ? "ملخص الكميات حسب الصنف" : "بيانات مجمعة"), colSpan: summaryColumnCount, styles: { fillColor: [13, 79, 98], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", lineColor: [8, 58, 72], lineWidth: 0.8 } }], ["الصنف", "صافي الكمية", ...(hasCurrentStock ? ["الرصيد الحالي"] : [])].map(cell => shapeArabic(doc, cell))],
+      body: options.itemSummary.map(item => [item.itemName, Number(item.netQuantity).toLocaleString("en-US"), ...(hasCurrentStock ? [Number(item.currentStock ?? 0).toLocaleString("en-US")] : [])].map(cell => shapeArabic(doc, cell))),
       theme: "grid",
       tableWidth: summaryWidth,
-      columnStyles: { 0: { cellWidth: itemNameColumnWidth }, 1: { cellWidth: quantityColumnWidth, halign: "center" } },
+      columnStyles: { 0: { cellWidth: itemNameColumnWidth }, 1: { cellWidth: quantityColumnWidth, halign: "center" }, ...(hasCurrentStock ? { 2: { cellWidth: stockColumnWidth, halign: "center" } } : {}) },
       styles: { font: getArabicPdfFont(doc), fontSize: summaryFontSize, cellPadding: accountSummary ? 5 : 3.5, halign: "right", valign: "middle", overflow: "linebreak", textColor: [16, 42, 67], lineColor: [118, 172, 180], lineWidth: 0.6 },
       headStyles: { fillColor: [225, 243, 243], textColor: [13, 79, 98], lineColor: [48, 126, 137], lineWidth: 0.7, font: getArabicPdfFont(doc), fontStyle: "bold", halign: "right" },
       alternateRowStyles: { fillColor: [241, 249, 249] },

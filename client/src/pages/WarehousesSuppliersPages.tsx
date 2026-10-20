@@ -263,6 +263,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const customers = trpc.customers.list.useQuery(undefined, { enabled: kind === "customer" });
   const additions = trpc.additions.account.useQuery({ supplierId: id }, { enabled: kind === "supplier" && id > 0 });
   const disbursements = trpc.disbursements.account.useQuery({ customerId: id }, { enabled: kind === "customer" && id > 0 });
+  const inventoryItems = trpc.items.list.useQuery(undefined, { enabled: kind === "supplier" && id > 0 });
   const permissions = trpc.permissions.mine.useQuery();
   const settings = trpc.settings.list.useQuery();
   const preferences = trpc.preferences.get.useQuery();
@@ -276,6 +277,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const [pdfColumnsOpen, setPdfColumnsOpen] = useState(false);
   const [selectedPdfColumns, setSelectedPdfColumns] = useState<ExportColumnKey[]>([]);
   const [includeItemQuantitySummary, setIncludeItemQuantitySummary] = useState(false);
+  const [includeCurrentStockInItemSummary, setIncludeCurrentStockInItemSummary] = useState(false);
   const [selectedPdfSummaryLines, setSelectedPdfSummaryLines] = useState<AccountSummaryLine[]>([]);
   const [pdfBuilding, setPdfBuilding] = useState(false);
   const [financialPreferenceVisible, setFinancialPreferenceVisible] = useState(false);
@@ -294,7 +296,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     unitPrice: "سعر الوحدة",
     totalValue: "الإجمالي",
   };
-  const accountLoading = kind === "supplier" ? additions.isLoading || suppliers.isLoading : disbursements.isLoading || customers.isLoading;
+  const accountLoading = kind === "supplier" ? additions.isLoading || suppliers.isLoading || inventoryItems.isLoading : disbursements.isLoading || customers.isLoading;
   const accountDataAvailable = kind === "supplier" ? additions.data !== undefined && suppliers.data !== undefined : disbursements.data !== undefined && customers.data !== undefined;
   const accountError = !accountDataAvailable && (kind === "supplier" ? additions.error || suppliers.error : disbursements.error || customers.error);
   const canViewAccountFinancialDetails = permissions.data?.allowedReports.includes(WAREHOUSE_FINANCIAL_PERMISSION) ?? false;
@@ -335,8 +337,10 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     summary.net = summary.disbursed - summary.negative - summary.returns + summary.transferNet;
     return summary;
   }, { disbursed: 0, negative: 0, returns: 0, transferNet: 0, net: 0 });
+  const stockByIdentity = useMemo(() => new Map((inventoryItems.data ?? []).map(item => [String(item.code || item.name || "").trim().toLocaleLowerCase("ar-EG"), Number(item.currentStock ?? 0)])), [inventoryItems.data]);
   const exportRows = rows.map(row => ({
     id: row.id,
+    currentStock: kind === "supplier" ? (stockByIdentity.get(String(row.itemCode || row.item || "").trim().toLocaleLowerCase("ar-EG")) ?? 0) : undefined,
     type: row.type,
     date: row.date,
     eznNum: row.number,
@@ -348,6 +352,11 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     totalValue: row.total,
   }));
   const companyLogo = resolveCompanyLogoUrl(settings.data?.find(item => item.key === "company_logo")?.value ?? settings.data?.find(item => item.key === "company_logo_url")?.value);
+  const buildPdfItemSummary = () => {
+    if (!includeItemQuantitySummary) return undefined;
+    const summary = summarizeAccountStatementItems(exportRows);
+    return includeCurrentStockInItemSummary ? summary : summary.map(({ currentStock: _currentStock, ...item }) => item);
+  };
   const reportSummary = [
     `${kind === "customer" ? "جهة الصرف" : "المورد"}: ${entity?.name ?? "—"}`,
     `إجمالي الكمية: ${totalQuantity.toLocaleString("en-US")}`,
@@ -427,7 +436,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     setPdfBuilding(true);
     try {
       saveAccountColumnOrder(selectedPdfColumns);
-      const itemSummary = includeItemQuantitySummary ? summarizeAccountStatementItems(exportRows) : undefined;
+      const itemSummary = buildPdfItemSummary();
       const doc = await buildAccountStatementPdf(exportRows, {
         columns: selectedPdfColumns,
         itemSummary,
@@ -454,7 +463,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
       } else {
         await downloadAccountStatementPdf(exportRows, {
           columns: selectedPdfColumns,
-          itemSummary: includeItemQuantitySummary ? summarizeAccountStatementItems(exportRows) : undefined,
+          itemSummary: buildPdfItemSummary(),
           logo: companyLogo,
           date: new Date(),
           summary: reportSummary,
@@ -544,6 +553,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
               <div className="rounded-xl border border-dashed border-[#b9d4d9] bg-[#f8fcfc] p-3"><p className="mb-2 text-xs font-bold text-[#0d4f62]">أول بطاقة في القائمة تظهر أقصى اليمين في التقرير.</p><div className="flex flex-wrap gap-2">{selectedPdfColumns.map(column => <button key={`account-drag-${column}`} type="button" draggable onDragStart={event => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", column); }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); moveAccountColumn(event.dataTransfer.getData("text/plain") as ExportColumnKey, column); }} className="inline-flex cursor-grab items-center gap-1 rounded-lg border border-[#9fcbd0] bg-white px-2.5 py-1.5 text-xs font-bold text-[#0d4f62] shadow-sm"><GripVertical className="h-3.5 w-3.5" />{accountColumnLabels[column]}</button>)}</div></div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">{accountColumns.map(column => <label key={column} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${selectedPdfColumns.includes(column) ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={selectedPdfColumns.includes(column)} onChange={() => toggleAccountColumn(column)} className="h-4 w-4 accent-[#0d7180]" /><span className="text-sm font-bold text-[#102a43]">{accountColumnLabels[column]}</span></label>)}</div>
               <label className={`mt-3 flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${includeItemQuantitySummary ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={includeItemQuantitySummary} onChange={event => setIncludeItemQuantitySummary(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#0d7180]" /><span><span className="block text-sm font-bold text-[#102a43]">ملخص كميات الأصناف في الترويسة</span><span className="mt-1 block text-xs leading-5 text-slate-500">يُبقي كل حركة وتاريخ ورقم إذن كما هي، ويضيف أعلى PDF صافي كمية كل صنف بعد خصم الكميات السالبة. يطبق هذا الخيار على PDF فقط.</span></span></label>
+          {kind === "supplier" ? <label className={`mt-3 flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${includeCurrentStockInItemSummary ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={includeCurrentStockInItemSummary} onChange={event => setIncludeCurrentStockInItemSummary(event.target.checked)} disabled={!includeItemQuantitySummary} className="mt-0.5 h-4 w-4 accent-[#0d7180]" /><span><span className="block text-sm font-bold text-[#102a43]">إظهار الرصيد الحالي بجوار كل صنف</span><span className="mt-1 block text-xs leading-5 text-slate-500">يضيف عمود الرصيد الحالي إلى جدول ملخص المورد. فعّل ملخص كميات الأصناف أولاً.</span></span></label> : null}
               {kind === "customer" ? <div className="mt-4 rounded-xl border border-dashed border-[#b9d4d9] bg-[#f8fcfc] p-3"><p className="mb-2 text-xs font-black text-[#0d4f62]">بيانات الترويسة الاختيارية</p><p className="mb-3 text-xs text-slate-500">سيظهر التاريخ ثم جهة الصرف وإجمالي الكمية تلقائياً. اختر أي بيانات إضافية تريدها في الترويسة.</p><div className="grid gap-3 sm:grid-cols-2">{(Object.keys(accountSummaryLineLabels) as AccountSummaryLine[]).map(line => <label key={line} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${selectedPdfSummaryLines.includes(line) ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={selectedPdfSummaryLines.includes(line)} onChange={() => toggleAccountSummaryLine(line)} className="h-4 w-4 accent-[#0d7180]" /><span className="text-sm font-bold text-[#102a43]">{accountSummaryLineLabels[line]}</span></label>)}</div></div> : null}
               <DialogFooter><Button type="button" variant="outline" onClick={() => setPdfColumnsOpen(false)} className="rounded-xl">إلغاء</Button><Button type="button" variant="outline" onClick={() => { const next = [...accountColumns]; setSelectedPdfColumns(next); saveAccountColumnOrder(next); }} className="rounded-xl">إظهار الكل</Button><Button type="button" onClick={() => void openAccountPdfPreview()} disabled={!selectedPdfColumns.length || pdfBuilding} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">فتح معاينة PDF</Button></DialogFooter>
             </DialogContent>
