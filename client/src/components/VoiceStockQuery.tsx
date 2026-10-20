@@ -16,11 +16,12 @@ export function VoiceStockQuery() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [submitted, setSubmitted] = useState("");
+  const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
   const [speakResults, setSpeakResults] = useState(true);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
   const query = trpc.items.voiceStockQuery.useQuery({ query: submitted || "رصيد" }, { enabled: open && Boolean(submitted), retry: false });
   const result = query.data;
-  const selected = result?.matches?.[0];
+  const selected = result?.matches?.find(match => match.id === selectedMatchId) ?? (result?.ambiguous ? undefined : result?.matches?.[0]);
   const canRecord = online;
   const normalizedForButton = useMemo(() => draft.trim(), [draft]);
 
@@ -33,7 +34,7 @@ export function VoiceStockQuery() {
   }, []);
 
   useEffect(() => {
-    if (!open || !result || !selected || !speakResults || result.ambiguous) return;
+    if (!open || !result || !selected || !speakResults || (result.ambiguous && selectedMatchId === null)) return;
     const parts = [`${selected.name}: الرصيد الإجمالي ${formatQuantity(selected.totalCurrentStock, selected.unit)}`];
     selected.warehouseBalances.forEach(balance => parts.push(`${balance.name} ${formatQuantity(balance.currentStock, selected.unit)}`));
     const utterance = new SpeechSynthesisUtterance(parts.join("، "));
@@ -41,12 +42,13 @@ export function VoiceStockQuery() {
     window.speechSynthesis?.cancel();
     window.speechSynthesis?.speak(utterance);
     return () => window.speechSynthesis?.cancel();
-  }, [open, result, selected, speakResults]);
+  }, [open, result, selected, selectedMatchId, speakResults]);
 
   function submit(value = draft) {
     const next = value.trim();
     if (!next) { toast.error("اكتب سؤالاً مثل: كام رصيد الأسمنت؟"); return; }
     setDraft(next);
+    setSelectedMatchId(null);
     setSubmitted(next);
   }
 
@@ -78,8 +80,8 @@ export function VoiceStockQuery() {
             <Button type="button" variant="outline" onClick={() => setSpeakResults(value => !value)} className="rounded-xl" aria-pressed={speakResults}>{speakResults ? <Volume2 className="ml-2 h-4 w-4" /> : <VolumeX className="ml-2 h-4 w-4" />}{speakResults ? "النطق مفعّل" : "النطق متوقف"}</Button>
           </div>
           {query.isFetching ? <div className="rounded-2xl border border-[#dce7ee] p-5 text-center text-sm font-bold text-slate-500">جارٍ البحث في الأرصدة المسموحة...</div> : null}
-          {result && !query.isFetching && result.ambiguous ? <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-sm font-black text-amber-900">اختر الصنف المقصود:</p>{result.matches.length ? result.matches.map(match => <button key={match.id} type="button" onClick={() => { setSubmitted(match.name); setDraft(`رصيد ${match.name}`); }} className="block w-full rounded-xl border border-amber-200 bg-white px-4 py-3 text-right font-bold text-[#102a43] hover:bg-amber-100">{match.name} <span className="text-xs text-slate-500">({match.code})</span></button>) : <p className="text-sm text-amber-800">لم أجد صنفاً مطابقاً. جرّب الاسم أو الكود بشكل أوضح.</p>}</div> : null}
-          {selected && !result?.ambiguous ? <div className="space-y-4 rounded-2xl border border-[#8bc5c9] bg-[#eef8f7] p-5 dark:border-[#5b7e84] dark:bg-[#203d47]">
+          {result && !query.isFetching && result.ambiguous ? <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4"><p className="text-sm font-black text-amber-900">اختر الصنف المقصود — تظهر الأرصدة أسفل كل اختيار:</p>{result.matches.length ? result.matches.map(match => <button key={match.id} type="button" onClick={() => { setSelectedMatchId(match.id); setDraft(`رصيد ${match.name}`); }} className={`block w-full rounded-xl border px-4 py-3 text-right hover:bg-amber-100 ${selectedMatchId === match.id ? "border-[#0d7180] bg-[#e8f8f8]" : "border-amber-200 bg-white"}`}><span className="font-black text-[#102a43]">{match.name}</span> <span className="text-xs text-slate-500">({match.code})</span><span className="mt-1 block text-sm font-black text-[#0d7180]">الإجمالي: {formatQuantity(match.totalCurrentStock, match.unit)}</span><span className="mt-1 block text-xs text-slate-500">{match.warehouseBalances.map(balance => `${balance.name}: ${formatQuantity(balance.currentStock, match.unit)}`).join(" • ") || "لا يوجد رصيد مسجل"}</span></button>) : <p className="text-sm text-amber-800">لم أجد صنفاً مطابقاً. جرّب الاسم أو الكود بشكل أوضح.</p>}</div> : null}
+          {selected ? <div className="space-y-4 rounded-2xl border border-[#8bc5c9] bg-[#eef8f7] p-5 dark:border-[#5b7e84] dark:bg-[#203d47]">
             <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-[#0d7180] dark:text-[#8ed3d1]">الصنف المطابق</p><h3 className="mt-1 text-xl font-black text-[#102a43] dark:text-[#f1fbfc]">{selected.name}</h3><p className="text-xs text-slate-500 dark:text-[#c7dadd]">الكود: {selected.code}</p></div><Warehouse className="h-7 w-7 text-[#0d7180]" /></div>
             <div className="rounded-xl bg-[#0d4f62] p-4 text-white"><p className="text-sm font-bold text-white/80">الرصيد الإجمالي</p><p className="mt-1 text-3xl font-black">{formatQuantity(selected.totalCurrentStock, selected.unit)}</p></div>
             <div className="grid gap-2 sm:grid-cols-2">{selected.warehouseBalances.map(balance => <div key={balance.warehouseId} className="rounded-xl border border-[#b9d4d9] bg-white p-3 dark:border-[#5b7e84] dark:bg-[#182934]"><p className="text-sm font-bold text-[#102a43] dark:text-[#f1fbfc]">{balance.name}</p><p className="mt-1 text-lg font-black text-[#0d7180] dark:text-[#8ed3d1]">{formatQuantity(balance.currentStock, selected.unit)}</p></div>)}</div>
