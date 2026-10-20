@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { resolveCompanyLogoUrl } from "@/lib/brandAssets";
 import { createReportMailtoUrl, sharePdfFile } from "@/lib/reportSharing";
+import { summarizeAccountStatementItems } from "@/lib/accountStatementGrouping";
 import { buildAccountStatementPdf, buildMainWarehousePdf, downloadAccountStatementExcel, downloadAccountStatementPdf, type ExportColumnKey } from "@/lib/inventoryExportFiles";
 import { ArrowRight, ArrowUpDown, Building2, Check, Copy, Download, Edit3, Eye, FileText, GripVertical, Loader2, Mail, MapPin, Package, Phone, Plus, Printer, Save, Search, Share2, Truck, UserRound, Warehouse } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -274,6 +275,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [pdfColumnsOpen, setPdfColumnsOpen] = useState(false);
   const [selectedPdfColumns, setSelectedPdfColumns] = useState<ExportColumnKey[]>([]);
+  const [includeItemQuantitySummary, setIncludeItemQuantitySummary] = useState(false);
   const [selectedPdfSummaryLines, setSelectedPdfSummaryLines] = useState<AccountSummaryLine[]>([]);
   const [pdfBuilding, setPdfBuilding] = useState(false);
   const [financialPreferenceVisible, setFinancialPreferenceVisible] = useState(false);
@@ -339,7 +341,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     date: row.date,
     eznNum: row.number,
     name: row.item ?? "—",
-    itemCode: row.item ?? "—",
+    itemCode: row.itemCode || row.item || "—",
     quantity: row.quantity,
     detail: entity?.name ?? "—",
     unitPrice: row.unitPrice,
@@ -425,8 +427,10 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     setPdfBuilding(true);
     try {
       saveAccountColumnOrder(selectedPdfColumns);
+      const itemSummary = includeItemQuantitySummary ? summarizeAccountStatementItems(exportRows) : undefined;
       const doc = await buildAccountStatementPdf(exportRows, {
         columns: selectedPdfColumns,
+        itemSummary,
         logo: companyLogo,
         date: new Date(),
         title: `كشف حساب ${kind === "supplier" ? "المورد" : "العميل/الجهة"} - ${entity?.name ?? ""}`,
@@ -450,6 +454,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
       } else {
         await downloadAccountStatementPdf(exportRows, {
           columns: selectedPdfColumns,
+          itemSummary: includeItemQuantitySummary ? summarizeAccountStatementItems(exportRows) : undefined,
           logo: companyLogo,
           date: new Date(),
           summary: reportSummary,
@@ -535,9 +540,10 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
           <Dialog open={Boolean(permitImage)} onOpenChange={open => { if (!open) setPermitImage(null); }}><DialogContent className="max-w-4xl rounded-2xl bg-white p-4" dir="rtl"><DialogHeader><DialogTitle className="font-black text-[#102a43]">صورة الإذن رقم {appliedPermitFilter}</DialogTitle><DialogDescription>يمكنك معاينة صورة الإذن ثم تنزيلها.</DialogDescription></DialogHeader>{permitImage ? <div className="flex min-h-[45vh] items-center justify-center rounded-2xl bg-slate-950/5 p-3"><img src={permitImage.url} alt={`صورة إذن ${appliedPermitFilter}`} className="max-h-[65vh] max-w-full rounded-xl object-contain" /></div> : null}<DialogFooter><Button type="button" variant="outline" onClick={() => setPermitImage(null)} className="rounded-xl">إغلاق</Button>{permitImage ? <a href={permitImage.url} download={permitImage.name} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0d4f62] px-4 text-sm font-bold text-white"><Download className="ml-2 h-4 w-4" />تنزيل الصورة</a> : null}</DialogFooter></DialogContent></Dialog>
           <Dialog open={pdfColumnsOpen} onOpenChange={setPdfColumnsOpen}>
             <DialogContent className="max-w-2xl rounded-2xl bg-white" dir="rtl">
-              <DialogHeader><DialogTitle className="text-xl font-black text-[#102a43]">اختيار أعمدة كشف الحساب</DialogTitle><DialogDescription>اسحب الأعمدة لترتيبها من اليمين إلى اليسار، ثم اختر الأعمدة التي تريد ظهورها في PDF وExcel.</DialogDescription></DialogHeader>
+              <DialogHeader><DialogTitle className="text-xl font-black text-[#102a43]">اختيار أعمدة كشف الحساب</DialogTitle><DialogDescription>اسحب الأعمدة لترتيبها من اليمين إلى اليسار، ثم اختر الأعمدة التي تريد ظهورها في PDF وExcel. ملخص كميات الأصناف خيار إضافي لملف PDF فقط.</DialogDescription></DialogHeader>
               <div className="rounded-xl border border-dashed border-[#b9d4d9] bg-[#f8fcfc] p-3"><p className="mb-2 text-xs font-bold text-[#0d4f62]">أول بطاقة في القائمة تظهر أقصى اليمين في التقرير.</p><div className="flex flex-wrap gap-2">{selectedPdfColumns.map(column => <button key={`account-drag-${column}`} type="button" draggable onDragStart={event => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", column); }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); moveAccountColumn(event.dataTransfer.getData("text/plain") as ExportColumnKey, column); }} className="inline-flex cursor-grab items-center gap-1 rounded-lg border border-[#9fcbd0] bg-white px-2.5 py-1.5 text-xs font-bold text-[#0d4f62] shadow-sm"><GripVertical className="h-3.5 w-3.5" />{accountColumnLabels[column]}</button>)}</div></div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">{accountColumns.map(column => <label key={column} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${selectedPdfColumns.includes(column) ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={selectedPdfColumns.includes(column)} onChange={() => toggleAccountColumn(column)} className="h-4 w-4 accent-[#0d7180]" /><span className="text-sm font-bold text-[#102a43]">{accountColumnLabels[column]}</span></label>)}</div>
+              <label className={`mt-3 flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${includeItemQuantitySummary ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={includeItemQuantitySummary} onChange={event => setIncludeItemQuantitySummary(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#0d7180]" /><span><span className="block text-sm font-bold text-[#102a43]">ملخص كميات الأصناف في الترويسة</span><span className="mt-1 block text-xs leading-5 text-slate-500">يُبقي كل حركة وتاريخ ورقم إذن كما هي، ويضيف أعلى PDF صافي كمية كل صنف بعد خصم الكميات السالبة. يطبق هذا الخيار على PDF فقط.</span></span></label>
               {kind === "customer" ? <div className="mt-4 rounded-xl border border-dashed border-[#b9d4d9] bg-[#f8fcfc] p-3"><p className="mb-2 text-xs font-black text-[#0d4f62]">بيانات الترويسة الاختيارية</p><p className="mb-3 text-xs text-slate-500">سيظهر التاريخ ثم جهة الصرف وإجمالي الكمية تلقائياً. اختر أي بيانات إضافية تريدها في الترويسة.</p><div className="grid gap-3 sm:grid-cols-2">{(Object.keys(accountSummaryLineLabels) as AccountSummaryLine[]).map(line => <label key={line} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${selectedPdfSummaryLines.includes(line) ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={selectedPdfSummaryLines.includes(line)} onChange={() => toggleAccountSummaryLine(line)} className="h-4 w-4 accent-[#0d7180]" /><span className="text-sm font-bold text-[#102a43]">{accountSummaryLineLabels[line]}</span></label>)}</div></div> : null}
               <DialogFooter><Button type="button" variant="outline" onClick={() => setPdfColumnsOpen(false)} className="rounded-xl">إلغاء</Button><Button type="button" variant="outline" onClick={() => { const next = [...accountColumns]; setSelectedPdfColumns(next); saveAccountColumnOrder(next); }} className="rounded-xl">إظهار الكل</Button><Button type="button" onClick={() => void openAccountPdfPreview()} disabled={!selectedPdfColumns.length || pdfBuilding} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">فتح معاينة PDF</Button></DialogFooter>
             </DialogContent>
