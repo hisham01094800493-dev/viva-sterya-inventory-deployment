@@ -4,6 +4,7 @@ import { buildVoiceMovementQueryResult } from "./voiceMovementQuery";
 const rows = [
   { id: 1, date: "2026-10-20", itemCode: "20001", itemName: "حديد 18 ملي", quantity: "16.000", unitPrice: "100", totalValue: "1600", warehouseId: 1, customer: "Civil", movementType: "disbursement" as const },
   { id: 2, date: "2026-10-20", itemCode: "20002", itemName: "عتاد تسليح", quantity: "12.000", unitPrice: "50", totalValue: "600", warehouseId: 1, supplier: "مصر Steel", movementType: "addition" as const },
+  { id: 4, date: "2026-09-17", itemCode: "20004", itemName: "حديد تسليح", quantity: "8.500", unitPrice: "50", totalValue: "425", warehouseId: 1, supplier: "مصر Steel", movementType: "addition" as const },
   { id: 3, date: "2026-10-20", itemCode: "20003", itemName: "أسمنت", quantity: "8.000", unitPrice: "20", totalValue: "160", warehouseId: 2, fromStore: "مخازن مكادي", toStore: "المخزن الرئيسي", movementType: "transfer" as const },
 ];
 
@@ -16,7 +17,8 @@ describe("البحث الصوتي في الحركات", () => {
   it("يلخص المورد والكميات الموردة", () => {
     const result = buildVoiceMovementQueryResult({ query: "الكمية الموردة من مصر Steel", rows, warehouses: [], allowedWarehouseIds: [], canViewFinancialDetails: false });
     expect(result.movementType).toBe("addition");
-    expect(result.quantity).toBe("12.000");
+    expect(result.quantity).toBe("20.500");
+    expect(result.count).toBe(2);
     expect(result.totalValue).toBeNull();
   });
   it("يلتزم بالمخزن المسموح ولا يعرض القيمة دون الصلاحية", () => {
