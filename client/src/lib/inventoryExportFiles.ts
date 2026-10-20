@@ -76,6 +76,68 @@ export function getReportHeaderLines(summary?: string | string[]) { return !summ
 export function getReportHeaderHeight(summary?: string | string[]) { return getReportHeaderLines(summary).length ? 88 + Math.max(0, getReportHeaderLines(summary).length - 1) * 14 : 72; }
 export function drawReportHeader(doc: jsPDF, title: string, _logo?: string | null, date = new Date(), summary?: string | string[], dateFirst = false) { (doc as jsPDF & { setR2L?: (value: boolean) => void }).setR2L?.(false); if (arabicPdfDocs.has(doc)) doc.setFont(PDF_FONT_NAME, "bold"); (doc as jsPDF & { setTextColor?: (red: number, green: number, blue: number) => void }).setTextColor?.(0, 0, 0); const lines = getReportHeaderLines(summary); const pageWidth = doc.internal?.pageSize?.getWidth?.() ?? 210; const headerRight = pageWidth - 14; doc.setFontSize(16); doc.text(shapeArabic(doc, title), headerRight, 32, { align: "right", baseline: "middle" }); doc.setFontSize(9); if (dateFirst) { doc.text(getReportHeaderDate(date), headerRight, 52, { align: "right", baseline: "middle" }); if (lines.length) { doc.setFontSize(10); lines.forEach((line, index) => doc.text(shapeArabic(doc, line), headerRight, 67 + index * 15, { align: "right", baseline: "middle" })); } } else { if (lines.length) { doc.setFontSize(10); lines.forEach((line, index) => doc.text(shapeArabic(doc, line), headerRight, 52 + index * 15, { align: "right", baseline: "middle" })); } doc.setFontSize(9); doc.text(getReportHeaderDate(date), headerRight, lines.length ? 52 + lines.length * 15 : 52, { align: "right", baseline: "middle" }); } }
 function logoAndDate(doc: jsPDF, title: string, logo?: string | null, date = new Date(), summary?: string | string[], dateFirst = false) { drawReportHeader(doc, title, logo, date, summary, dateFirst); }
+function drawAccountStatementHeader(doc: jsPDF, logo: string | null, date: Date, summary: string | string[] | undefined, recordCount: number) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const left = 36;
+  const right = pageWidth - 36;
+  const lines = getReportHeaderLines(summary);
+  const entityLine = lines.find(line => line.includes(":") || line.includes("：")) ?? "المورد: —";
+  const separatorIndex = Math.max(entityLine.indexOf(":"), entityLine.indexOf("："));
+  const entityName = separatorIndex >= 0 ? entityLine.slice(separatorIndex + 1).trim() : entityLine;
+  const isCustomer = entityLine.includes("جهة") || entityLine.includes("عميل");
+  const totalLine = lines.find(line => line.includes("إجمالي الكمية")) ?? "إجمالي الكمية: 0";
+  const totalQuantity = totalLine.split(/[:：]/).slice(1).join(":").trim() || "0";
+  doc.setFillColor(13, 79, 98);
+  doc.rect(0, 0, pageWidth, 8, "F");
+  if (logo) {
+    try { doc.addImage(logo, getPdfImageFormat(logo), left, 22, 38, 38); } catch { /* Keep report usable if logo is invalid. */ }
+  }
+  doc.setTextColor(16, 42, 67);
+  doc.setFont(getArabicPdfFont(doc), "bold");
+  doc.setFontSize(20);
+  doc.text(shapeArabic(doc, isCustomer ? "كشف حساب عميل / جهة" : "كشف حساب مورد"), pageWidth / 2, 31, { align: "center" });
+  doc.setFontSize(9);
+  doc.setTextColor(106, 126, 139);
+  doc.text(shapeArabic(doc, "تقرير تفصيلي للحركات والكميات"), pageWidth / 2, 47, { align: "center" });
+  doc.setTextColor(16, 42, 67);
+  doc.setFont(getArabicPdfFont(doc), "bold");
+  doc.setFontSize(9);
+  doc.text(shapeArabic(doc, "تاريخ التقرير"), right, 27, { align: "right" });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text(getReportHeaderDate(date), right, 42, { align: "right" });
+  doc.setFont(getArabicPdfFont(doc), "bold");
+  doc.setFillColor(232, 247, 246);
+  doc.setDrawColor(158, 217, 225);
+  doc.roundedRect(left, 68, right - left, 48, 8, 8, "FD");
+  doc.setTextColor(13, 113, 128);
+  doc.setFontSize(9);
+  doc.text(shapeArabic(doc, isCustomer ? "العميل / الجهة" : "المورد"), right - 14, 87, { align: "right" });
+  doc.setTextColor(16, 42, 67);
+  doc.setFontSize(entityName.length > 42 ? 12 : 15);
+  doc.text(shapeArabic(doc, entityName || "—"), right - 14, 105, { align: "right", maxWidth: right - left - 145 });
+  doc.setFillColor(13, 79, 98);
+  doc.setTextColor(255, 255, 255);
+  doc.roundedRect(left + 14, 82, 72, 20, 5, 5, "F");
+  doc.setFontSize(9);
+  doc.text(shapeArabic(doc, "كشف رسمي"), left + 50, 95, { align: "center" });
+  const metricY = 128;
+  const gap = 10;
+  const metricWidth = (right - left - gap * 2) / 3;
+  const metrics: Array<[string, string, [number, number, number]]> = [["عدد الحركات", String(recordCount), [246, 250, 251]], ["إجمالي الكمية", totalQuantity, [255, 248, 235]], ["حالة التقرير", "مكتمل", [246, 250, 251]]];
+  metrics.forEach(([label, value, color], index) => {
+    const x = left + index * (metricWidth + gap);
+    doc.setFillColor(...color);
+    doc.setDrawColor(224, 234, 237);
+    doc.roundedRect(x, metricY, metricWidth, 30, 6, 6, "FD");
+    doc.setTextColor(120, 144, 156);
+    doc.setFontSize(8);
+    doc.text(shapeArabic(doc, String(label)), x + metricWidth - 10, metricY + 11, { align: "right" });
+    doc.setTextColor(String(label) === "إجمالي الكمية" ? 169 : 16, String(label) === "إجمالي الكمية" ? 104 : 42, String(label) === "إجمالي الكمية" ? 33 : 67);
+    doc.setFontSize(12);
+    doc.text(shapeArabic(doc, String(value)), x + metricWidth - 10, metricY + 24, { align: "right" });
+  });
+}
 export function selectExportColumns(keys: readonly ExportColumnKey[], requested?: ExportColumnKey[]) { return requested?.length ? requested.filter(key => keys.some(allowed => allowed === key)) : [...keys]; }
 function selected(keys: readonly ExportColumnKey[], requested?: ExportColumnKey[]) { return selectExportColumns(keys, requested); }
 
@@ -197,7 +259,7 @@ export function getMovementPdfCellValue(row: MovementExportItem | null | undefin
   return String(row[key as keyof MovementExportItem] ?? "—");
 }
 
-export async function buildMovementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; includeDetail?: boolean; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; headerDateFirst?: boolean; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; monochrome?: boolean } = {}) {
+export async function buildMovementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; includeDetail?: boolean; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; headerDateFirst?: boolean; accountLayout?: boolean; recordCount?: number; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; monochrome?: boolean } = {}) {
   const { jsPDF, autoTable } = await loadPdfTools();
   const columnSource = options.includeDetail === false ? movementPdfExportColumnsWithoutDetail : movementPdfExportColumns;
   const keys = selected(columnSource, options.columns);
@@ -209,32 +271,37 @@ export async function buildMovementPdf(rows: MovementExportItem[], options: { co
   const resolvedLogo = await resolveLogo(options.logo);
   const watermarkLogo = options.watermarkEnabled === false ? null : resolvedLogo;
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
-  logoAndDate(doc, options.title ?? "تقرير حركات المخزون - Smart Inventory", resolvedLogo, options.date, options.summary, options.headerDateFirst);
-  let detailsStartY = getReportHeaderHeight(options.summary);
+  if (options.accountLayout) {
+    drawAccountStatementHeader(doc, resolvedLogo, options.date ?? new Date(), options.summary, options.recordCount ?? safeRows.length);
+  } else {
+    logoAndDate(doc, options.title ?? "تقرير حركات المخزون - Smart Inventory", resolvedLogo, options.date, options.summary, options.headerDateFirst);
+  }
+  let detailsStartY = options.accountLayout ? 170 : getReportHeaderHeight(options.summary);
   if (options.itemSummary?.length) {
     const pageWidth = doc.internal.pageSize.getWidth();
-    const quantityColumnWidth = 62;
-    const maximumSummaryWidth = pageWidth - 72 - 150;
+    const accountSummary = Boolean(options.accountLayout);
+    const quantityColumnWidth = accountSummary ? 150 : 62;
+    const maximumSummaryWidth = accountSummary ? pageWidth - 72 : pageWidth - 72 - 150;
     doc.setFont(getArabicPdfFont(doc), "bold");
-    doc.setFontSize(8.2);
+    doc.setFontSize(accountSummary ? 8.5 : 8.2);
     const widestItemName = Math.max(...options.itemSummary.map(item => doc.getTextWidth(shapeArabic(doc, item.itemName))));
-    const itemNameColumnWidth = Math.min(maximumSummaryWidth - quantityColumnWidth, Math.max(74, widestItemName + 16));
+    const itemNameColumnWidth = accountSummary ? Math.max(maximumSummaryWidth - quantityColumnWidth, 280) : Math.min(maximumSummaryWidth - quantityColumnWidth, Math.max(74, widestItemName + 16));
     const summaryWidth = itemNameColumnWidth + quantityColumnWidth;
-    const summaryLeft = pageWidth - summaryWidth - 150;
-    const summaryFontSize = Math.min(8.2, Math.max(5.8, 8.2 * (itemNameColumnWidth - 12) / Math.max(widestItemName, 1)));
+    const summaryLeft = accountSummary ? 36 : pageWidth - summaryWidth - 150;
+    const summaryFontSize = accountSummary ? 9 : Math.min(8.2, Math.max(5.8, 8.2 * (itemNameColumnWidth - 12) / Math.max(widestItemName, 1)));
     autoTable(doc, {
-      startY: 68,
-      head: [[{ content: shapeArabic(doc, "بيانات مجمعة"), colSpan: 2, styles: { fillColor: [13, 79, 98], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", lineColor: [8, 58, 72], lineWidth: 0.8 } }], ["الصنف", "صافي الكمية"].map(cell => shapeArabic(doc, cell))],
+      startY: detailsStartY,
+      head: [[{ content: shapeArabic(doc, accountSummary ? "ملخص الكميات حسب الصنف" : "بيانات مجمعة"), colSpan: 2, styles: { fillColor: [13, 79, 98], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", lineColor: [8, 58, 72], lineWidth: 0.8 } }], ["الصنف", "صافي الكمية"].map(cell => shapeArabic(doc, cell))],
       body: options.itemSummary.map(item => [item.itemName, Number(item.netQuantity).toLocaleString("en-US")].map(cell => shapeArabic(doc, cell))),
       theme: "grid",
       tableWidth: summaryWidth,
-      columnStyles: { 0: { cellWidth: itemNameColumnWidth }, 1: { cellWidth: quantityColumnWidth } },
-      styles: { font: getArabicPdfFont(doc), fontSize: summaryFontSize, cellPadding: 3.5, halign: "right", valign: "middle", overflow: "linebreak", textColor: [16, 42, 67], lineColor: [118, 172, 180], lineWidth: 0.6 },
+      columnStyles: { 0: { cellWidth: itemNameColumnWidth }, 1: { cellWidth: quantityColumnWidth, halign: "center" } },
+      styles: { font: getArabicPdfFont(doc), fontSize: summaryFontSize, cellPadding: accountSummary ? 5 : 3.5, halign: "right", valign: "middle", overflow: "linebreak", textColor: [16, 42, 67], lineColor: [118, 172, 180], lineWidth: 0.6 },
       headStyles: { fillColor: [225, 243, 243], textColor: [13, 79, 98], lineColor: [48, 126, 137], lineWidth: 0.7, font: getArabicPdfFont(doc), fontStyle: "bold", halign: "right" },
       alternateRowStyles: { fillColor: [241, 249, 249] },
-      margin: { left: summaryLeft, right: 150 },
+      margin: { left: summaryLeft, right: accountSummary ? 36 : 150 },
     });
-    detailsStartY = Math.max(detailsStartY, ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 36) + 14);
+    detailsStartY = Math.max(detailsStartY, ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? detailsStartY) + 18);
   }
   const body = enriched.map(row => visualKeys.map(key => {
     if (key === "documentImage") return row.documentImageDataUrl ? "" : "—";
@@ -320,7 +387,7 @@ export async function downloadAccountStatementExcel(rows: MovementExportItem[], 
 }
 
 export async function buildAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; fileName?: string } = {}) {
-  return buildMovementPdf(rows, { ...options, includeDetail: false, columns: options.columns?.filter(column => column !== "detail"), title: options.title ?? "كشف حساب - Smart Inventory", summary: options.summary, monochrome: true, headerDateFirst: true });
+  return buildMovementPdf(rows, { ...options, includeDetail: false, columns: options.columns?.filter(column => column !== "detail"), title: "كشف الحساب", summary: options.summary, monochrome: false, accountLayout: true, recordCount: rows.length, headerDateFirst: true });
 }
 
 export async function downloadAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; fileName?: string } = {}) {
