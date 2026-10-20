@@ -73,8 +73,8 @@ export function getReportHeaderDate(date: unknown = new Date()) { return formatI
 export function formatPdfMovementDate(value: unknown) { const key = inventoryDateKey(value); const match = key.match(/^(\d{4})-(\d{2})-(\d{2})$/); const raw = match ? `${match[3]} / ${match[2]} / ${match[1]}` : (() => { const display = formatInventoryDate(value); const parts = display.split(/[\/.,،؛\-\s]+/).filter(Boolean); return parts.length >= 3 ? `${parts[0].padStart(2, "0")} / ${parts[1].padStart(2, "0")} / ${parts[2]}` : display; })(); return raw; }
 export function getReportHeaderLines(summary?: string | string[]) { return !summary ? [] : Array.isArray(summary) ? summary.filter(Boolean) : summary.split("\n").filter(Boolean); }
 export function getReportHeaderHeight(summary?: string | string[]) { return getReportHeaderLines(summary).length ? 88 + Math.max(0, getReportHeaderLines(summary).length - 1) * 14 : 72; }
-export function drawReportHeader(doc: jsPDF, title: string, _logo?: string | null, date = new Date(), summary?: string | string[]) { (doc as jsPDF & { setR2L?: (value: boolean) => void }).setR2L?.(false); if (arabicPdfDocs.has(doc)) doc.setFont(PDF_FONT_NAME, "bold"); (doc as jsPDF & { setTextColor?: (red: number, green: number, blue: number) => void }).setTextColor?.(0, 0, 0); const lines = getReportHeaderLines(summary); const pageWidth = doc.internal?.pageSize?.getWidth?.() ?? 210; const headerRight = pageWidth - 14; doc.setFontSize(16); doc.text(shapeArabic(doc, title), headerRight, 32, { align: "right", baseline: "middle" }); if (lines.length) { doc.setFontSize(10); lines.forEach((line, index) => doc.text(shapeArabic(doc, line), headerRight, 52 + index * 15, { align: "right", baseline: "middle" })); } doc.setFontSize(9); doc.text(getReportHeaderDate(date), headerRight, lines.length ? 52 + lines.length * 15 : 52, { align: "right", baseline: "middle" }); }
-function logoAndDate(doc: jsPDF, title: string, logo?: string | null, date = new Date(), summary?: string | string[]) { drawReportHeader(doc, title, logo, date, summary); }
+export function drawReportHeader(doc: jsPDF, title: string, _logo?: string | null, date = new Date(), summary?: string | string[], dateFirst = false) { (doc as jsPDF & { setR2L?: (value: boolean) => void }).setR2L?.(false); if (arabicPdfDocs.has(doc)) doc.setFont(PDF_FONT_NAME, "bold"); (doc as jsPDF & { setTextColor?: (red: number, green: number, blue: number) => void }).setTextColor?.(0, 0, 0); const lines = getReportHeaderLines(summary); const pageWidth = doc.internal?.pageSize?.getWidth?.() ?? 210; const headerRight = pageWidth - 14; doc.setFontSize(16); doc.text(shapeArabic(doc, title), headerRight, 32, { align: "right", baseline: "middle" }); doc.setFontSize(9); if (dateFirst) { doc.text(getReportHeaderDate(date), headerRight, 52, { align: "right", baseline: "middle" }); if (lines.length) { doc.setFontSize(10); lines.forEach((line, index) => doc.text(shapeArabic(doc, line), headerRight, 67 + index * 15, { align: "right", baseline: "middle" })); } } else { if (lines.length) { doc.setFontSize(10); lines.forEach((line, index) => doc.text(shapeArabic(doc, line), headerRight, 52 + index * 15, { align: "right", baseline: "middle" })); } doc.setFontSize(9); doc.text(getReportHeaderDate(date), headerRight, lines.length ? 52 + lines.length * 15 : 52, { align: "right", baseline: "middle" }); } }
+function logoAndDate(doc: jsPDF, title: string, logo?: string | null, date = new Date(), summary?: string | string[], dateFirst = false) { drawReportHeader(doc, title, logo, date, summary, dateFirst); }
 export function selectExportColumns(keys: readonly ExportColumnKey[], requested?: ExportColumnKey[]) { return requested?.length ? requested.filter(key => keys.some(allowed => allowed === key)) : [...keys]; }
 function selected(keys: readonly ExportColumnKey[], requested?: ExportColumnKey[]) { return selectExportColumns(keys, requested); }
 
@@ -196,7 +196,7 @@ export function getMovementPdfCellValue(row: MovementExportItem | null | undefin
   return String(row[key as keyof MovementExportItem] ?? "—");
 }
 
-export async function buildMovementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; includeDetail?: boolean; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; monochrome?: boolean } = {}) {
+export async function buildMovementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; includeDetail?: boolean; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; headerDateFirst?: boolean; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; monochrome?: boolean } = {}) {
   const { jsPDF, autoTable } = await loadPdfTools();
   const columnSource = options.includeDetail === false ? movementPdfExportColumnsWithoutDetail : movementPdfExportColumns;
   const keys = selected(columnSource, options.columns);
@@ -208,7 +208,7 @@ export async function buildMovementPdf(rows: MovementExportItem[], options: { co
   const resolvedLogo = await resolveLogo(options.logo);
   const watermarkLogo = options.watermarkEnabled === false ? null : resolvedLogo;
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
-  logoAndDate(doc, options.title ?? "تقرير حركات المخزون - Smart Inventory", resolvedLogo, options.date, options.summary);
+  logoAndDate(doc, options.title ?? "تقرير حركات المخزون - Smart Inventory", resolvedLogo, options.date, options.summary, options.headerDateFirst);
   const body = enriched.map(row => visualKeys.map(key => {
     if (key === "documentImage") return row.documentImageDataUrl ? "" : "—";
     const value = getMovementPdfCellValue(row, key);
@@ -292,8 +292,8 @@ export async function downloadAccountStatementExcel(rows: MovementExportItem[], 
   downloadBlobFile(new Blob([output], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), options.fileName ?? "smart-inventory-account-statement.xlsx");
 }
 
-export async function buildAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean } = {}) {
-  return buildMovementPdf(rows, { ...options, includeDetail: false, columns: options.columns?.filter(column => column !== "detail"), title: options.title ?? "كشف حساب - Smart Inventory", summary: options.summary, monochrome: true });
+export async function buildAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; fileName?: string } = {}) {
+  return buildMovementPdf(rows, { ...options, includeDetail: false, columns: options.columns?.filter(column => column !== "detail"), title: options.title ?? "كشف حساب - Smart Inventory", summary: options.summary, monochrome: true, headerDateFirst: true });
 }
 
 export async function downloadAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; fileName?: string } = {}) {

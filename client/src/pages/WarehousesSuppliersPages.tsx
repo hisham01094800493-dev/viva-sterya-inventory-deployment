@@ -252,6 +252,8 @@ export function CustomersPage() {
 
 
 type StatementKind = "supplier" | "customer";
+type AccountSummaryLine = "disbursement" | "negative" | "returns" | "net" | "financialValue";
+const accountSummaryLineLabels: Record<AccountSummaryLine, string> = { disbursement: "إجمالي الصرف", negative: "الكميات السالبة", returns: "المرتجعات", net: "الرصيد الصافي", financialValue: "إجمالي القيمة المالية" };
 export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const [, supplierParams] = useRoute("/suppliers/:id/statement");
   const [, customerParams] = useRoute("/customers/:id/statement");
@@ -272,6 +274,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [pdfColumnsOpen, setPdfColumnsOpen] = useState(false);
   const [selectedPdfColumns, setSelectedPdfColumns] = useState<ExportColumnKey[]>([]);
+  const [selectedPdfSummaryLines, setSelectedPdfSummaryLines] = useState<AccountSummaryLine[]>([]);
   const [pdfBuilding, setPdfBuilding] = useState(false);
   const [financialPreferenceVisible, setFinancialPreferenceVisible] = useState(false);
   const [permitFilter, setPermitFilter] = useState("");
@@ -344,12 +347,14 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   }));
   const companyLogo = resolveCompanyLogoUrl(settings.data?.find(item => item.key === "company_logo")?.value ?? settings.data?.find(item => item.key === "company_logo_url")?.value);
   const reportSummary = [
-    `الجهة: ${entity?.name ?? "—"}`,
+    `${kind === "customer" ? "جهة الصرف" : "المورد"}: ${entity?.name ?? "—"}`,
     `إجمالي الكمية: ${totalQuantity.toLocaleString("en-US")}`,
-    ...(kind === "customer" ? [`الصرف: ${accountTotals.disbursed.toLocaleString("en-US")}`, `السالب: ${accountTotals.negative.toLocaleString("en-US")}`, `المرتجعات: ${accountTotals.returns.toLocaleString("en-US")}`, `صافي التحويلات: ${accountTotals.transferNet.toLocaleString("en-US")}`, `الرصيد الصافي: ${accountTotals.net.toLocaleString("en-US")}`] : []),
-    ...(canViewAccountFinancialDetails ? [`إجمالي القيمة: ${total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م`] : []),
+    ...(kind === "customer" && selectedPdfSummaryLines.includes("disbursement") ? [`إجمالي الصرف: ${accountTotals.disbursed.toLocaleString("en-US")}`] : []),
+    ...(kind === "customer" && selectedPdfSummaryLines.includes("negative") ? [`الكميات السالبة: ${accountTotals.negative.toLocaleString("en-US")}`] : []),
+    ...(kind === "customer" && selectedPdfSummaryLines.includes("returns") ? [`المرتجعات: ${accountTotals.returns.toLocaleString("en-US")}`] : []),
+    ...(kind === "customer" && selectedPdfSummaryLines.includes("net") ? [`الرصيد الصافي: ${accountTotals.net.toLocaleString("en-US")}`] : []),
+    ...(selectedPdfSummaryLines.includes("financialValue") && canViewAccountFinancialDetails ? [`إجمالي القيمة المالية: ${total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م`] : []),
   ];
-
   useEffect(() => {
     const savedColumns = preferences.data?.reportColumnOrder?.[accountPreferenceKey] ?? [];
     const normalizedColumns = savedColumns.filter(column => accountColumns.includes(column as ExportColumnKey)) as ExportColumnKey[];
@@ -405,6 +410,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     });
   };
   const toggleAccountColumn = (column: ExportColumnKey) => setSelectedPdfColumns(current => current.includes(column) ? current.filter(item => item !== column) : [...current, column]);
+  const toggleAccountSummaryLine = (line: AccountSummaryLine) => setSelectedPdfSummaryLines(current => current.includes(line) ? current.filter(item => item !== line) : [...current, line]);
   const openAccountColumns = () => {
     const savedColumns = preferences.data?.reportColumnOrder?.[accountPreferenceKey] ?? [];
     const normalizedColumns = savedColumns.filter(column => accountColumns.includes(column as ExportColumnKey)) as ExportColumnKey[];
@@ -532,6 +538,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
               <DialogHeader><DialogTitle className="text-xl font-black text-[#102a43]">اختيار أعمدة كشف الحساب</DialogTitle><DialogDescription>اسحب الأعمدة لترتيبها من اليمين إلى اليسار، ثم اختر الأعمدة التي تريد ظهورها في PDF وExcel.</DialogDescription></DialogHeader>
               <div className="rounded-xl border border-dashed border-[#b9d4d9] bg-[#f8fcfc] p-3"><p className="mb-2 text-xs font-bold text-[#0d4f62]">أول بطاقة في القائمة تظهر أقصى اليمين في التقرير.</p><div className="flex flex-wrap gap-2">{selectedPdfColumns.map(column => <button key={`account-drag-${column}`} type="button" draggable onDragStart={event => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", column); }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); moveAccountColumn(event.dataTransfer.getData("text/plain") as ExportColumnKey, column); }} className="inline-flex cursor-grab items-center gap-1 rounded-lg border border-[#9fcbd0] bg-white px-2.5 py-1.5 text-xs font-bold text-[#0d4f62] shadow-sm"><GripVertical className="h-3.5 w-3.5" />{accountColumnLabels[column]}</button>)}</div></div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">{accountColumns.map(column => <label key={column} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${selectedPdfColumns.includes(column) ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={selectedPdfColumns.includes(column)} onChange={() => toggleAccountColumn(column)} className="h-4 w-4 accent-[#0d7180]" /><span className="text-sm font-bold text-[#102a43]">{accountColumnLabels[column]}</span></label>)}</div>
+              {kind === "customer" ? <div className="mt-4 rounded-xl border border-dashed border-[#b9d4d9] bg-[#f8fcfc] p-3"><p className="mb-2 text-xs font-black text-[#0d4f62]">بيانات الترويسة الاختيارية</p><p className="mb-3 text-xs text-slate-500">سيظهر التاريخ ثم جهة الصرف وإجمالي الكمية تلقائياً. اختر أي بيانات إضافية تريدها في الترويسة.</p><div className="grid gap-3 sm:grid-cols-2">{(Object.keys(accountSummaryLineLabels) as AccountSummaryLine[]).map(line => <label key={line} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${selectedPdfSummaryLines.includes(line) ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={selectedPdfSummaryLines.includes(line)} onChange={() => toggleAccountSummaryLine(line)} className="h-4 w-4 accent-[#0d7180]" /><span className="text-sm font-bold text-[#102a43]">{accountSummaryLineLabels[line]}</span></label>)}</div></div> : null}
               <DialogFooter><Button type="button" variant="outline" onClick={() => setPdfColumnsOpen(false)} className="rounded-xl">إلغاء</Button><Button type="button" variant="outline" onClick={() => { const next = [...accountColumns]; setSelectedPdfColumns(next); saveAccountColumnOrder(next); }} className="rounded-xl">إظهار الكل</Button><Button type="button" onClick={() => void openAccountPdfPreview()} disabled={!selectedPdfColumns.length || pdfBuilding} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">فتح معاينة PDF</Button></DialogFooter>
             </DialogContent>
           </Dialog>
