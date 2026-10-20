@@ -5578,6 +5578,18 @@ export async function upsertSetting(input: {
   return rows[0];
 }
 
+export async function getVoiceStockQueryData(allowedWarehouseIds: number[] = []) {
+  const db = await requireDb();
+  const warehouseWhere = allowedWarehouseIds.length ? inArray(warehouses.id, allowedWarehouseIds) : undefined;
+  const balanceWhere = allowedWarehouseIds.length ? inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds) : undefined;
+  const [itemRows, balanceRows, warehouseRows] = await Promise.all([
+    db.select({ id: items.id, code: items.code, name: items.name, unit: items.unit, warehouseId: items.warehouseId, currentStock: items.currentStock }).from(items),
+    db.select({ itemId: itemWarehouseBalances.itemId, warehouseId: itemWarehouseBalances.warehouseId, currentStock: itemWarehouseBalances.currentStock }).from(itemWarehouseBalances).where(balanceWhere),
+    db.select({ id: warehouses.id, name: warehouses.name, slot: warehouses.slot }).from(warehouses).where(warehouseWhere).orderBy(asc(warehouses.slot)),
+  ]);
+  return { items: itemRows, balances: balanceRows, warehouses: warehouseRows };
+}
+
 export async function getInventoryRows(allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
   if (!allowedWarehouseIds.length)

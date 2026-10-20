@@ -70,6 +70,7 @@ import { GlobalVoiceSearch } from "./GlobalVoiceSearch";
 import PwaVersionCard from "./PwaVersionCard";
 import ChatFloatingBubble from "./ChatFloatingBubble";
 import { OnboardingTour } from "./OnboardingTour";
+import { VoiceStockQuery } from "./VoiceStockQuery";
 
 export function buildWarehouseNavigationItems(warehouses: Array<{ slot: number; name: string }>) { return warehouses.map(item => ({ icon: Warehouse, label: item.name, path: `/warehouses/${item.slot}` })); }
 
@@ -600,6 +601,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
       {showBackToTop && <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="العودة إلى أعلى الصفحة" title="العودة للأعلى" className="back-to-top fixed bottom-24 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-2xl border border-[#8fd7ef] bg-[#e8f8ff] text-[#197da7] shadow-lg transition hover:-translate-y-0.5 md:bottom-8 md:left-8"><ArrowUpFromLine className="h-5 w-5" /></button>}
       {!readOnlyRole && <FloatingQuickActions canCreateItems={canCreateItems} onNavigate={(path) => { setShowMobileNavigation(true); window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} />}
       {!previewPermissions && chatEnabled && <ChatFloatingBubble />}
+      {!previewPermissions && effectivePermissions?.allowedScreens.includes("inventory") && <VoiceStockQuery />}
       <MobileBottomNavigation items={mobileNavigationItems} activePath={activeMenuItem.path} onNavigate={(path) => { setShowMobileNavigation(true); window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} darkMode={darkMode} visible={showMobileNavigation} />
       {location.startsWith("/settings") && canAccessMigrationImport(user.role) && <Button type="button" onClick={() => window.location.assign("/migration-import")} className="fixed bottom-40 left-4 z-[52] gap-2 rounded-xl bg-[#0d4f62] text-xs font-black text-white shadow-lg shadow-[#0d4f62]/25 hover:bg-[#0a4150] md:bottom-24 md:left-8"><Upload className="h-4 w-4" />استيراد حزمة الترحيل</Button>}
       {location.startsWith("/settings") && <Button type="button" variant="outline" onClick={() => void launchOnboardingFromSettings()} disabled={saveOnboardingCompleted.isPending} className="fixed bottom-24 left-4 z-[52] gap-2 rounded-xl border-[#8fd1d0] bg-white/95 text-xs font-black text-[#0d4f62] shadow-lg backdrop-blur hover:bg-[#e8f7f6] md:bottom-8 md:left-8"><RotateCcw className="h-4 w-4" />{saveOnboardingCompleted.isPending ? "جارٍ التشغيل..." : "إعادة الجولة التعريفية"}</Button>}

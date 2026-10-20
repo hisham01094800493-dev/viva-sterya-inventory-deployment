@@ -14,7 +14,7 @@ export function getSpeechRecognitionConstructor() {
   return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
 }
 
-export function VoiceInputButton({ onText, label = "البحث بالصوت", className = "" }: { onText: (text: string) => void; label?: string; className?: string }) {
+export function VoiceInputButton({ onText, label = "البحث بالصوت", className = "", disabled = false }: { onText: (text: string) => void; label?: string; className?: string; disabled?: boolean }) {
   const recognitionRef = useRef<RecognitionLike | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -51,8 +51,8 @@ export function VoiceInputButton({ onText, label = "البحث بالصوت", cl
       recorderRef.current = recorder;
       recorder.start();
       setListening(true);
-      window.setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 5000);
-      toast.info("تحدث الآن لمدة تصل إلى 5 ثوانٍ…");
+      window.setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 15000);
+      toast.info("تحدث الآن لمدة تصل إلى 15 ثانية…");
     } catch (error) {
       setListening(false);
       const name = error instanceof DOMException ? error.name : "";
@@ -84,7 +84,7 @@ export function VoiceInputButton({ onText, label = "البحث بالصوت", cl
     recognitionRef.current = recognition;
     try { recognition.start(); setListening(true); } catch { setListening(false); toast.error("تعذر بدء البحث الصوتي. أغلق النافذة وافتحها مرة أخرى."); }
   }
-  return <button type="button" onClick={toggleListening} disabled={!supported && !recorderSupported} aria-pressed={listening} aria-label={listening ? "جارٍ الاستماع، اضغط للإيقاف" : supported || recorderSupported ? label : "البحث الصوتي غير مدعوم"} title={listening ? "جارٍ الاستماع، اضغط للإيقاف" : supported || recorderSupported ? label : "البحث الصوتي غير مدعوم في هذا المتصفح"} className={`group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 active:scale-95 ${listening ? "border-red-300 bg-red-50 text-red-600 shadow-[0_0_0_5px_rgba(239,68,68,0.12)] motion-safe:animate-[voiceButtonPulse_1.4s_ease-in-out_infinite]" : "border-[#dce7ee] bg-white text-[#0d7180] hover:border-[#8bc5c9] hover:bg-[#e8f7f6]"} disabled:cursor-not-allowed disabled:opacity-45 ${className}`}><span aria-hidden="true" className={`pointer-events-none absolute inset-[-4px] rounded-[1rem] border-2 border-red-300/70 ${listening ? "motion-safe:animate-ping motion-reduce:animate-none" : "hidden"}`} />{listening ? <MicOff className="relative z-10 h-4 w-4" /> : <Mic className="relative z-10 h-4 w-4" />}{listening && <span className="sr-only" aria-live="polite">جارٍ الاستماع</span>}</button>;
+  return <button type="button" onClick={toggleListening} disabled={disabled || (!supported && !recorderSupported)} aria-pressed={listening} aria-label={listening ? "جارٍ الاستماع، اضغط للإيقاف" : supported || recorderSupported ? label : "البحث الصوتي غير مدعوم"} title={listening ? "جارٍ الاستماع، اضغط للإيقاف" : supported || recorderSupported ? label : "البحث الصوتي غير مدعوم في هذا المتصفح"} className={`group relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 active:scale-95 ${listening ? "border-red-300 bg-red-50 text-red-600 shadow-[0_0_0_5px_rgba(239,68,68,0.12)] motion-safe:animate-[voiceButtonPulse_1.4s_ease-in-out_infinite]" : "border-[#dce7ee] bg-white text-[#0d7180] hover:border-[#8bc5c9] hover:bg-[#e8f7f6]"} disabled:cursor-not-allowed disabled:opacity-45 ${className}`}><span aria-hidden="true" className={`pointer-events-none absolute inset-[-4px] rounded-[1rem] border-2 border-red-300/70 ${listening ? "motion-safe:animate-ping motion-reduce:animate-none" : "hidden"}`} />{listening ? <MicOff className="relative z-10 h-4 w-4" /> : <Mic className="relative z-10 h-4 w-4" />}{listening && <span className="sr-only" aria-live="polite">جارٍ الاستماع</span>}</button>;
 }
 
 export function normalizeVoiceSearchText(value: string) { return value.trim().replace(/[؟?,،؛;.!]+$/g, "").replace(/\s+/g, " "); }

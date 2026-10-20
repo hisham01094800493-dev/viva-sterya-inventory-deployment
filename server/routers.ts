@@ -18,6 +18,7 @@ import {
   getMovementSnapshot,
   clearAuditLogs,
   getInventoryRows,
+  getVoiceStockQueryData,
   getItemByCode,
   getItemCard,
   getMainWarehouseItemCards,
@@ -137,8 +138,10 @@ import { uploadDocumentImage } from "./documentImageUpload";
 import { storageDelete } from "./storage";
 import { createHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
 import { transcribeAudio } from "./_core/voiceTranscription";
+import { buildVoiceStockQueryResult, consumeVoiceRateLimit } from "./voiceStockQuery";
 
 const DEFAULT_GOOGLE_SEARCH_ENGINE_ID = "01b5a823a6a9140c6";
+const voiceRateLimit = new Map<number, number[]>();
 
 function rethrowInventoryError(error: unknown): never {
   if (error instanceof InventoryError) {
@@ -275,9 +278,11 @@ export const appRouter = router({
   system: systemRouter,
   whatsapp: whatsappRouter,
   voice: router({
-    transcribe: protectedProcedure.input(z.object({ audioDataBase64: z.string().min(20).max(12_000_000), mimeType: z.string().trim().min(3).max(100), language: z.string().trim().max(20).optional() })).mutation(async ({ input }) => {
+    transcribe: permissionProcedure("inventory").input(z.object({ audioDataBase64: z.string().min(20).max(8_000_000), mimeType: z.string().trim().regex(/^audio\//).max(100), language: z.string().trim().max(20).optional() })).mutation(async ({ ctx, input }) => {
+      if (!consumeVoiceRateLimit(voiceRateLimit, ctx.user.id)) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "تم تجاوز حد البحث الصوتي. حاول بعد دقيقة." });
       const result = await transcribeAudio({ audioUrl: `data:${input.mimeType};base64,${input.audioDataBase64}`, language: input.language ?? "ar" });
       if ("error" in result) throw new TRPCError({ code: "BAD_REQUEST", message: result.error, cause: result });
+      if (Number(result.duration ?? 0) > 20) throw new TRPCError({ code: "BAD_REQUEST", message: "مدة التسجيل الصوتي لا يجب أن تتجاوز 20 ثانية" });
       return { text: result.text, language: result.language };
     }),
   }),
@@ -331,6 +336,10 @@ export const appRouter = router({
         return canViewFinancialDetails ? result : { ...result, items: result.items.map(({ unitPrice: _unitPrice, ...item }) => item) };
       }),
     categories: permissionProcedure("inventory").query(({ ctx }) => safe(() => listItemCategories(ctx.permissions.allowedWarehouseIds))),
+    voiceStockQuery: permissionProcedure("inventory").input(z.object({ query: z.string().trim().min(1).max(200) })).query(({ ctx, input }) => safe(async () => {
+      const data = await getVoiceStockQueryData(ctx.permissions.allowedWarehouseIds);
+      return buildVoiceStockQueryResult({ ...data, query: input.query, allowedWarehouseIds: ctx.permissions.allowedWarehouseIds });
+    })),
     getById: permissionProcedure("inventory").input(z.object({ id: z.number().int().positive() })).query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const item = await safe(() => getItemById(input.id)); if (item && !canViewWarehouse(permissions.allowedWarehouseIds, item.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا الصنف" }); return item; }),
     getByCode: permissionProcedure("inventory").input(z.object({ code: z.string().trim().min(1) })).query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const item = await safe(() => getItemByCode(input.code)); if (item && !canViewWarehouse(permissions.allowedWarehouseIds, item.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا الصنف" }); return item; }),
     card: reportPermissionProcedure("item-card").input(z.object({ id: z.number().int().positive() })).query(async ({ ctx, input }) => { const permissions = ctx.permissions; const item = await safe(() => getItemById(input.id)); if (item && !canViewWarehouse(permissions.allowedWarehouseIds, item.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا الصنف" }); return safe(() => getItemCard(input.id, permissions.allowedWarehouseIds)); }),
