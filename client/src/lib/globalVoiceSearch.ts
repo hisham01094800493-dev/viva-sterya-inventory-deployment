@@ -1,6 +1,6 @@
 import { normalizeVoiceSearchText } from "@/components/VoiceInputButton";
 
-export type GlobalVoiceSearchIntent = "date" | "all" | "item" | "item-card" | "supplier" | "supplier-statement" | "supplier-report" | "customer" | "customer-statement" | "customer-report" | "additions" | "disbursements" | "transfers";
+export type GlobalVoiceSearchIntent = "date" | "all" | "item" | "item-card" | "supplier" | "supplier-statement" | "supplier-report" | "customer" | "customer-statement" | "customer-report" | "customer-disbursement" | "additions" | "disbursements" | "transfers";
 export type VoiceReportPeriod = { from: string; to: string; label: string };
 
 const arabicDigitMap: Record<string, string> = { "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4", "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9" };
@@ -12,20 +12,21 @@ const monthAliases: Array<{ aliases: string[]; month: number; label: string }> =
 
 const intentRules: Array<[GlobalVoiceSearchIntent, RegExp]> = [
   ["supplier-report", /(تقرير|مبيعات|مشتريات|توريد).*(مورد|المورد)|(مورد|المورد).*(تقرير|مبيعات|مشتريات|توريد)/],
-  ["customer-report", /(تقرير|مبيعات|صرف).*(عميل|العميل|جهه|الجهه|جهة|الجهة|مقاول|المقاول|مقاولين|المقاولين)|(عميل|العميل|جهه|الجهه|جهة|الجهة|مقاول|المقاول|مقاولين|المقاولين).*(تقرير|مبيعات|صرف)/],
+  ["customer-disbursement", /(كمية|كميه|الكميه|الكمية|اجمالي|إجمالي).*(مصروف|مصروفة|المصروف|المصروفة|صرف).*(عميل|العميل|جهه|الجهه|جهة|الجهة|للجهة|مقاول|المقاول|للمقاول|مقاولين|المقاولين|للمقاولين)|(مصروف|مصروفة|المصروف|المصروفة|صرف).*(كمية|كميه|الكميه|الكمية|اجمالي|إجمالي).*(عميل|العميل|جهه|الجهه|جهة|الجهة|للجهة|مقاول|المقاول|للمقاول|مقاولين|المقاولين|للمقاولين)/],
+  ["customer-report", /(تقرير|مبيعات|صرف).*(عميل|العميل|جهه|الجهه|جهة|الجهة|للجهة|مقاول|المقاول|للمقاول|مقاولين|المقاولين|للمقاولين)|(عميل|العميل|جهه|الجهه|جهة|الجهة|للجهة|مقاول|المقاول|للمقاول|مقاولين|المقاولين|للمقاولين).*(تقرير|مبيعات|صرف)/],
   ["supplier-statement", /(كشف|حساب).*(مورد|المورد)|(مورد|المورد).*(كشف|حساب)/],
-  ["customer-statement", /(رصيد|كشف|حساب).*(عميل|العميل|جهه|الجهه|جهة|الجهة|مقاول|المقاول|مقاولين|المقاولين)|(عميل|العميل|جهه|الجهه|جهة|الجهة|مقاول|المقاول|مقاولين|المقاولين).*(رصيد|كشف|حساب)/],
+  ["customer-statement", /(رصيد|كشف|حساب).*(عميل|العميل|جهه|الجهه|جهة|الجهة|للجهة|مقاول|المقاول|للمقاول|مقاولين|المقاولين|للمقاولين)|(عميل|العميل|جهه|الجهه|جهة|الجهة|للجهة|مقاول|المقاول|للمقاول|مقاولين|المقاولين|للمقاولين).*(رصيد|كشف|حساب)/],
   ["item-card", /(كارت|بطاقه|بطاقة).*(صنف|الصنف|حركه|حركة)|(صنف|الصنف).*(كارت|بطاقه|بطاقة|حركه|حركة)/],
   ["additions", /(اضافه|إضافة|اضافات|إضافات|اذن اضافه|إذن إضافة|وارد)/],
   ["disbursements", /(صرف|اذن صرف|إذن صرف|جهات الصرف|جهه صرف|جهة صرف)/],
   ["transfers", /(تحويل|تحويلات|مرتجع|مرتجعات|ارتجاع|ارتجاعات)/],
   ["supplier", /(مورد|المورد|موردين|الموردين)/],
-  ["customer", /(عميل|العميل|عملاء|العملاء|جهه|الجهه|جهة|الجهة|مقاول|المقاول|مقاولين|المقاولين)/],
+  ["customer", /(عميل|العميل|عملاء|العملاء|جهه|الجهه|جهة|الجهة|للجهة|مقاول|المقاول|للمقاول|مقاولين|المقاولين|للمقاولين)/],
   ["item", /(صنف|الصنف|اصناف|أصناف|مخزون|المخزون|كود)/],
 ];
 
 const removableWords = /(افتح لي|افتحلي|افتح|اعرض|اظهر|أظهر|ابحث|دور|هات|عايز|اريد|أريد|من فضلك|لو سمحت|ما|الموردين|المورد|موردين|مورد|العملاء|العميل|عملاء|عميل|الجهات|الجهة|مقاول|المقاول|مقاولين|المقاولين|رصيد|كشف الحساب|كشف|حساب|كارت|بطاقه|بطاقة|حركه|حركة|الأصناف|الصنف|اصناف|أصناف|صنف|أذونات|اذونات|اذن|إذن|الإضافات|الاضافات|إضافات|اضافات|إضافة|اضافه|الصرف|صرف|التحويلات|تحويلات|تحويل|المرتجعات|مرتجعات|مرتجع|وارد|عن|على|في|فى|كل)/gi;
-const reportStopWords = new Set(["ما", "اعرض", "افتح", "تقرير", "مبيعات", "المبيعات", "مشتريات", "المشتريات", "توريد", "التوريدات", "مورد", "المورد", "للمورد", "عميل", "العميل", "للعميل", "جهة", "الجهة", "للجهة", "مقاول", "المقاول", "مقاولين", "المقاولين", "صرف", "المصروف", "المصروفة", "حركات", "حركة", "كمية", "الكميه", "الكمية", "السالبة", "سالبة", "الصافي", "مرتجع", "المرتجعات", "تحويل", "التحويلات", "عن", "في", "فى", "لشهر", "شهر", "من", "الى", "الي", "هذا", "الشهر", "الماضي"]);
+const reportStopWords = new Set(["ما", "اعرض", "افتح", "تقرير", "مبيعات", "المبيعات", "مشتريات", "المشتريات", "توريد", "التوريدات", "مورد", "المورد", "للمورد", "عميل", "العميل", "للعميل", "جهة", "الجهة", "للجهة", "مقاول", "المقاول", "مقاولين", "المقاولين", "صرف", "المصروف", "المصروفة", "حركات", "حركة", "كمية", "كميه", "الكميه", "الكمية", "مصروف", "مصروفة", "للمقاول", "للمقاولين", "للعميل", "للجهة", "لل", "السالبة", "سالبة", "الصافي", "مرتجع", "المرتجعات", "تحويل", "التحويلات", "عن", "في", "فى", "لشهر", "شهر", "من", "الى", "الي", "هذا", "الشهر", "الماضي"]);
 
 export function simplifyArabicForSearch(value: string) {
   return normalizeVoiceSearchText(value).toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[ًٌٍَُِّْـ]/g, "");
@@ -101,7 +102,7 @@ export function parseGlobalVoiceSearch(raw: string, referenceDate = new Date()) 
   const normalized = simplifyArabicForSearch(spokenText);
   const intent = intentRules.find(([, pattern]) => pattern.test(normalized))?.[0] ?? "all";
   const permitNumber = extractPermitNumber(spokenText);
-  const isReport = intent === "supplier-report" || intent === "customer-report";
+  const isReport = intent === "supplier-report" || intent === "customer-report" || intent === "customer-disbursement";
   const period = extractReportPeriod(spokenText, referenceDate);
   const terms = spokenText.replace(removableWords, " ").replace(/\s+/g, " ").trim();
   const reportPartyTerms = isReport ? extractReportPartyTerms(spokenText) : undefined;
@@ -115,6 +116,7 @@ export function getGlobalSearchRoute(intent: GlobalVoiceSearchIntent, terms: str
   if (intent === "supplier" || intent === "supplier-statement") return id ? `/suppliers/${id}/statement` : `/suppliers`;
   if (intent === "supplier-report") return `/reports?type=movements&incomingFrom=${query}&movement=إضافة${period ? `&from=${period.from}&to=${period.to}` : ""}`;
   if (intent === "customer" || intent === "customer-statement") return id ? `/customers/${id}/statement` : `/customers`;
+  if (intent === "customer-disbursement") return `/reports?type=movements&outgoingTo=${query}&movement=صرف${period ? `&from=${period.from}&to=${period.to}` : ""}`;
   if (intent === "customer-report") return `/reports?type=movements&outgoingTo=${query}${period ? `&from=${period.from}&to=${period.to}` : ""}`;
   const movementQuery = permitNumber ? `permit=${encodeURIComponent(permitNumber)}` : `search=${query}`;
   if (intent === "additions") return `/additions?${movementQuery}`;

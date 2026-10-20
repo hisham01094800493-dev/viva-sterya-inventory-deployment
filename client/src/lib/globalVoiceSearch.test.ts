@@ -74,3 +74,13 @@ describe("customer balance voice commands", () => {
     expect(getGlobalSearchRoute(command.intent, command.terms, 4)).toBe("/customers/4/statement");
   });
 });
+
+
+describe("customer disbursement voice commands", () => {
+  it("filters to disbursements only without returns or negative movements", () => {
+    const command = parseGlobalVoiceSearch("ما كمية المصروف للمقاول النور؟");
+    expect(command.intent).toBe("customer-disbursement");
+    expect(command.terms).toBe("النور");
+    expect(getGlobalSearchRoute(command.intent, command.terms)).toContain("outgoingTo=%D8%A7%D9%84%D9%86%D9%88%D8%B1&movement=صرف");
+  });
+});
