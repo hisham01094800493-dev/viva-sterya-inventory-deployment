@@ -49,6 +49,15 @@ export async function getDb() {
         PRIMARY KEY (id), KEY notifications_recipient_idx (recipient_user_id), KEY notifications_created_at_idx (created_at)
       )`)
       );
+      await _db.execute(
+        sql.raw(`CREATE TABLE IF NOT EXISTS drafts (
+        id int AUTO_INCREMENT NOT NULL, user_id int NOT NULL, kind varchar(32) NOT NULL DEFAULT 'note',
+        title varchar(255) NOT NULL, body text NOT NULL, payload text NULL,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id), KEY drafts_user_updated_idx (user_id, updated_at)
+      )`)
+      );
       try {
         await _db.execute(
           sql.raw(
