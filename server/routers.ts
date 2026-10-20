@@ -687,8 +687,8 @@ export const appRouter = router({
   }),
   drafts: router({
     list: protectedProcedure.query(({ ctx }) => safe(() => listUserDrafts(ctx.user.id))),
-    create: protectedProcedure.input(z.object({ kind: z.enum(["note", "movement"]), title: z.string().trim().min(1).max(255), body: z.string().max(20000), payload: z.string().max(12000).nullable().optional() })).mutation(({ ctx, input }) => safe(() => createUserDraft({ userId: ctx.user.id, ...input }))),
-    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), kind: z.enum(["note", "movement"]).optional(), title: z.string().trim().min(1).max(255).optional(), body: z.string().max(20000).optional(), payload: z.string().max(12000).nullable().optional() })).mutation(({ ctx, input }) => safe(() => updateUserDraft({ userId: ctx.user.id, ...input }))),
+    create: protectedProcedure.input(z.object({ kind: z.enum(["note", "movement", "stock_adjustment"]), title: z.string().trim().min(1).max(255), body: z.string().max(20000), payload: z.string().max(50000).nullable().optional() })).mutation(({ ctx, input }) => safe(() => createUserDraft({ userId: ctx.user.id, ...input }))),
+    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), kind: z.enum(["note", "movement", "stock_adjustment"]).optional(), title: z.string().trim().min(1).max(255).optional(), body: z.string().max(20000).optional(), payload: z.string().max(50000).nullable().optional() })).mutation(({ ctx, input }) => safe(() => updateUserDraft({ userId: ctx.user.id, ...input }))),
     delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => safe(() => deleteUserDraft(input.id, ctx.user.id))),
   }),
   settings: router({
