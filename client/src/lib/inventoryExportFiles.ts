@@ -212,9 +212,28 @@ export async function buildMovementPdf(rows: MovementExportItem[], options: { co
   logoAndDate(doc, options.title ?? "تقرير حركات المخزون - Smart Inventory", resolvedLogo, options.date, options.summary, options.headerDateFirst);
   let detailsStartY = getReportHeaderHeight(options.summary);
   if (options.itemSummary?.length) {
-    const summaryWidth = 128;
-    const summaryLeft = doc.internal.pageSize.getWidth() - summaryWidth - 150;
-    autoTable(doc, { startY: 68, head: [[{ content: shapeArabic(doc, "بيانات مجمعة"), colSpan: 2, styles: { fillColor: [13, 79, 98], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", lineColor: [8, 58, 72], lineWidth: 0.8 } }], ["الصنف", "صافي الكمية"].map(cell => shapeArabic(doc, cell))], body: options.itemSummary.map(item => { const itemLabel = item.itemName; return [itemLabel, Number(item.netQuantity).toLocaleString("en-US")].map(cell => shapeArabic(doc, cell)); }), theme: "grid", tableWidth: summaryWidth, columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 48 } }, styles: { font: getArabicPdfFont(doc), fontSize: 8.2, cellPadding: 3.5, halign: "right", valign: "middle", overflow: "linebreak", textColor: [16, 42, 67], lineColor: [118, 172, 180], lineWidth: 0.6 }, headStyles: { fillColor: [225, 243, 243], textColor: [13, 79, 98], lineColor: [48, 126, 137], lineWidth: 0.7, font: getArabicPdfFont(doc), fontStyle: "bold", halign: "right" }, alternateRowStyles: { fillColor: [241, 249, 249] }, margin: { left: summaryLeft, right: 150 } });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const quantityColumnWidth = 62;
+    const maximumSummaryWidth = pageWidth - 72 - 150;
+    doc.setFont(getArabicPdfFont(doc), "bold");
+    doc.setFontSize(8.2);
+    const widestItemName = Math.max(...options.itemSummary.map(item => doc.getTextWidth(shapeArabic(doc, item.itemName))));
+    const itemNameColumnWidth = Math.min(maximumSummaryWidth - quantityColumnWidth, Math.max(74, widestItemName + 16));
+    const summaryWidth = itemNameColumnWidth + quantityColumnWidth;
+    const summaryLeft = pageWidth - summaryWidth - 150;
+    const summaryFontSize = Math.min(8.2, Math.max(5.8, 8.2 * (itemNameColumnWidth - 12) / Math.max(widestItemName, 1)));
+    autoTable(doc, {
+      startY: 68,
+      head: [[{ content: shapeArabic(doc, "بيانات مجمعة"), colSpan: 2, styles: { fillColor: [13, 79, 98], textColor: [255, 255, 255], halign: "center", fontStyle: "bold", lineColor: [8, 58, 72], lineWidth: 0.8 } }], ["الصنف", "صافي الكمية"].map(cell => shapeArabic(doc, cell))],
+      body: options.itemSummary.map(item => [item.itemName, Number(item.netQuantity).toLocaleString("en-US")].map(cell => shapeArabic(doc, cell))),
+      theme: "grid",
+      tableWidth: summaryWidth,
+      columnStyles: { 0: { cellWidth: itemNameColumnWidth }, 1: { cellWidth: quantityColumnWidth } },
+      styles: { font: getArabicPdfFont(doc), fontSize: summaryFontSize, cellPadding: 3.5, halign: "right", valign: "middle", overflow: "linebreak", textColor: [16, 42, 67], lineColor: [118, 172, 180], lineWidth: 0.6 },
+      headStyles: { fillColor: [225, 243, 243], textColor: [13, 79, 98], lineColor: [48, 126, 137], lineWidth: 0.7, font: getArabicPdfFont(doc), fontStyle: "bold", halign: "right" },
+      alternateRowStyles: { fillColor: [241, 249, 249] },
+      margin: { left: summaryLeft, right: 150 },
+    });
     detailsStartY = Math.max(detailsStartY, ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 36) + 14);
   }
   const body = enriched.map(row => visualKeys.map(key => {
