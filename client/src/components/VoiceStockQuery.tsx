@@ -27,10 +27,12 @@ export function VoiceStockQuery() {
     return { x: Math.max(12, window.innerWidth - 78), y: Math.max(80, window.innerHeight - 150) };
   });
   const [floatingDimmed, setFloatingDimmed] = useState(false);
+  const [voiceListening, setVoiceListening] = useState(false);
   const dragRef = useRef<{ pointerId: number; offsetX: number; offsetY: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
   const fadeTimerRef = useRef<number | null>(null);
   const query = trpc.items.voiceStockQuery.useQuery({ query: submitted || "رصيد" }, { enabled: open && Boolean(submitted), retry: false });
+  const movementQuery = trpc.voice.movementQuery.useQuery({ query: submitted || "حركات" }, { enabled: open && Boolean(submitted), retry: false });
   const result = query.data;
   const selected = result?.matches?.find(match => match.id === selectedMatchId) ?? (result?.ambiguous ? undefined : result?.matches?.[0]);
   const canRecord = online;
@@ -124,7 +126,7 @@ export function VoiceStockQuery() {
   }
 
   return <>
-    <Button type="button" onClick={() => { if (suppressClickRef.current) return; setOpen(true); }} onPointerDown={handleFloatingPointerDown} onPointerMove={handleFloatingPointerMove} onPointerUp={handleFloatingPointerUp} onPointerCancel={handleFloatingPointerUp} style={{ left: floatingPosition.x, top: floatingPosition.y, touchAction: "none" }} aria-label="استعلام صوتي عن الرصيد" title="استعلام صوتي عن الرصيد — اسحب لتحريك الزر" className={`fixed z-[55] h-14 w-14 rounded-full border border-white/60 bg-[#0d7180]/45 p-0 text-white shadow-[0_10px_28px_rgba(13,113,128,0.22)] backdrop-blur-md transition-[opacity,transform,background-color] duration-500 hover:bg-[#0d7180]/75 active:scale-95 ${floatingDimmed ? "opacity-25 hover:opacity-100" : "opacity-75 hover:opacity-100"}`}>
+    <Button type="button" onClick={() => { if (suppressClickRef.current) return; setOpen(true); }} onPointerDown={handleFloatingPointerDown} onPointerMove={handleFloatingPointerMove} onPointerUp={handleFloatingPointerUp} onPointerCancel={handleFloatingPointerUp} style={{ left: floatingPosition.x, top: floatingPosition.y, touchAction: "none" }} aria-label="استعلام صوتي عن الرصيد" title="استعلام صوتي عن الرصيد — اسحب لتحريك الزر" className={`fixed z-[55] h-14 w-14 rounded-full border border-white/60 bg-[#0d7180]/45 p-0 text-white shadow-[0_10px_28px_rgba(13,113,128,0.22)] backdrop-blur-md transition-[opacity,transform,background-color] duration-500 hover:bg-[#0d7180]/75 active:scale-95 ${floatingDimmed ? "opacity-25 hover:opacity-100" : "opacity-75 hover:opacity-100"} ${voiceListening ? "motion-safe:animate-[voiceButtonPulse_1.4s_ease-in-out_infinite] ring-4 ring-red-300/60" : ""}`}>
       <Mic className="h-6 w-6" />
     </Button>
     <Dialog open={open} onOpenChange={value => value ? setOpen(true) : close()}>
@@ -140,7 +142,7 @@ export function VoiceStockQuery() {
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#dce7ee] bg-[#f7fbfc] p-3 dark:border-[#4f7077] dark:bg-[#203d47]">
             <div className="flex items-center gap-2 text-sm font-bold text-[#102a43] dark:text-[#f1fbfc]">
-              <VoiceInputButton onText={text => { setDraft(text); setSubmitted(text); }} disabled={!canRecord} label="تحدث عن الصنف" className="h-12 w-12 rounded-full border-[#0d7180] bg-white text-[#0d7180] dark:bg-[#182934] dark:text-[#8ed3d1]" />
+              <VoiceInputButton onText={text => { setDraft(text); setSubmitted(text); }} disabled={!canRecord} onListeningChange={setVoiceListening} label="تحدث عن الصنف" className="h-12 w-12 rounded-full border-[#0d7180] bg-white text-[#0d7180] dark:bg-[#182934] dark:text-[#8ed3d1]" />
               <span>{canRecord ? "اضغط الميكروفون وتحدث" : "التسجيل غير متاح دون إنترنت"}</span>
             </div>
             <Button type="button" variant="outline" onClick={() => setSpeakResults(value => !value)} className="rounded-xl" aria-pressed={speakResults}>{speakResults ? <Volume2 className="ml-2 h-4 w-4" /> : <VolumeX className="ml-2 h-4 w-4" />}{speakResults ? "النطق مفعّل" : "النطق متوقف"}</Button>
@@ -152,6 +154,7 @@ export function VoiceStockQuery() {
             <div className="rounded-xl bg-[#0d4f62] p-4 text-white"><p className="text-sm font-bold text-white/80">الرصيد الإجمالي</p><p className="mt-1 text-3xl font-black">{formatQuantity(selected.totalCurrentStock, selected.unit)}</p></div>
             <div className="grid gap-2 sm:grid-cols-2">{selected.warehouseBalances.map(balance => <div key={balance.warehouseId} className="rounded-xl border border-[#b9d4d9] bg-white p-3 dark:border-[#5b7e84] dark:bg-[#182934]"><p className="text-sm font-bold text-[#102a43] dark:text-[#f1fbfc]">{balance.name}</p><p className="mt-1 text-lg font-black text-[#0d7180] dark:text-[#8ed3d1]">{formatQuantity(balance.currentStock, selected.unit)}</p></div>)}</div>
           </div> : null}
+          {movementQuery.data?.matched ? <div className="space-y-3 rounded-2xl border border-[#d08a3b]/40 bg-[#fffaf0] p-5 dark:border-[#a96821] dark:bg-[#302a20]"><div><p className="text-xs font-black text-[#a96821]">ملخص الحركات المطابقة</p><p className="mt-1 text-lg font-black text-[#102a43] dark:text-white">{movementQuery.data.movementType === "addition" ? "الكميات الموردة" : movementQuery.data.movementType === "disbursement" ? "الكميات المصروفة" : movementQuery.data.movementType === "transfer" ? "كميات التحويل" : "ملخص الحركات"}</p></div><div className="grid gap-2 sm:grid-cols-2"><div className="rounded-xl bg-white p-3 dark:bg-[#182934]"><p className="text-xs text-slate-500">إجمالي الكمية</p><p className="mt-1 text-2xl font-black text-[#0d7180]">{formatQuantity(movementQuery.data.quantity)}</p></div>{movementQuery.data.totalValue !== null ? <div className="rounded-xl bg-white p-3 dark:bg-[#182934]"><p className="text-xs text-slate-500">إجمالي القيمة المالية</p><p className="mt-1 text-2xl font-black text-[#a96821]">{Number(movementQuery.data.totalValue).toLocaleString("ar-EG", { maximumFractionDigits: 2 })}</p></div> : null}</div><div className="space-y-2">{movementQuery.data.rows.slice(0, 5).map(row => <div key={`${row.movementType}-${row.id}`} className="rounded-xl border border-[#eadbbf] bg-white p-3 text-sm dark:border-[#5b7e84] dark:bg-[#182934]"><div className="flex items-center justify-between gap-2"><span className="font-black text-[#102a43] dark:text-white">{row.itemName || row.itemCode}</span><span className="font-black text-[#0d7180]">{formatQuantity(row.quantity)}</span></div><p className="mt-1 text-xs text-slate-500">{row.party || row.fromStore || "—"} · {row.date}{row.totalValue !== null ? ` · قيمة ${Number(row.totalValue).toLocaleString("ar-EG", { maximumFractionDigits: 2 })}` : ""}</p></div>)}</div></div> : null}
           {query.error ? <p className="rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">تعذر تنفيذ الاستعلام. تحقق من الصلاحية والاتصال.</p> : null}
           <Button type="button" variant="outline" onClick={close} className="w-full rounded-xl"><X className="ml-2 h-4 w-4" />إغلاق</Button>
         </div>

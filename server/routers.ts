@@ -19,6 +19,7 @@ import {
   clearAuditLogs,
   getInventoryRows,
   getVoiceStockQueryData,
+  getVoiceMovementQueryData,
   getItemByCode,
   getItemCard,
   getMainWarehouseItemCards,
@@ -126,6 +127,10 @@ import {
   saveBackupVerificationSchedule,
   cleanupExpiredBackupRecords,
   sendBackupEmailTest,
+  listUserDrafts,
+  createUserDraft,
+  updateUserDraft,
+  deleteUserDraft,
 } from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -139,6 +144,7 @@ import { storageDelete } from "./storage";
 import { createHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { buildVoiceStockQueryResult, consumeVoiceRateLimit } from "./voiceStockQuery";
+import { buildVoiceMovementQueryResult } from "./voiceMovementQuery";
 
 const DEFAULT_GOOGLE_SEARCH_ENGINE_ID = "01b5a823a6a9140c6";
 const voiceRateLimit = new Map<number, number[]>();
@@ -285,6 +291,10 @@ export const appRouter = router({
       if (Number(result.duration ?? 0) > 20) throw new TRPCError({ code: "BAD_REQUEST", message: "مدة التسجيل الصوتي لا يجب أن تتجاوز 20 ثانية" });
       return { text: result.text, language: result.language };
     }),
+    movementQuery: permissionProcedure("inventory").input(z.object({ query: z.string().trim().min(1).max(240) })).query(({ ctx, input }) => safe(async () => {
+      const data = await getVoiceMovementQueryData(ctx.permissions.allowedWarehouseIds);
+      return buildVoiceMovementQueryResult({ query: input.query, ...data, allowedWarehouseIds: ctx.permissions.allowedWarehouseIds, canViewFinancialDetails: ctx.permissions.allowedReports.includes("warehouse-financial-details") });
+    })),
   }),
 
   warehouses: router({
@@ -674,6 +684,12 @@ export const appRouter = router({
     get: protectedProcedure.query(({ ctx }) => safe(() => getUserPreferences(ctx.user.id))),
     update: protectedProcedure.input(z.object({ quickActions: z.array(z.string().trim().min(1).max(64)).min(1).max(10), hapticEnabled: z.boolean(), reportColumnOrder: z.record(z.string().trim().min(1).max(64), z.array(z.string().trim().min(1).max(64)).max(20)).optional() })).mutation(({ ctx, input }) => safe(() => upsertUserPreferences({ userId: ctx.user.id, ...input }))),
     setOnboardingCompleted: protectedProcedure.input(z.object({ completed: z.boolean() })).mutation(({ ctx, input }) => safe(() => setUserOnboardingCompleted(ctx.user.id, input.completed))),
+  }),
+  drafts: router({
+    list: protectedProcedure.query(({ ctx }) => safe(() => listUserDrafts(ctx.user.id))),
+    create: protectedProcedure.input(z.object({ kind: z.enum(["note", "movement"]), title: z.string().trim().min(1).max(255), body: z.string().max(20000), payload: z.string().max(12000).nullable().optional() })).mutation(({ ctx, input }) => safe(() => createUserDraft({ userId: ctx.user.id, ...input }))),
+    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), kind: z.enum(["note", "movement"]).optional(), title: z.string().trim().min(1).max(255).optional(), body: z.string().max(20000).optional(), payload: z.string().max(12000).nullable().optional() })).mutation(({ ctx, input }) => safe(() => updateUserDraft({ userId: ctx.user.id, ...input }))),
+    delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => safe(() => deleteUserDraft(input.id, ctx.user.id))),
   }),
   settings: router({
     list: protectedProcedure.query(() => safe(() => listSettings())),

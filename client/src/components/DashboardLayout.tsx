@@ -32,6 +32,7 @@ import {
   ChartNoAxesCombined,
   SlidersHorizontal,
   ClipboardList,
+  FilePenLine,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -268,6 +269,7 @@ const menuItems = [
   { icon: FileBarChart, label: "التقارير", path: "/reports" },
   { icon: ClipboardCheck, label: "التسويات المخزنية", path: "/stock-adjustments" },
   { icon: Settings2, label: "الإعدادات", path: "/settings" },
+  { icon: FilePenLine, label: "المسودات", path: "/drafts" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -512,7 +514,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   // browser route is /items. Keep both names aligned so the sidebar does not
   // hide the inventory entry for users who already have inventory access.
   const screenForPath = (path: string) => path === "/items" || path.startsWith("/warehouses") ? "inventory" : path.replace(/^\//, "").split("?")[0] || "dashboard";
-  const hasScreenPermission = (path: string) => path.startsWith("/governance") || !effectivePermissions || effectivePermissions.allowedScreens.includes(screenForPath(path));
+  const hasScreenPermission = (path: string) => path.startsWith("/governance") || path.startsWith("/drafts") || !effectivePermissions || effectivePermissions.allowedScreens.includes(screenForPath(path));
   const navigationItems = allNavigationItems.filter(item => hasScreenPermission(item.path) && (!readOnlyRole || !["/additions", "/disbursements", "/transfers", "/suppliers", "/customers"].includes(item.path)));
   const chatEnabled = hasScreenPermission("/chat");
   const navigationGroups = buildNavigationGroups(navigationItems, governanceItem);

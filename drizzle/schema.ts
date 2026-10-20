@@ -393,6 +393,18 @@ export const userPreferences = mysqlTable("user_preferences", {
 
 export type UserPreference = typeof userPreferences.$inferSelect;
 export type InsertUserPreference = typeof userPreferences.$inferInsert;
+export const drafts = mysqlTable("drafts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  kind: varchar("kind", { length: 32 }).notNull().default("note"),
+  title: varchar("title", { length: 255 }).notNull(),
+  body: text("body").notNull(),
+  payload: text("payload"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, table => [index("drafts_user_updated_idx").on(table.userId, table.updatedAt)]);
+export type Draft = typeof drafts.$inferSelect;
+export type InsertDraft = typeof drafts.$inferInsert;
 
 export const userPermissions = mysqlTable("user_permissions", {
   id: int("id").autoincrement().primaryKey(),

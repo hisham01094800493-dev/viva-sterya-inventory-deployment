@@ -38,6 +38,7 @@ import {
   items,
   settings,
   userPreferences,
+  drafts,
   userPermissions,
   transfers,
   auditLogs,
@@ -5433,6 +5434,27 @@ export async function upsertUserPermissionSettings(input: {
   );
 }
 
+export async function listUserDrafts(userId: number) {
+  const db = await requireDb();
+  return db.select().from(drafts).where(eq(drafts.userId, userId)).orderBy(desc(drafts.updatedAt));
+}
+export async function createUserDraft(input: { userId: number; kind: string; title: string; body: string; payload?: string | null }) {
+  const db = await requireDb();
+  const result = await db.insert(drafts).values({ userId: input.userId, kind: input.kind, title: input.title, body: input.body, payload: input.payload ?? null });
+  const id = resultInsertId(result);
+  return (await db.select().from(drafts).where(and(eq(drafts.id, id), eq(drafts.userId, input.userId))).limit(1))[0];
+}
+export async function updateUserDraft(input: { id: number; userId: number; kind?: string; title?: string; body?: string; payload?: string | null }) {
+  const db = await requireDb();
+  await db.update(drafts).set({ kind: input.kind, title: input.title, body: input.body, payload: input.payload }).where(and(eq(drafts.id, input.id), eq(drafts.userId, input.userId)));
+  return (await db.select().from(drafts).where(and(eq(drafts.id, input.id), eq(drafts.userId, input.userId))).limit(1))[0];
+}
+export async function deleteUserDraft(id: number, userId: number) {
+  const db = await requireDb();
+  await db.delete(drafts).where(and(eq(drafts.id, id), eq(drafts.userId, userId)));
+  return { id };
+}
+
 export async function getUserPreferences(userId: number) {
   const db = await requireDb();
   const rows = await db
@@ -5576,6 +5598,20 @@ export async function upsertSetting(input: {
     .where(eq(settings.key, key))
     .limit(1);
   return rows[0];
+}
+
+export async function getVoiceMovementQueryData(allowedWarehouseIds: number[] = []) {
+  const db = await requireDb();
+  const movementWhere = allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined;
+  const disbursementWhere = allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined;
+  const transferWhere = allowedWarehouseIds.length ? or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)) : undefined;
+  const [additionRows, disbursementRows, transferRows, warehouseRows] = await Promise.all([
+    db.select({ id: additions.id, date: additions.date, itemCode: additions.itemCode, itemName: additions.itemName, quantity: additions.quantity, unitPrice: additions.unitPrice, totalValue: additions.totalValue, warehouseId: additions.warehouseId, supplier: additions.supplier, store: additions.store }).from(additions).where(movementWhere),
+    db.select({ id: disbursements.id, date: disbursements.date, itemCode: disbursements.itemCode, itemName: disbursements.itemName, quantity: disbursements.quantity, unitPrice: disbursements.unitPrice, totalValue: disbursements.totalValue, warehouseId: disbursements.warehouseId, customer: disbursements.destination, store: disbursements.store }).from(disbursements).where(disbursementWhere),
+    db.select({ id: transfers.id, date: transfers.date, itemCode: transfers.itemCode, itemName: transfers.itemName, quantity: transfers.quantity, unitPrice: transfers.unitPrice, totalValue: transfers.totalValue, fromWarehouseId: transfers.fromWarehouseId, toWarehouseId: transfers.toWarehouseId, fromStore: transfers.fromStore, toStore: transfers.toStore }).from(transfers).where(transferWhere),
+    db.select({ id: warehouses.id, name: warehouses.name }).from(warehouses),
+  ]);
+  return { rows: [...additionRows.map(row => ({ ...row, movementType: "addition" as const })), ...disbursementRows.map(row => ({ ...row, movementType: "disbursement" as const })), ...transferRows.map(row => ({ ...row, warehouseId: row.fromWarehouseId ?? row.toWarehouseId, movementType: "transfer" as const }))], warehouses: warehouseRows };
 }
 
 export async function getVoiceStockQueryData(allowedWarehouseIds: number[] = []) {
