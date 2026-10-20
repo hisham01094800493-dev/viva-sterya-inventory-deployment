@@ -444,7 +444,8 @@ export default function ReportsPage() {
       const category = movementCategory(row.type);
       const quantity = Number(row.quantity ?? 0);
       if (category === "إضافة") result.additions += quantity;
-      else if (category === "صرف") result.disbursements += Math.abs(quantity);
+      // الصرف السالب تصحيح عكسي ويجب أن يخصم من الإجمالي.
+      else if (category === "صرف") result.disbursements += quantity;
       else if (category === "مرتجع") result.returns += Math.abs(quantity);
       return result;
     }, { additions: 0, disbursements: 0, returns: 0 });

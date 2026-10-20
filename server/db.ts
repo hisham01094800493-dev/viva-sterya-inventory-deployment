@@ -2627,7 +2627,7 @@ export async function getReportDataset(
     db
       .select({
         count: count(),
-        quantity: sql<string>`sum(abs(${disbursements.quantity}))`,
+        quantity: sum(disbursements.quantity),
         value: sum(disbursements.totalValue),
       })
       .from(disbursements)
@@ -2664,7 +2664,7 @@ export async function getReportDataset(
         partyId: disbursements.customerId,
         fallbackName: disbursements.destination,
         count: count(),
-        quantity: sql<string>`sum(abs(${disbursements.quantity}))`,
+        quantity: sum(disbursements.quantity),
         value: sum(disbursements.totalValue),
       })
       .from(disbursements)
@@ -2724,7 +2724,7 @@ export async function getReportDataset(
     db
       .select({
         itemCode: disbursements.itemCode,
-        quantity: sql<string>`sum(abs(${disbursements.quantity}))`,
+        quantity: sum(disbursements.quantity),
       })
       .from(disbursements)
       .where(
@@ -2811,7 +2811,7 @@ export async function getReportDataset(
     allAdditionGroups.map(row => [row.itemCode, Number(row.quantity ?? 0)])
   );
   const disbursementsByCode = new Map(
-    allDisbursementGroups.map(row => [row.itemCode, Math.abs(Number(row.quantity ?? 0))])
+    allDisbursementGroups.map(row => [row.itemCode, Number(row.quantity ?? 0)])
   );
   const returnsByCode = new Map(
     allReturnGroups.map(row => [row.itemCode, Number(row.quantity ?? 0)])
