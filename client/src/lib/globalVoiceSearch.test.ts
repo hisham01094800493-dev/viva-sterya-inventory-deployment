@@ -32,6 +32,16 @@ describe("global voice search commands", () => {
     expect(command.permitNumber).toBe(permitNumber);
   });
 
+
+  it("treats a standalone spoken number as a permit number", () => {
+    expect(parseGlobalVoiceSearch("٥٢١٢")).toMatchObject({ intent: "all", terms: "5212", permitNumber: "5212" });
+  });
+
+  it("opens recent addition and disbursement permissions when no number is provided", () => {
+    expect(parseGlobalVoiceSearch("إذن الصرف")).toMatchObject({ intent: "disbursements", terms: "" });
+    expect(parseGlobalVoiceSearch("إذن الإضافة")).toMatchObject({ intent: "additions", terms: "" });
+  });
+
   it("routes a permit number to the permit filter", () => {
     expect(getGlobalSearchRoute("disbursements", "124", undefined, "124")).toBe("/disbursements?permit=124");
   });

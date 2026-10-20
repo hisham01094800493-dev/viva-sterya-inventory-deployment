@@ -25,7 +25,7 @@ const intentRules: Array<[GlobalVoiceSearchIntent, RegExp]> = [
   ["item", /(صنف|الصنف|اصناف|أصناف|مخزون|المخزون|كود)/],
 ];
 
-const removableWords = /(افتح لي|افتحلي|افتح|اعرض|اظهر|أظهر|ابحث|دور|هات|عايز|اريد|أريد|من فضلك|لو سمحت|ما|الموردين|المورد|موردين|مورد|العملاء|العميل|عملاء|عميل|الجهات|الجهة|مقاول|المقاول|مقاولين|المقاولين|رصيد|كشف الحساب|كشف|حساب|كارت|بطاقه|بطاقة|حركه|حركة|الأصناف|الصنف|اصناف|أصناف|صنف|أذونات|اذونات|اذن|إذن|الإضافات|الاضافات|إضافات|اضافات|إضافة|اضافه|الصرف|صرف|التحويلات|تحويلات|تحويل|المرتجعات|مرتجعات|مرتجع|وارد|عن|على|في|فى|كل)/gi;
+const removableWords = /(افتح لي|افتحلي|افتح|اعرض|اظهر|أظهر|ابحث|دور|هات|عايز|اريد|أريد|من فضلك|لو سمحت|ما|الموردين|المورد|موردين|مورد|العملاء|العميل|عملاء|عميل|الجهات|الجهة|مقاول|المقاول|مقاولين|المقاولين|رصيد|كشف الحساب|كشف|حساب|كارت|بطاقه|بطاقة|حركه|حركة|الأصناف|الصنف|اصناف|أصناف|صنف|أذونات|اذونات|اذن|إذن|الإضافات|الإضافة|الاضافة|الاضافات|إضافات|اضافات|إضافة|اضافه|الصرف|صرف|التحويلات|تحويلات|تحويل|المرتجعات|مرتجعات|مرتجع|وارد|عن|على|في|فى|كل)/gi;
 const reportStopWords = new Set(["ما", "اعرض", "افتح", "تقرير", "مبيعات", "المبيعات", "مشتريات", "المشتريات", "توريد", "التوريدات", "مورد", "المورد", "للمورد", "عميل", "العميل", "للعميل", "جهة", "الجهة", "للجهة", "مقاول", "المقاول", "مقاولين", "المقاولين", "صرف", "المصروف", "المصروفة", "حركات", "حركة", "كمية", "كميه", "الكميه", "الكمية", "مصروف", "مصروفة", "للمقاول", "للمقاولين", "للعميل", "للجهة", "لل", "السالبة", "سالبة", "الصافي", "مرتجع", "المرتجعات", "تحويل", "التحويلات", "عن", "في", "فى", "لشهر", "شهر", "من", "الى", "الي", "هذا", "الشهر", "الماضي"]);
 
 export function simplifyArabicForSearch(value: string) {
@@ -101,12 +101,16 @@ export function parseGlobalVoiceSearch(raw: string, referenceDate = new Date()) 
   const spokenText = normalizeVoiceSearchText(raw);
   const normalized = simplifyArabicForSearch(spokenText);
   const intent = intentRules.find(([, pattern]) => pattern.test(normalized))?.[0] ?? "all";
-  const permitNumber = extractPermitNumber(spokenText);
+  const explicitPermitNumber = extractPermitNumber(spokenText);
+  const standalonePermitNumber = /^[٠-٩0-9][٠-٩0-9A-Za-z_-]*$/.test(spokenText.trim()) ? normalizePermitNumber(spokenText) || undefined : undefined;
+  const permitNumber = explicitPermitNumber ?? standalonePermitNumber;
   const isReport = intent === "supplier-report" || intent === "customer-report" || intent === "customer-disbursement";
   const period = extractReportPeriod(spokenText, referenceDate);
   const terms = spokenText.replace(removableWords, " ").replace(/\s+/g, " ").trim();
   const reportPartyTerms = isReport ? extractReportPartyTerms(spokenText) : undefined;
-  return { raw: spokenText, normalized, intent, terms: permitNumber || reportPartyTerms || terms || spokenText, permitNumber, period };
+  const movementIntent = intent === "additions" || intent === "disbursements" || intent === "transfers";
+  const resolvedTerms = permitNumber || reportPartyTerms || terms || (movementIntent ? "" : spokenText);
+  return { raw: spokenText, normalized, intent, terms: resolvedTerms, permitNumber, period };
 }
 
 export function getGlobalSearchRoute(intent: GlobalVoiceSearchIntent, terms: string, id?: number, permitNumber?: string, period?: VoiceReportPeriod) {
