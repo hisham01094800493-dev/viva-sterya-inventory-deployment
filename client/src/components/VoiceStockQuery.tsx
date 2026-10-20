@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic, Search, Volume2, VolumeX, Warehouse, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,11 +19,77 @@ export function VoiceStockQuery() {
   const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
   const [speakResults, setSpeakResults] = useState(true);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
+  const [floatingPosition, setFloatingPosition] = useState(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("smart-inventory-voice-button-position") || "null");
+      if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) return { x: saved.x, y: saved.y };
+    } catch {}
+    return { x: Math.max(12, window.innerWidth - 78), y: Math.max(80, window.innerHeight - 150) };
+  });
+  const [floatingDimmed, setFloatingDimmed] = useState(false);
+  const dragRef = useRef<{ pointerId: number; offsetX: number; offsetY: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
+  const fadeTimerRef = useRef<number | null>(null);
   const query = trpc.items.voiceStockQuery.useQuery({ query: submitted || "رصيد" }, { enabled: open && Boolean(submitted), retry: false });
   const result = query.data;
   const selected = result?.matches?.find(match => match.id === selectedMatchId) ?? (result?.ambiguous ? undefined : result?.matches?.[0]);
   const canRecord = online;
   const normalizedForButton = useMemo(() => draft.trim(), [draft]);
+
+  function scheduleFade() {
+    if (fadeTimerRef.current !== null) window.clearTimeout(fadeTimerRef.current);
+    fadeTimerRef.current = window.setTimeout(() => setFloatingDimmed(true), 12_000);
+  }
+
+  function wakeFloatingButton() {
+    setFloatingDimmed(false);
+    scheduleFade();
+  }
+
+  function clampFloatingPosition(x: number, y: number) {
+    const size = 58;
+    return { x: Math.max(8, Math.min(x, Math.max(8, window.innerWidth - size - 8))), y: Math.max(8, Math.min(y, Math.max(8, window.innerHeight - size - 8))) };
+  }
+
+  function handleFloatingPointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+    wakeFloatingButton();
+    const rect = event.currentTarget.getBoundingClientRect();
+    dragRef.current = { pointerId: event.pointerId, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top, moved: false };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  }
+
+  function handleFloatingPointerMove(event: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const next = clampFloatingPosition(event.clientX - drag.offsetX, event.clientY - drag.offsetY);
+    if (Math.abs(next.x - floatingPosition.x) > 2 || Math.abs(next.y - floatingPosition.y) > 2) drag.moved = true;
+    setFloatingPosition(next);
+  }
+
+  function handleFloatingPointerUp(event: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag.moved) {
+      suppressClickRef.current = true;
+      window.setTimeout(() => { suppressClickRef.current = false; }, 0);
+    }
+    dragRef.current = null;
+    scheduleFade();
+  }
+
+  useEffect(() => {
+    scheduleFade();
+    const onResize = () => setFloatingPosition(position => clampFloatingPosition(position.x, position.y));
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      if (fadeTimerRef.current !== null) window.clearTimeout(fadeTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("smart-inventory-voice-button-position", JSON.stringify(floatingPosition));
+  }, [floatingPosition]);
 
   useEffect(() => {
     const onOnline = () => setOnline(true);
@@ -58,7 +124,7 @@ export function VoiceStockQuery() {
   }
 
   return <>
-    <Button type="button" onClick={() => setOpen(true)} aria-label="استعلام صوتي عن الرصيد" title="استعلام صوتي عن الرصيد" className="fixed bottom-24 right-4 z-[55] h-14 w-14 rounded-full bg-[#0d7180] p-0 text-white shadow-[0_12px_30px_rgba(13,113,128,0.35)] hover:bg-[#095b66] md:bottom-8 md:right-8">
+    <Button type="button" onClick={() => { if (suppressClickRef.current) return; setOpen(true); }} onPointerDown={handleFloatingPointerDown} onPointerMove={handleFloatingPointerMove} onPointerUp={handleFloatingPointerUp} onPointerCancel={handleFloatingPointerUp} style={{ left: floatingPosition.x, top: floatingPosition.y, touchAction: "none" }} aria-label="استعلام صوتي عن الرصيد" title="استعلام صوتي عن الرصيد — اسحب لتحريك الزر" className={`fixed z-[55] h-14 w-14 rounded-full border border-white/60 bg-[#0d7180]/45 p-0 text-white shadow-[0_10px_28px_rgba(13,113,128,0.22)] backdrop-blur-md transition-[opacity,transform,background-color] duration-500 hover:bg-[#0d7180]/75 active:scale-95 ${floatingDimmed ? "opacity-25 hover:opacity-100" : "opacity-75 hover:opacity-100"}`}>
       <Mic className="h-6 w-6" />
     </Button>
     <Dialog open={open} onOpenChange={value => value ? setOpen(true) : close()}>
