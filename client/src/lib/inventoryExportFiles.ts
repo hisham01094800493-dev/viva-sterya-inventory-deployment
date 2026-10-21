@@ -128,11 +128,6 @@ function drawAccountStatementHeader(doc: jsPDF, logo: string | null, date: Date,
   doc.setTextColor(16, 42, 67);
   doc.setFontSize(entityName.length > 42 ? 12 : 15);
   doc.text(shapeArabic(doc, entityName || "—"), right - 14, 105, { align: "right", maxWidth: right - left - 145 });
-  doc.setFillColor(13, 79, 98);
-  doc.setTextColor(255, 255, 255);
-  doc.roundedRect(left + 14, 82, 72, 20, 5, 5, "F");
-  doc.setFontSize(9);
-  doc.text(shapeArabic(doc, "كشف رسمي"), left + 50, 95, { align: "center" });
   const metricY = 128;
   const gap = 10;
   const columnsPerRow = metricEntries.length > 4 ? 4 : 3;
