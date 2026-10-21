@@ -263,7 +263,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const customers = trpc.customers.list.useQuery(undefined, { enabled: kind === "customer" });
   const additions = trpc.additions.account.useQuery({ supplierId: id }, { enabled: kind === "supplier" && id > 0 });
   const disbursements = trpc.disbursements.account.useQuery({ customerId: id }, { enabled: kind === "customer" && id > 0 });
-  const inventoryItems = trpc.items.list.useQuery(undefined, { enabled: kind === "supplier" && id > 0 });
+  const inventoryItems = trpc.items.list.useQuery(undefined, { enabled: id > 0 });
   const permissions = trpc.permissions.mine.useQuery();
   const settings = trpc.settings.list.useQuery();
   const preferences = trpc.preferences.get.useQuery();
@@ -296,7 +296,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     unitPrice: "سعر الوحدة",
     totalValue: "الإجمالي",
   };
-  const accountLoading = kind === "supplier" ? additions.isLoading || suppliers.isLoading || inventoryItems.isLoading : disbursements.isLoading || customers.isLoading;
+  const accountLoading = kind === "supplier" ? additions.isLoading || suppliers.isLoading || inventoryItems.isLoading : disbursements.isLoading || customers.isLoading || inventoryItems.isLoading;
   const accountDataAvailable = kind === "supplier" ? additions.data !== undefined && suppliers.data !== undefined : disbursements.data !== undefined && customers.data !== undefined;
   const accountError = !accountDataAvailable && (kind === "supplier" ? additions.error || suppliers.error : disbursements.error || customers.error);
   const canViewAccountFinancialDetails = permissions.data?.allowedReports.includes(WAREHOUSE_FINANCIAL_PERMISSION) ?? false;
@@ -338,9 +338,11 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     return summary;
   }, { disbursed: 0, negative: 0, returns: 0, transferNet: 0, net: 0 });
   const stockByIdentity = useMemo(() => new Map((inventoryItems.data ?? []).map(item => [String(item.code || item.name || "").trim().toLocaleLowerCase("ar-EG"), Number(item.currentStock ?? 0)])), [inventoryItems.data]);
+  const unitByIdentity = useMemo(() => new Map((inventoryItems.data ?? []).map(item => [String(item.code || item.name || "").trim().toLocaleLowerCase("ar-EG"), item.unit ?? null])), [inventoryItems.data]);
   const exportRows = rows.map(row => ({
     id: row.id,
     currentStock: kind === "supplier" ? (stockByIdentity.get(String(row.itemCode || row.item || "").trim().toLocaleLowerCase("ar-EG")) ?? 0) : undefined,
+    unit: unitByIdentity.get(String(row.itemCode || row.item || "").trim().toLocaleLowerCase("ar-EG")) ?? null,
     type: row.type,
     date: row.date,
     eznNum: row.number,
