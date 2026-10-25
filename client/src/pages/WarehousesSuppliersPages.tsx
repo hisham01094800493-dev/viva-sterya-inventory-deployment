@@ -355,6 +355,11 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     totalValue: row.total,
   }));
   const companyLogo = resolveCompanyLogoUrl(settings.data?.find(item => item.key === "company_logo")?.value ?? settings.data?.find(item => item.key === "company_logo_url")?.value);
+  const watermarkEnabled = settings.data?.find(item => item.key === "report_watermark_enabled")?.value !== "false";
+  const watermarkOpacity = Number(settings.data?.find(item => item.key === "report_watermark_opacity")?.value ?? "0.08");
+  const watermarkScale = Number(settings.data?.find(item => item.key === "report_watermark_scale")?.value ?? "0.42");
+  const watermarkPosition = (settings.data?.find(item => item.key === "report_watermark_position")?.value ?? "center") as "center" | "top" | "bottom";
+  const watermarkRepeat = settings.data?.find(item => item.key === "report_watermark_repeat")?.value === "true";
   const buildPdfItemSummary = () => {
     if (!includeItemQuantitySummary) return undefined;
     const summary = summarizeAccountStatementItems(exportRows);
@@ -445,6 +450,11 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
         itemSummary,
         logo: companyLogo,
         includeHeaderLogo: includeCompanyLogoInHeader,
+        watermarkEnabled,
+        watermarkOpacity,
+        watermarkScale,
+        watermarkPosition,
+        watermarkRepeat,
         date: new Date(),
         title: `كشف حساب ${kind === "supplier" ? "المورد" : "العميل/الجهة"} - ${entity?.name ?? ""}`,
         summary: reportSummary,
@@ -470,6 +480,11 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
           itemSummary: buildPdfItemSummary(),
           logo: companyLogo,
           includeHeaderLogo: includeCompanyLogoInHeader,
+          watermarkEnabled,
+          watermarkOpacity,
+          watermarkScale,
+          watermarkPosition,
+          watermarkRepeat,
           date: new Date(),
           summary: reportSummary,
           title: `كشف حساب ${kind === "supplier" ? "المورد" : "العميل/الجهة"} - ${entity?.name ?? ""}`,
