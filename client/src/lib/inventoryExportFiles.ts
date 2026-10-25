@@ -279,7 +279,7 @@ export function getMovementPdfCellValue(row: MovementExportItem | null | undefin
   return String(row[key as keyof MovementExportItem] ?? "—");
 }
 
-export async function buildMovementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; includeDetail?: boolean; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; headerDateFirst?: boolean; accountLayout?: boolean; recordCount?: number; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; monochrome?: boolean } = {}) {
+export async function buildMovementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; includeDetail?: boolean; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; headerDateFirst?: boolean; accountLayout?: boolean; recordCount?: number; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; monochrome?: boolean; includeHeaderLogo?: boolean } = {}) {
   const { jsPDF, autoTable } = await loadPdfTools();
   const columnSource = options.includeDetail === false ? movementPdfExportColumnsWithoutDetail : movementPdfExportColumns;
   const keys = selected(columnSource, options.columns);
@@ -293,7 +293,7 @@ export async function buildMovementPdf(rows: MovementExportItem[], options: { co
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
   let detailsStartY: number;
   if (options.accountLayout) {
-    detailsStartY = drawAccountStatementHeader(doc, resolvedLogo, options.date ?? new Date(), options.summary, options.recordCount ?? safeRows.length) + 14;
+    detailsStartY = drawAccountStatementHeader(doc, options.includeHeaderLogo === false ? null : resolvedLogo, options.date ?? new Date(), options.summary, options.recordCount ?? safeRows.length) + 14;
   } else {
     logoAndDate(doc, options.title ?? "تقرير حركات المخزون - Smart Inventory", resolvedLogo, options.date, options.summary, options.headerDateFirst);
     detailsStartY = getReportHeaderHeight(options.summary);
@@ -413,11 +413,11 @@ export async function downloadAccountStatementExcel(rows: MovementExportItem[], 
   downloadBlobFile(new Blob([output], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), options.fileName ?? "smart-inventory-account-statement.xlsx");
 }
 
-export async function buildAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; fileName?: string } = {}) {
+export async function buildAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; includeHeaderLogo?: boolean; fileName?: string } = {}) {
   return buildMovementPdf(rows, { ...options, includeDetail: false, columns: options.columns?.filter(column => column !== "detail"), title: "كشف الحساب", summary: options.summary, monochrome: false, accountLayout: true, recordCount: rows.length, headerDateFirst: true });
 }
 
-export async function downloadAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; fileName?: string } = {}) {
+export async function downloadAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; includeHeaderLogo?: boolean; fileName?: string } = {}) {
   const doc = await buildAccountStatementPdf(rows, options);
   savePdfFile(doc, options.fileName ?? "smart-inventory-account-statement.pdf");
 }
