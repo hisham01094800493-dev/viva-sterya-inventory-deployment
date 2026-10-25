@@ -1,4 +1,4 @@
-const CACHE_NAME = "smart-inventory-shell-v9";
+const CACHE_NAME = "smart-inventory-shell-v10";
 const APP_SHELL = __OFFLINE_PRECACHE_ASSETS__;
 const CACHEABLE_DESTINATIONS = new Set(["document", "script", "style", "image", "font"]);
 
