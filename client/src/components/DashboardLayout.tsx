@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   LayoutDashboard,
   LogOut,
+  Menu,
   PanelRight,
   Moon,
   Sun,
@@ -438,17 +439,49 @@ function FloatingQuickActions({ onNavigate, canCreateItems }: { onNavigate: (pat
 }
 
 function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { items: NavigationItem[]; activePath: string; onNavigate: (path: string) => void; darkMode: boolean }) {
-  return <nav className={`fixed bottom-3 left-1/2 z-40 w-[calc(100%-1.5rem)] max-w-[32rem] -translate-x-1/2 rounded-[1.8rem] border p-2 shadow-[0_16px_48px_rgba(7,35,48,0.2)] backdrop-blur-2xl motion-reduce:transition-none lg:hidden ${darkMode ? "border-white/10 bg-[#0b202b]/90 shadow-black/30" : "border-white/80 bg-white/90 shadow-[#174451]/20"}`} dir="rtl" aria-label="التنقل الرئيسي" style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))", WebkitBackdropFilter: "blur(24px) saturate(170%)" }}>
-    <div className="grid grid-cols-5 items-center gap-1">
+  const [expanded, setExpanded] = useState(false);
+  const collapseTimerRef = useRef<number | null>(null);
+  const lastScrollYRef = useRef(0);
+  const revealBriefly = useCallback(() => {
+    setExpanded(true);
+    if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current);
+    collapseTimerRef.current = window.setTimeout(() => setExpanded(false), 3200);
+  }, []);
+
+  useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const movingDown = currentScrollY > lastScrollYRef.current + 2;
+      lastScrollYRef.current = currentScrollY;
+      if (movingDown && currentScrollY > 24) revealBriefly();
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current);
+    };
+  }, [revealBriefly]);
+
+  const toggleExpanded = () => {
+    if (expanded) {
+      setExpanded(false);
+      if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current);
+    } else revealBriefly();
+  };
+
+  return <nav className="fixed right-3 z-50 flex items-center gap-2 lg:hidden" dir="rtl" aria-label="التنقل الرئيسي" style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
+    <button type="button" onClick={toggleExpanded} aria-label={expanded ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"} aria-expanded={expanded} className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#14b8a8] via-[#087f85] to-[#0d4f62] text-white shadow-[0_10px_28px_rgba(8,127,133,0.38)] ring-1 ring-white/70 transition-transform duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#36d6c3]/50 motion-reduce:transition-none ${expanded ? "rotate-0" : "animate-pulse motion-reduce:animate-none"}`} title={expanded ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"}>
+      {!expanded && <span aria-hidden="true" className="absolute inset-0 rounded-full bg-[#21c9b6]/30 animate-ping motion-reduce:animate-none" />}
+      {expanded ? <X className="relative h-6 w-6" /> : <Menu className="relative h-6 w-6" />}
+    </button>
+    <div className={`flex shrink-0 items-center gap-1 overflow-hidden rounded-2xl border p-1 shadow-[0_12px_32px_rgba(7,35,48,0.22)] backdrop-blur-2xl transition-all duration-300 ease-out motion-reduce:transition-none ${expanded ? "max-w-[14rem] translate-x-0 opacity-100" : "pointer-events-none max-w-0 translate-x-3 opacity-0"} ${darkMode ? "border-white/10 bg-[#0b202b]/95" : "border-white/80 bg-white/95"}`}>
       {items.map(item => {
         const Icon = item.icon;
         const active = isNavigationPathActive(item.path, activePath);
-        return <button key={item.path} type="button" onClick={() => onNavigate(item.path)} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`group relative flex min-h-[3.75rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5 transition-all duration-200 motion-reduce:transition-none active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] focus-visible:ring-offset-2 ${active ? darkMode ? "text-[#54e2d0]" : "text-[#087f7c]" : darkMode ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-[#087f7c]"}`}>
-          <span className={`relative flex h-9 w-12 items-center justify-center rounded-2xl transition-all duration-200 motion-reduce:transition-none ${active ? "bg-[#0d9488]/10 dark:bg-[#39d6c2]/10" : "group-hover:bg-black/[0.035] dark:group-hover:bg-white/[0.06]"}`}>
-            <Icon aria-hidden="true" className={`h-[1.2rem] w-[1.2rem] transition-transform duration-200 group-hover:scale-105 ${active ? "stroke-[2.4]" : ""}`} />
-          </span>
-          <span className={`max-w-full truncate text-[10px] leading-4 transition-all ${active ? "font-extrabold" : "font-semibold"}`}>{item.mobileLabel ?? item.label}</span>
-          {active && <span aria-hidden="true" className="absolute bottom-0 h-[3px] w-4 rounded-full bg-gradient-to-r from-[#10b5a5] to-[#43d9c5]" />}
+        return <button key={item.path} type="button" onClick={() => { setExpanded(false); if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current); onNavigate(item.path); }} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-200 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] motion-reduce:transition-none ${active ? darkMode ? "bg-[#39d6c2]/15 text-[#54e2d0]" : "bg-[#0d9488]/10 text-[#087f7c]" : darkMode ? "text-slate-300 hover:bg-white/10 hover:text-white" : "text-slate-600 hover:bg-slate-100 hover:text-[#087f7c]"}`}>
+          <Icon aria-hidden="true" className={`h-5 w-5 ${active ? "stroke-[2.5]" : ""}`} />
+          {active && <span aria-hidden="true" className="absolute bottom-1 h-0.5 w-3 rounded-full bg-[#20b9a8]" />}
         </button>;
       })}
     </div>
