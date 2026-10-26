@@ -439,6 +439,7 @@ function FloatingQuickActions({ onNavigate, canCreateItems }: { onNavigate: (pat
 
 function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { items: NavigationItem[]; activePath: string; onNavigate: (path: string) => void; darkMode: boolean }) {
   const [expanded, setExpanded] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const expandedRef = useRef(false);
   const collapseTimerRef = useRef<number | null>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -489,6 +490,7 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
 
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
+    setIsDragging(true);
     dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originX: rect.left, originY: rect.top, moved: false };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -510,6 +512,7 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = null;
+    setIsDragging(false);
     if (drag.moved) {
       const rect = event.currentTarget.getBoundingClientRect();
       const next = snapQuickActionsToNearestEdge({ x: rect.left, y: rect.top }, { width: window.innerWidth, height: window.innerHeight }, 56);
@@ -521,16 +524,16 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
   };
 
   const navStyle = position ? { left: `${position.x}px`, top: `${position.y}px` } : { right: "0.75rem", bottom: "calc(1rem + env(safe-area-inset-bottom))" };
+  // Fan the shortcuts into a quarter circle toward the safe area (up and left).
   const radialSlots = [
-    { x: -78, y: -4 },
-    { x: -58, y: -66 },
-    { x: 0, y: -88 },
-    { x: 58, y: -66 },
-    { x: 78, y: -4 },
+    { x: -78, y: -2 },
+    { x: -72, y: -58 },
+    { x: -38, y: -96 },
+    { x: 0, y: -112 },
   ];
   return <nav className="fixed z-[9999] h-16 w-16 pointer-events-auto" dir="rtl" aria-label="مركز الاختصارات الرئيسي" style={{ ...navStyle, zIndex: 9999 }}>
     <div className="pointer-events-none absolute inset-0 overflow-visible">
-      {items.slice(0, 5).map((item, index) => {
+      {items.slice(0, 4).map((item, index) => {
         const Icon = item.icon;
         const slot = radialSlots[index] ?? radialSlots[radialSlots.length - 1];
         const active = isNavigationPathActive(item.path, activePath);
@@ -540,7 +543,7 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
         </button>;
       })}
     </div>
-    <button type="button" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={() => { if (suppressClickRef.current) return; toggleExpanded(); }} aria-label={expanded ? "إغلاق مركز الاختصارات" : "فتح مركز الاختصارات الرئيسية والأصناف"} aria-expanded={expanded} className="absolute right-0 top-0 flex h-16 w-16 shrink-0 touch-none cursor-grab items-center justify-center rounded-full border-4 border-white/80 bg-gradient-to-br from-[#18c4b2] via-[#087f85] to-[#0d4f62] text-white shadow-[0_10px_28px_rgba(8,127,133,0.38)] transition-transform duration-200 active:scale-95 active:cursor-grabbing focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#36d6c3]/50 motion-reduce:transition-none" title={expanded ? "إغلاق مركز الاختصارات" : "فتح مركز الاختصارات الرئيسية والأصناف"}>
+    <button type="button" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={() => { if (suppressClickRef.current) return; toggleExpanded(); }} aria-label={expanded ? "إغلاق مركز الاختصارات" : "فتح مركز الاختصارات الرئيسية والأصناف"} aria-expanded={expanded} className={`absolute right-0 top-0 flex h-16 w-16 shrink-0 touch-none cursor-grab items-center justify-center rounded-full ${isDragging ? "transition-none" : "transition-transform duration-200"} border-4 border-white/80 bg-gradient-to-br from-[#18c4b2] via-[#087f85] to-[#0d4f62] text-white shadow-[0_10px_28px_rgba(8,127,133,0.38)] active:scale-95 active:cursor-grabbing focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#36d6c3]/50 motion-reduce:transition-none`} title={expanded ? "إغلاق مركز الاختصارات" : "فتح مركز الاختصارات الرئيسية والأصناف"}>
       <span className={`flex h-10 w-10 items-center justify-center rounded-full bg-white/15 transition-transform duration-300 ${expanded ? "rotate-45" : ""}`}>{expanded ? <X className="h-6 w-6" /> : <LayoutDashboard className="h-6 w-6" />}</span>
     </button>
   </nav>;
