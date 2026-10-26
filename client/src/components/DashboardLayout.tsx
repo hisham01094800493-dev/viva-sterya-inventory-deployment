@@ -441,7 +441,17 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
   const [expanded, setExpanded] = useState(false);
   const expandedRef = useRef(false);
   const collapseTimerRef = useRef<number | null>(null);
-  const lastScrollYRef = useRef(0);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("smart-inventory-mobile-shortcuts-position") || "null");
+      return saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? clampQuickActionsPosition(saved, { width: window.innerWidth, height: window.innerHeight }, 56) : null;
+    } catch {
+      return null;
+    }
+  });
+  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
   const revealBriefly = useCallback(() => {
     expandedRef.current = true;
     setExpanded(true);
@@ -453,19 +463,25 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
   }, []);
 
   useEffect(() => {
-    lastScrollYRef.current = window.scrollY;
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      const movingDown = currentScrollY > lastScrollYRef.current + 2;
-      lastScrollYRef.current = currentScrollY;
-      if (movingDown && currentScrollY > 24 && !expandedRef.current) revealBriefly();
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => {
-      window.removeEventListener("scroll", handleScroll);
       if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current);
     };
-  }, [revealBriefly]);
+  }, []);
+
+  useEffect(() => {
+    const keepVisible = () => setPosition(current => {
+      if (!current) return current;
+      const next = clampQuickActionsPosition(current, { width: window.innerWidth, height: window.innerHeight }, 56);
+      if (next.x !== current.x || next.y !== current.y) window.localStorage.setItem("smart-inventory-mobile-shortcuts-position", JSON.stringify(next));
+      return next;
+    });
+    window.addEventListener("resize", keepVisible);
+    window.addEventListener("orientationchange", keepVisible);
+    return () => {
+      window.removeEventListener("resize", keepVisible);
+      window.removeEventListener("orientationchange", keepVisible);
+    };
+  }, []);
 
   const toggleExpanded = () => {
     if (expanded) {
@@ -475,11 +491,45 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
     } else revealBriefly();
   };
 
-  return <nav className="fixed right-3 z-50 flex items-end gap-2 lg:hidden" dir="rtl" aria-label="التنقل الرئيسي" style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
-    <button type="button" onClick={toggleExpanded} aria-label={expanded ? "إغلاق قائمة التنقل" : "فتح أقسام البرنامج"} aria-expanded={expanded} className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#14b8a8] via-[#087f85] to-[#0d4f62] text-white shadow-[0_8px_20px_rgba(8,127,133,0.28)] ring-1 ring-white/70 transition-transform duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#36d6c3]/50 motion-reduce:transition-none" title={expanded ? "إغلاق قائمة التنقل" : "مفتاح المخزن — فتح الأقسام"}>
-      {expanded ? <X className="h-6 w-6" /> : <Warehouse className="h-6 w-6" />}
+  const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originX: rect.left, originY: rect.top, moved: false };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const handlePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) < 6) return;
+    drag.moved = true;
+    suppressClickRef.current = true;
+    expandedRef.current = false;
+    setExpanded(false);
+    if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current);
+    const next = clampQuickActionsPosition({ x: drag.originX + dx, y: drag.originY + dy }, { width: window.innerWidth, height: window.innerHeight }, 56);
+    setPosition(next);
+  };
+  const handlePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    if (drag.moved) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const next = snapQuickActionsToNearestEdge({ x: rect.left, y: rect.top }, { width: window.innerWidth, height: window.innerHeight }, 56);
+      setPosition(next);
+      window.localStorage.setItem("smart-inventory-mobile-shortcuts-position", JSON.stringify(next));
+      window.setTimeout(() => { suppressClickRef.current = false; }, 0);
+    } else suppressClickRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const navStyle = position ? { left: `${position.x}px`, top: `${position.y}px` } : { right: "0.75rem", bottom: "calc(1rem + env(safe-area-inset-bottom))" };
+  return <nav className={`fixed z-50 flex items-end gap-2 ${position ? "" : ""}`} dir="rtl" aria-label="مركز الاختصارات الرئيسي" style={navStyle}>
+    <button type="button" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={() => { if (suppressClickRef.current) return; toggleExpanded(); }} aria-label={expanded ? "إغلاق مركز الاختصارات" : "فتح مركز الاختصارات الرئيسية والأصناف"} aria-expanded={expanded} className="flex h-14 w-14 shrink-0 touch-none cursor-grab items-center justify-center rounded-full bg-gradient-to-br from-[#14b8a8] via-[#087f85] to-[#0d4f62] text-white shadow-[0_8px_20px_rgba(8,127,133,0.28)] ring-1 ring-white/70 transition-transform duration-150 active:scale-95 active:cursor-grabbing focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#36d6c3]/50 motion-reduce:transition-none" title={expanded ? "إغلاق مركز الاختصارات" : "الرئيسية والأصناف والاختصارات"}>
+      {expanded ? <X className="h-6 w-6" /> : <LayoutDashboard className="h-6 w-6" />}
     </button>
-    <div className={`origin-bottom-right flex shrink-0 flex-col items-stretch gap-1 overflow-hidden rounded-2xl border p-1.5 shadow-[0_12px_32px_rgba(7,35,48,0.22)] backdrop-blur-2xl transition-[max-height,opacity,transform] duration-200 ease-out motion-reduce:transition-none ${expanded ? "max-h-[15rem] translate-x-0 scale-100 opacity-100" : "pointer-events-none max-h-0 translate-x-3 scale-95 opacity-0"} ${darkMode ? "border-white/10 bg-[#0b202b]/95" : "border-white/80 bg-white/95"}`}>
+    <div className={`origin-bottom-right flex shrink-0 flex-col items-stretch gap-1 overflow-hidden rounded-2xl border p-1.5 shadow-[0_12px_32px_rgba(7,35,48,0.22)] backdrop-blur-2xl transition-[max-height,opacity,transform] duration-200 ease-out motion-reduce:transition-none ${expanded ? "max-h-[18rem] translate-x-0 scale-100 opacity-100" : "pointer-events-none max-h-0 translate-x-3 scale-95 opacity-0"} ${darkMode ? "border-white/10 bg-[#0b202b]/95" : "border-white/80 bg-white/95"}`}>
       {items.map(item => {
         const Icon = item.icon;
         const active = isNavigationPathActive(item.path, activePath);
@@ -492,7 +542,6 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
     </div>
   </nav>;
 }
-
 function DashboardLayoutContent({ children, user }: { children: React.ReactNode; user: NonNullable<ReturnType<typeof useAuth>["user"]> }) {
   const [location, setLocation] = useLocation();
   const [previewPermissions, setPreviewPermissions] = useState<PreviewPermissions | null>(() => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); return raw ? JSON.parse(raw) : null; } catch { return null; } });
