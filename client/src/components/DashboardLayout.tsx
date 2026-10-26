@@ -438,19 +438,22 @@ function FloatingQuickActions({ onNavigate, canCreateItems }: { onNavigate: (pat
 }
 
 function MobileBottomNavigation({ items, activePath, onNavigate, darkMode, visible }: { items: NavigationItem[]; activePath: string; onNavigate: (path: string) => void; darkMode: boolean; visible: boolean }) {
-  return <nav className={`fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 items-end gap-1 rounded-[1.6rem] border p-2 shadow-[0_12px_40px_rgba(13,79,98,0.18)] backdrop-blur-xl transition-transform duration-300 ease-out motion-reduce:transition-none lg:hidden ${visible ? "translate-y-0" : "translate-y-[calc(100%+1rem)]"} ${darkMode ? "border-white/10 bg-[#102f3d]/95" : "border-white/80 bg-white/95"}`} dir="rtl" aria-label="التنقل الرئيسي" style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}>
-    {items.map(item => {
-      const Icon = item.icon;
-      const active = isNavigationPathActive(item.path, activePath);
-      const primary = item.path === "/additions";
-      return <button key={item.path} type="button" onClick={() => onNavigate(item.path)} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`group relative flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[11px] leading-4 font-bold transition-all duration-200 motion-reduce:transition-none active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#20a4a3] focus-visible:ring-offset-2 ${primary ? "text-white" : active ? "bg-[#e8f7f6] text-[#0d4f62] dark:bg-white/10 dark:text-white" : darkMode ? "text-slate-300 hover:bg-white/10" : "text-slate-500 hover:bg-slate-50 hover:text-[#0d4f62]"}`}>
-        <span className={`flex items-center justify-center transition-all duration-200 motion-reduce:transition-none ${primary ? "-mt-5 h-12 w-12 rounded-2xl bg-gradient-to-br from-[#0d7180] to-[#20a4a3] shadow-lg shadow-[#0d7180]/30 group-hover:-translate-y-0.5" : active ? "h-9 w-9 rounded-xl bg-white shadow-sm dark:bg-[#173c49]" : "h-9 w-9 rounded-xl group-hover:scale-110"}`}>
-          <Icon aria-hidden="true" className={`h-5 w-5 ${primary ? "text-white" : active ? "text-[#0d7180] dark:text-[#8ed3d1]" : darkMode ? "text-[#8ed3d1]" : "text-[#0d7180]"}`} />
-        </span>
-        <span className="max-w-full truncate">{item.mobileLabel ?? item.label}</span>
-        {active && !primary && <span aria-hidden="true" className="absolute top-1 h-1 w-5 rounded-full bg-[#20a4a3]" />}
-      </button>;
-    })}
+  return <nav className={`fixed bottom-3 left-1/2 z-40 w-[calc(100%-1.5rem)] max-w-[30rem] -translate-x-1/2 rounded-[1.8rem] border p-2 shadow-[0_16px_48px_rgba(7,35,48,0.2)] backdrop-blur-2xl transition-all duration-300 ease-out motion-reduce:transition-none lg:hidden ${visible ? "translate-y-0 opacity-100" : "translate-y-[calc(100%+1rem)] opacity-0"} ${darkMode ? "border-white/10 bg-[#0b202b]/85 shadow-black/30" : "border-white/70 bg-white/75 shadow-[#174451]/15"}`} dir="rtl" aria-label="التنقل الرئيسي" style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))", WebkitBackdropFilter: "blur(24px) saturate(170%)" }}>
+    <div className={`grid ${items.length === 3 ? "grid-cols-3" : "grid-cols-5"} items-center gap-1`}>
+      {items.map(item => {
+        const Icon = item.icon;
+        const active = isNavigationPathActive(item.path, activePath);
+        const primary = item.path === "/additions";
+        return <button key={item.path} type="button" onClick={() => onNavigate(item.path)} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`group relative flex min-h-[3.75rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5 transition-all duration-200 motion-reduce:transition-none active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] focus-visible:ring-offset-2 ${primary ? "text-white" : active ? darkMode ? "text-[#54e2d0]" : "text-[#087f7c]" : darkMode ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-[#087f7c]"}`}>
+          <span className={`relative flex items-center justify-center transition-all duration-200 motion-reduce:transition-none ${primary ? "-mt-5 h-[3.15rem] w-[3.15rem] rounded-[1.15rem] bg-gradient-to-br from-[#15b8aa] via-[#078b91] to-[#0d4f62] text-white shadow-[0_8px_22px_rgba(8,139,145,0.38)] ring-[5px] ring-white/80 group-hover:-translate-y-0.5 dark:ring-[#0b202b]" : active ? "h-9 w-12 rounded-2xl bg-[#0d9488]/10 dark:bg-[#39d6c2]/10" : "h-9 w-12 rounded-2xl group-hover:bg-black/[0.035] dark:group-hover:bg-white/[0.06]"}`}>
+            <Icon aria-hidden="true" className={`h-[1.2rem] w-[1.2rem] transition-transform duration-200 group-hover:scale-105 ${active && !primary ? "stroke-[2.4]" : ""}`} />
+            {primary && <span aria-hidden="true" className="absolute -bottom-1 -right-1 flex h-[1.1rem] w-[1.1rem] items-center justify-center rounded-full border-2 border-white bg-[#f8c66a] text-[#123b45] shadow-sm dark:border-[#0b202b]"><Plus className="h-2.5 w-2.5 stroke-[3]" /></span>}
+          </span>
+          <span className={`max-w-full truncate text-[10px] leading-4 transition-all ${active || primary ? "font-extrabold" : "font-semibold"}`}>{item.mobileLabel ?? item.label}</span>
+          {active && !primary && <span aria-hidden="true" className="absolute bottom-0 h-[3px] w-4 rounded-full bg-gradient-to-r from-[#10b5a5] to-[#43d9c5]" />}
+        </button>;
+      })}
+    </div>
   </nav>;
 }
 
