@@ -521,21 +521,28 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
   };
 
   const navStyle = position ? { left: `${position.x}px`, top: `${position.y}px` } : { right: "0.75rem", bottom: "calc(1rem + env(safe-area-inset-bottom))" };
-  return <nav className="fixed z-[9999] flex items-end gap-2 pointer-events-auto" dir="rtl" aria-label="مركز الاختصارات الرئيسي" style={{ ...navStyle, zIndex: 9999 }}>
-    <button type="button" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={() => { if (suppressClickRef.current) return; toggleExpanded(); }} aria-label={expanded ? "إغلاق مركز الاختصارات" : "فتح مركز الاختصارات الرئيسية والأصناف"} aria-expanded={expanded} className="flex h-16 w-16 shrink-0 touch-none cursor-grab items-center justify-center rounded-full bg-gradient-to-br from-[#14b8a8] via-[#087f85] to-[#0d4f62] text-white shadow-[0_8px_20px_rgba(8,127,133,0.28)] ring-1 ring-white/70 transition-transform duration-150 active:scale-95 active:cursor-grabbing focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#36d6c3]/50 motion-reduce:transition-none" title={expanded ? "إغلاق مركز الاختصارات" : "الرئيسية والأصناف والاختصارات"}>
-      {expanded ? <X className="h-6 w-6" /> : <LayoutDashboard className="h-6 w-6" />}
-    </button>
-    <div className={`origin-bottom-right flex shrink-0 flex-col items-stretch gap-1 overflow-hidden rounded-2xl border p-1.5 shadow-[0_12px_32px_rgba(7,35,48,0.22)] backdrop-blur-2xl transition-[max-height,opacity,transform] duration-200 ease-out motion-reduce:transition-none ${expanded ? "max-h-[18rem] translate-x-0 scale-100 opacity-100" : "pointer-events-none max-h-0 translate-x-3 scale-95 opacity-0"} ${darkMode ? "border-white/10 bg-[#0b202b]/95" : "border-white/80 bg-white/95"}`}>
-      {items.map(item => {
+  const radialSlots = [
+    { x: -78, y: -4 },
+    { x: -58, y: -66 },
+    { x: 0, y: -88 },
+    { x: 58, y: -66 },
+    { x: 78, y: -4 },
+  ];
+  return <nav className="fixed z-[9999] h-16 w-16 pointer-events-auto" dir="rtl" aria-label="مركز الاختصارات الرئيسي" style={{ ...navStyle, zIndex: 9999 }}>
+    <div className="pointer-events-none absolute inset-0 overflow-visible">
+      {items.slice(0, 5).map((item, index) => {
         const Icon = item.icon;
+        const slot = radialSlots[index] ?? radialSlots[radialSlots.length - 1];
         const active = isNavigationPathActive(item.path, activePath);
-        return <button key={item.path} type="button" onClick={() => { expandedRef.current = false; setExpanded(false); if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current); onNavigate(item.path); }} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`flex h-10 w-36 shrink-0 items-center justify-start gap-2 rounded-xl px-2 text-right transition-all duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] motion-reduce:transition-none ${active ? darkMode ? "bg-[#39d6c2]/15 text-[#54e2d0]" : "bg-[#0d9488]/10 text-[#087f7c]" : darkMode ? "text-slate-300 hover:bg-white/10 hover:text-white" : "text-slate-600 hover:bg-slate-100 hover:text-[#087f7c]"}`}>
-          <Icon aria-hidden="true" className={`h-5 w-5 shrink-0 ${active ? "stroke-[2.5]" : ""}`} />
-          <span className="truncate text-xs font-bold">{item.mobileLabel ?? item.label}</span>
-          {active && <span aria-hidden="true" className="mr-auto h-1.5 w-1.5 shrink-0 rounded-full bg-[#20b9a8]" />}
+        return <button key={item.path} type="button" onClick={() => { expandedRef.current = false; setExpanded(false); if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current); onNavigate(item.path); }} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`pointer-events-auto absolute right-1/2 top-1/2 flex h-11 w-11 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border text-white shadow-lg transition-[transform,opacity] duration-300 ease-out active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] motion-reduce:transition-none ${active ? "border-[#c7fff7] bg-[#087f85] ring-2 ring-[#36d6c3]/40" : darkMode ? "border-white/20 bg-[#173a46]" : "border-white/80 bg-[#0d7180]"} ${expanded ? "opacity-100" : "pointer-events-none opacity-0"}`} style={{ transform: expanded ? `translate(calc(50% + ${slot.x}px), calc(-50% + ${slot.y}px)) scale(1)` : "translate(50%, -50%) scale(.35)" }}>
+          <Icon aria-hidden="true" className="h-5 w-5" />
+          <span className="sr-only">{item.mobileLabel ?? item.label}</span>
         </button>;
       })}
     </div>
+    <button type="button" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={() => { if (suppressClickRef.current) return; toggleExpanded(); }} aria-label={expanded ? "إغلاق مركز الاختصارات" : "فتح مركز الاختصارات الرئيسية والأصناف"} aria-expanded={expanded} className="absolute right-0 top-0 flex h-16 w-16 shrink-0 touch-none cursor-grab items-center justify-center rounded-full border-4 border-white/80 bg-gradient-to-br from-[#18c4b2] via-[#087f85] to-[#0d4f62] text-white shadow-[0_10px_28px_rgba(8,127,133,0.38)] transition-transform duration-200 active:scale-95 active:cursor-grabbing focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#36d6c3]/50 motion-reduce:transition-none" title={expanded ? "إغلاق مركز الاختصارات" : "فتح مركز الاختصارات الرئيسية والأصناف"}>
+      <span className={`flex h-10 w-10 items-center justify-center rounded-full bg-white/15 transition-transform duration-300 ${expanded ? "rotate-45" : ""}`}>{expanded ? <X className="h-6 w-6" /> : <LayoutDashboard className="h-6 w-6" />}</span>
+    </button>
   </nav>;
 }
 function DashboardLayoutContent({ children, user }: { children: React.ReactNode; user: NonNullable<ReturnType<typeof useAuth>["user"]> }) {
