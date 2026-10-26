@@ -273,6 +273,18 @@ const menuItems = [
   { icon: FilePenLine, label: "المسودات", path: "/drafts" },
 ];
 
+export function buildMobileNavigationItems(readOnlyRole: boolean): NavigationItem[] {
+  const destinations: Array<[string, string]> = readOnlyRole
+    ? [["/", "الرئيسية"], ["/items", "المخزون"], ["/reports", "التقارير"]]
+    : [["/", "الرئيسية"], ["/items", "المخزون"], ["/additions", "الإضافة"], ["/disbursements", "الصرف"], ["/reports", "التقارير"]];
+
+  return destinations.map(([path, mobileLabel]) => {
+    const item = menuItems.find(candidate => candidate.path === path);
+    if (!item) throw new Error(`Mobile navigation destination is missing: ${path}`);
+    return { ...item, mobileLabel };
+  });
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { loading, user } = useAuth();
 
@@ -426,8 +438,19 @@ function FloatingQuickActions({ onNavigate, canCreateItems }: { onNavigate: (pat
 }
 
 function MobileBottomNavigation({ items, activePath, onNavigate, darkMode, visible }: { items: NavigationItem[]; activePath: string; onNavigate: (path: string) => void; darkMode: boolean; visible: boolean }) {
-  return <nav className={`fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 gap-1 rounded-[1.35rem] border p-2 shadow-[0_18px_48px_rgba(13,79,98,0.22)] backdrop-blur-xl transition-transform duration-300 ease-out motion-reduce:transition-none lg:hidden ${visible ? "translate-y-0" : "translate-y-[calc(100%+1rem)]"} ${darkMode ? "border-[#5c9ca4]/20 bg-[#102f3d]/95" : "border-white/80 bg-white/95"}`} dir="rtl" aria-label="التنقل السريع">
-    {items.map(item => { const Icon = item.icon; const active = activePath === item.path; return <button key={item.path} type="button" onClick={() => onNavigate(item.path)} className={`group flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] leading-4 font-black transition-all duration-200 ease-out motion-reduce:transition-none active:scale-95 ${active ? "bg-gradient-to-b from-[#0d4f62] to-[#167c87] text-white shadow-md" : darkMode ? "text-[#9bc5ca] hover:bg-white/10 hover:text-white" : "text-[#6b7f89] hover:bg-[#fff4df] hover:text-[#0d4f62]"}`} aria-current={active ? "page" : undefined} title={item.label}><span className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200 ease-out motion-reduce:transition-none ${active ? "scale-110 bg-[#ffe0a3] shadow-[0_0_0_4px_rgba(255,224,163,0.18)]" : darkMode ? "bg-white/5 group-hover:scale-105" : "bg-[#e8f1f2] group-hover:scale-105"}`}><Icon className={`h-[18px] w-[18px] transition-all duration-200 ease-out motion-reduce:transition-none ${active ? "h-5 w-5 text-[#0d4f62]" : darkMode ? "text-[#8ed3d1]" : "text-[#0d7180]"}`} /></span><span className="max-w-full whitespace-nowrap">{item.mobileLabel ?? item.label}</span></button>; })}
+  return <nav className={`fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 items-end gap-1 rounded-[1.6rem] border p-2 shadow-[0_12px_40px_rgba(13,79,98,0.18)] backdrop-blur-xl transition-transform duration-300 ease-out motion-reduce:transition-none lg:hidden ${visible ? "translate-y-0" : "translate-y-[calc(100%+1rem)]"} ${darkMode ? "border-white/10 bg-[#102f3d]/95" : "border-white/80 bg-white/95"}`} dir="rtl" aria-label="التنقل الرئيسي" style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}>
+    {items.map(item => {
+      const Icon = item.icon;
+      const active = isNavigationPathActive(item.path, activePath);
+      const primary = item.path === "/additions";
+      return <button key={item.path} type="button" onClick={() => onNavigate(item.path)} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`group relative flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[11px] leading-4 font-bold transition-all duration-200 motion-reduce:transition-none active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#20a4a3] focus-visible:ring-offset-2 ${primary ? "text-white" : active ? "bg-[#e8f7f6] text-[#0d4f62] dark:bg-white/10 dark:text-white" : darkMode ? "text-slate-300 hover:bg-white/10" : "text-slate-500 hover:bg-slate-50 hover:text-[#0d4f62]"}`}>
+        <span className={`flex items-center justify-center transition-all duration-200 motion-reduce:transition-none ${primary ? "-mt-5 h-12 w-12 rounded-2xl bg-gradient-to-br from-[#0d7180] to-[#20a4a3] shadow-lg shadow-[#0d7180]/30 group-hover:-translate-y-0.5" : active ? "h-9 w-9 rounded-xl bg-white shadow-sm dark:bg-[#173c49]" : "h-9 w-9 rounded-xl group-hover:scale-110"}`}>
+          <Icon aria-hidden="true" className={`h-5 w-5 ${primary ? "text-white" : active ? "text-[#0d7180] dark:text-[#8ed3d1]" : darkMode ? "text-[#8ed3d1]" : "text-[#0d7180]"}`} />
+        </span>
+        <span className="max-w-full truncate">{item.mobileLabel ?? item.label}</span>
+        {active && !primary && <span aria-hidden="true" className="absolute top-1 h-1 w-5 rounded-full bg-[#20a4a3]" />}
+      </button>;
+    })}
   </nav>;
 }
 
@@ -520,17 +543,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   const chatEnabled = hasScreenPermission("/chat");
   const navigationGroups = buildNavigationGroups(navigationItems, governanceItem);
   const activeMenuItem = navigationItems.find(item => isNavigationPathActive(item.path, location)) ?? menuItems[0];
-  const mobileNavigationItems = readOnlyRole ? [
-    { ...menuItems[0], mobileLabel: "الرئيسية" },
-    { ...menuItems[1], mobileLabel: "المخزون" },
-    { ...menuItems[8], mobileLabel: "التقارير" },
-  ] : [
-    { ...menuItems[0], mobileLabel: "الرئيسية" },
-    { ...menuItems[1], mobileLabel: "المخزون" },
-    { ...menuItems[2], mobileLabel: "الإضافة" },
-    { ...menuItems[3], mobileLabel: "الصرف" },
-    { ...menuItems[8], mobileLabel: "التقارير" },
-  ];
+  const mobileNavigationItems = buildMobileNavigationItems(readOnlyRole);
   const { logout } = useAuth();
   const showOnboarding = restartOnboarding || onboardingPreferences.data?.onboardingCompleted === false;
   const completeOnboarding = async () => { try { await saveOnboardingCompleted.mutateAsync({ completed: true }); setRestartOnboarding(false); await onboardingPreferences.refetch(); } catch (error: any) { toast.error(error?.message || "تعذر حفظ إكمال الشرح. حاول مرة أخرى."); } };

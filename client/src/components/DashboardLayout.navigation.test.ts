@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGovernanceNavigationItems, buildNavigationGroups, canAccessMigrationImport, isNavigationPathActive, SIDEBAR_VISUAL_CLASSES } from "./DashboardLayout";
+import { buildGovernanceNavigationItems, buildMobileNavigationItems, buildNavigationGroups, canAccessMigrationImport, isNavigationPathActive, SIDEBAR_VISUAL_CLASSES } from "./DashboardLayout";
 
 describe("buildGovernanceNavigationItems", () => {
   it("exposes the migration import link to admins only", () => {
@@ -37,5 +37,21 @@ describe("buildGovernanceNavigationItems", () => {
     expect(isNavigationPathActive("/warehouses", "/warehouses/2")).toBe(true);
     expect(isNavigationPathActive("/governance?tab=backups", "/governance?tab=backups")).toBe(true);
     expect(isNavigationPathActive("/governance?tab=backups", "/governance?tab=backup-center")).toBe(false);
+  });
+});
+
+describe("buildMobileNavigationItems", () => {
+  it("routes the primary mobile icons directly to their matching features", () => {
+    expect(buildMobileNavigationItems(false).map(({ mobileLabel, path }) => [mobileLabel, path])).toEqual([
+      ["الرئيسية", "/"],
+      ["المخزون", "/items"],
+      ["الإضافة", "/additions"],
+      ["الصرف", "/disbursements"],
+      ["التقارير", "/reports"],
+    ]);
+  });
+
+  it("keeps write actions out of the read-only mobile navigation", () => {
+    expect(buildMobileNavigationItems(true).map(({ path }) => path)).toEqual(["/", "/items", "/reports"]);
   });
 });
