@@ -41,17 +41,14 @@ describe("buildGovernanceNavigationItems", () => {
 });
 
 describe("buildMobileNavigationItems", () => {
-  it("routes the primary mobile icons directly to their matching features", () => {
-    expect(buildMobileNavigationItems(false).map(({ mobileLabel, path }) => [mobileLabel, path])).toEqual([
+  it("shows the main sections and excludes movement shortcuts from the bottom dock", () => {
+    const items = buildMobileNavigationItems();
+    expect(items.map(({ mobileLabel, path }) => [mobileLabel, path])).toEqual([
       ["الرئيسية", "/"],
-      ["المخزون", "/items"],
-      ["الإضافة", "/additions"],
-      ["الصرف", "/disbursements"],
+      ["الأصناف", "/items"],
+      ["المخازن", "/warehouses"],
       ["التقارير", "/reports"],
     ]);
-  });
-
-  it("keeps write actions out of the read-only mobile navigation", () => {
-    expect(buildMobileNavigationItems(true).map(({ path }) => path)).toEqual(["/", "/items", "/reports"]);
+    expect(items.some(({ path }) => ["/additions", "/disbursements"].includes(path))).toBe(false);
   });
 });

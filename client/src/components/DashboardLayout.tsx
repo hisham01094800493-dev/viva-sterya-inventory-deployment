@@ -273,13 +273,13 @@ const menuItems = [
   { icon: FilePenLine, label: "المسودات", path: "/drafts" },
 ];
 
-export function buildMobileNavigationItems(readOnlyRole: boolean): NavigationItem[] {
-  const destinations: Array<[string, string]> = readOnlyRole
-    ? [["/", "الرئيسية"], ["/items", "المخزون"], ["/reports", "التقارير"]]
-    : [["/", "الرئيسية"], ["/items", "المخزون"], ["/additions", "الإضافة"], ["/disbursements", "الصرف"], ["/reports", "التقارير"]];
+export function buildMobileNavigationItems(): NavigationItem[] {
+  const destinations: Array<[string, string]> = [["/", "الرئيسية"], ["/items", "الأصناف"], ["/warehouses", "المخازن"], ["/reports", "التقارير"]];
 
   return destinations.map(([path, mobileLabel]) => {
-    const item = menuItems.find(candidate => candidate.path === path);
+    const item = path === "/warehouses"
+      ? { icon: Warehouse, label: "المخازن", path }
+      : menuItems.find(candidate => candidate.path === path);
     if (!item) throw new Error(`Mobile navigation destination is missing: ${path}`);
     return { ...item, mobileLabel };
   });
@@ -439,18 +439,16 @@ function FloatingQuickActions({ onNavigate, canCreateItems }: { onNavigate: (pat
 
 function MobileBottomNavigation({ items, activePath, onNavigate, darkMode, visible }: { items: NavigationItem[]; activePath: string; onNavigate: (path: string) => void; darkMode: boolean; visible: boolean }) {
   return <nav className={`fixed bottom-3 left-1/2 z-40 w-[calc(100%-1.5rem)] max-w-[30rem] -translate-x-1/2 rounded-[1.8rem] border p-2 shadow-[0_16px_48px_rgba(7,35,48,0.2)] backdrop-blur-2xl transition-all duration-300 ease-out motion-reduce:transition-none lg:hidden ${visible ? "translate-y-0 opacity-100" : "translate-y-[calc(100%+1rem)] opacity-0"} ${darkMode ? "border-white/10 bg-[#0b202b]/85 shadow-black/30" : "border-white/70 bg-white/75 shadow-[#174451]/15"}`} dir="rtl" aria-label="التنقل الرئيسي" style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))", WebkitBackdropFilter: "blur(24px) saturate(170%)" }}>
-    <div className={`grid ${items.length === 3 ? "grid-cols-3" : "grid-cols-5"} items-center gap-1`}>
+    <div className="grid grid-cols-4 items-center gap-1">
       {items.map(item => {
         const Icon = item.icon;
         const active = isNavigationPathActive(item.path, activePath);
-        const primary = item.path === "/additions";
-        return <button key={item.path} type="button" onClick={() => onNavigate(item.path)} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`group relative flex min-h-[3.75rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5 transition-all duration-200 motion-reduce:transition-none active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] focus-visible:ring-offset-2 ${primary ? "text-white" : active ? darkMode ? "text-[#54e2d0]" : "text-[#087f7c]" : darkMode ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-[#087f7c]"}`}>
-          <span className={`relative flex items-center justify-center transition-all duration-200 motion-reduce:transition-none ${primary ? "-mt-5 h-[3.15rem] w-[3.15rem] rounded-[1.15rem] bg-gradient-to-br from-[#15b8aa] via-[#078b91] to-[#0d4f62] text-white shadow-[0_8px_22px_rgba(8,139,145,0.38)] ring-[5px] ring-white/80 group-hover:-translate-y-0.5 dark:ring-[#0b202b]" : active ? "h-9 w-12 rounded-2xl bg-[#0d9488]/10 dark:bg-[#39d6c2]/10" : "h-9 w-12 rounded-2xl group-hover:bg-black/[0.035] dark:group-hover:bg-white/[0.06]"}`}>
-            <Icon aria-hidden="true" className={`h-[1.2rem] w-[1.2rem] transition-transform duration-200 group-hover:scale-105 ${active && !primary ? "stroke-[2.4]" : ""}`} />
-            {primary && <span aria-hidden="true" className="absolute -bottom-1 -right-1 flex h-[1.1rem] w-[1.1rem] items-center justify-center rounded-full border-2 border-white bg-[#f8c66a] text-[#123b45] shadow-sm dark:border-[#0b202b]"><Plus className="h-2.5 w-2.5 stroke-[3]" /></span>}
+        return <button key={item.path} type="button" onClick={() => onNavigate(item.path)} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`group relative flex min-h-[3.75rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5 transition-all duration-200 motion-reduce:transition-none active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] focus-visible:ring-offset-2 ${active ? darkMode ? "text-[#54e2d0]" : "text-[#087f7c]" : darkMode ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-[#087f7c]"}`}>
+          <span className={`relative flex h-9 w-12 items-center justify-center rounded-2xl transition-all duration-200 motion-reduce:transition-none ${active ? "bg-[#0d9488]/10 dark:bg-[#39d6c2]/10" : "group-hover:bg-black/[0.035] dark:group-hover:bg-white/[0.06]"}`}>
+            <Icon aria-hidden="true" className={`h-[1.2rem] w-[1.2rem] transition-transform duration-200 group-hover:scale-105 ${active ? "stroke-[2.4]" : ""}`} />
           </span>
-          <span className={`max-w-full truncate text-[10px] leading-4 transition-all ${active || primary ? "font-extrabold" : "font-semibold"}`}>{item.mobileLabel ?? item.label}</span>
-          {active && !primary && <span aria-hidden="true" className="absolute bottom-0 h-[3px] w-4 rounded-full bg-gradient-to-r from-[#10b5a5] to-[#43d9c5]" />}
+          <span className={`max-w-full truncate text-[10px] leading-4 transition-all ${active ? "font-extrabold" : "font-semibold"}`}>{item.mobileLabel ?? item.label}</span>
+          {active && <span aria-hidden="true" className="absolute bottom-0 h-[3px] w-4 rounded-full bg-gradient-to-r from-[#10b5a5] to-[#43d9c5]" />}
         </button>;
       })}
     </div>
@@ -546,7 +544,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   const chatEnabled = hasScreenPermission("/chat");
   const navigationGroups = buildNavigationGroups(navigationItems, governanceItem);
   const activeMenuItem = navigationItems.find(item => isNavigationPathActive(item.path, location)) ?? menuItems[0];
-  const mobileNavigationItems = buildMobileNavigationItems(readOnlyRole);
+  const mobileNavigationItems = buildMobileNavigationItems();
   const { logout } = useAuth();
   const showOnboarding = restartOnboarding || onboardingPreferences.data?.onboardingCompleted === false;
   const completeOnboarding = async () => { try { await saveOnboardingCompleted.mutateAsync({ completed: true }); setRestartOnboarding(false); await onboardingPreferences.refetch(); } catch (error: any) { toast.error(error?.message || "تعذر حفظ إكمال الشرح. حاول مرة أخرى."); } };
