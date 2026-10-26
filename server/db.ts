@@ -2666,6 +2666,9 @@ export async function getReportDataset(
         count: count(),
         quantity: sum(disbursements.quantity),
         value: sum(disbursements.totalValue),
+        negativeReturnQuantity: sql<number>`SUM(CASE WHEN ${disbursements.quantity} < 0 AND ${disbursements.disburseType} LIKE '%مرتجع%' THEN ABS(${disbursements.quantity}) ELSE 0 END)`,
+        negativeReturnValue: sql<number>`SUM(CASE WHEN ${disbursements.quantity} < 0 AND ${disbursements.disburseType} LIKE '%مرتجع%' THEN ABS(${disbursements.totalValue}) ELSE 0 END)`,
+        negativeReturnMovements: sql<number>`SUM(CASE WHEN ${disbursements.quantity} < 0 AND ${disbursements.disburseType} LIKE '%مرتجع%' THEN 1 ELSE 0 END)`,
       })
       .from(disbursements)
       .where(disbursementsWhere)
@@ -2799,6 +2802,9 @@ export async function getReportDataset(
       count: unknown;
       quantity: unknown;
       value: unknown;
+      negativeReturnQuantity?: unknown;
+      negativeReturnValue?: unknown;
+      negativeReturnMovements?: unknown;
     },
     names: Map<number, string>
   ) => ({
@@ -2806,6 +2812,9 @@ export async function getReportDataset(
     movements: Number(row.count ?? 0),
     quantity: Number(row.quantity ?? 0),
     value: Number(row.value ?? 0),
+    negativeReturnQuantity: Number(row.negativeReturnQuantity ?? 0),
+    negativeReturnValue: Number(row.negativeReturnValue ?? 0),
+    negativeReturnMovements: Number(row.negativeReturnMovements ?? 0),
   });
   const additionsByCode = new Map(
     allAdditionGroups.map(row => [row.itemCode, Number(row.quantity ?? 0)])
@@ -2883,13 +2892,20 @@ export async function getReportDataset(
       customers: Array.from(
         customerGroups
           .map(row => toAccountRow(row, customersById))
-          .map(row => ({ ...row, returns: 0, returnMovements: 0 }))
+          .map(row => ({
+            ...row,
+            returns: row.negativeReturnQuantity,
+            returnMovements: row.negativeReturnMovements,
+          }))
           .concat(
             customerReturnGroups.map(row => ({
               name: customersById.get(row.partyId ?? 0) ?? "—",
               movements: 0,
               quantity: 0,
               value: 0,
+              negativeReturnQuantity: 0,
+              negativeReturnValue: 0,
+              negativeReturnMovements: 0,
               returns: Number(row.quantity ?? 0),
               returnMovements: Number(row.count ?? 0),
             }))
@@ -2900,17 +2916,23 @@ export async function getReportDataset(
               movements: 0,
               quantity: 0,
               value: 0,
+              negativeReturnQuantity: 0,
+              negativeReturnValue: 0,
+              negativeReturnMovements: 0,
               returns: 0,
               returnMovements: 0,
             };
             current.movements += row.movements;
             current.quantity += row.quantity;
             current.value += row.value;
+            current.negativeReturnQuantity += row.negativeReturnQuantity ?? 0;
+            current.negativeReturnValue += row.negativeReturnValue ?? 0;
+            current.negativeReturnMovements += row.negativeReturnMovements ?? 0;
             current.returns += row.returns;
             current.returnMovements += row.returnMovements ?? 0;
             groups.set(row.name, current);
             return groups;
-          }, new Map<string, { name: string; movements: number; quantity: number; value: number; returns: number; returnMovements: number }>())
+          }, new Map<string, { name: string; movements: number; quantity: number; value: number; negativeReturnQuantity: number; negativeReturnValue: number; negativeReturnMovements: number; returns: number; returnMovements: number }>())
           .values()
       ).sort((left, right) => right.value - left.value),
     },
