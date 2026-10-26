@@ -441,15 +441,11 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
   const [expanded, setExpanded] = useState(false);
   const expandedRef = useRef(false);
   const collapseTimerRef = useRef<number | null>(null);
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const saved = JSON.parse(window.localStorage.getItem("smart-inventory-mobile-shortcuts-position") || "null");
-      return saved && Number.isFinite(saved.x) && Number.isFinite(saved.y) ? clampQuickActionsPosition(saved, { width: window.innerWidth, height: window.innerHeight }, 56) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    // Reset an old saved position once so the launcher is always visible after an update.
+    window.localStorage.removeItem("smart-inventory-mobile-shortcuts-position");
+  }, []);
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
   const revealBriefly = useCallback(() => {
@@ -525,8 +521,8 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
   };
 
   const navStyle = position ? { left: `${position.x}px`, top: `${position.y}px` } : { right: "0.75rem", bottom: "calc(1rem + env(safe-area-inset-bottom))" };
-  return <nav className="fixed z-[80] flex items-end gap-2" dir="rtl" aria-label="مركز الاختصارات الرئيسي" style={navStyle}>
-    <button type="button" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={() => { if (suppressClickRef.current) return; toggleExpanded(); }} aria-label={expanded ? "إغلاق مركز الاختصارات" : "فتح مركز الاختصارات الرئيسية والأصناف"} aria-expanded={expanded} className="flex h-14 w-14 shrink-0 touch-none cursor-grab items-center justify-center rounded-full bg-gradient-to-br from-[#14b8a8] via-[#087f85] to-[#0d4f62] text-white shadow-[0_8px_20px_rgba(8,127,133,0.28)] ring-1 ring-white/70 transition-transform duration-150 active:scale-95 active:cursor-grabbing focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#36d6c3]/50 motion-reduce:transition-none" title={expanded ? "إغلاق مركز الاختصارات" : "الرئيسية والأصناف والاختصارات"}>
+  return <nav className="fixed z-[9999] flex items-end gap-2 pointer-events-auto" dir="rtl" aria-label="مركز الاختصارات الرئيسي" style={{ ...navStyle, zIndex: 9999 }}>
+    <button type="button" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={() => { if (suppressClickRef.current) return; toggleExpanded(); }} aria-label={expanded ? "إغلاق مركز الاختصارات" : "فتح مركز الاختصارات الرئيسية والأصناف"} aria-expanded={expanded} className="flex h-16 w-16 shrink-0 touch-none cursor-grab items-center justify-center rounded-full bg-gradient-to-br from-[#14b8a8] via-[#087f85] to-[#0d4f62] text-white shadow-[0_8px_20px_rgba(8,127,133,0.28)] ring-1 ring-white/70 transition-transform duration-150 active:scale-95 active:cursor-grabbing focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#36d6c3]/50 motion-reduce:transition-none" title={expanded ? "إغلاق مركز الاختصارات" : "الرئيسية والأصناف والاختصارات"}>
       {expanded ? <X className="h-6 w-6" /> : <LayoutDashboard className="h-6 w-6" />}
     </button>
     <div className={`origin-bottom-right flex shrink-0 flex-col items-stretch gap-1 overflow-hidden rounded-2xl border p-1.5 shadow-[0_12px_32px_rgba(7,35,48,0.22)] backdrop-blur-2xl transition-[max-height,opacity,transform] duration-200 ease-out motion-reduce:transition-none ${expanded ? "max-h-[18rem] translate-x-0 scale-100 opacity-100" : "pointer-events-none max-h-0 translate-x-3 scale-95 opacity-0"} ${darkMode ? "border-white/10 bg-[#0b202b]/95" : "border-white/80 bg-white/95"}`}>
