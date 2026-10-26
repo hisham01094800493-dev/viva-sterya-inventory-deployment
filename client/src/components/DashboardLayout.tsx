@@ -273,6 +273,18 @@ const menuItems = [
   { icon: FilePenLine, label: "المسودات", path: "/drafts" },
 ];
 
+export function buildMobileNavigationItems(): NavigationItem[] {
+  const destinations: Array<[string, string]> = [["/", "الرئيسية"], ["/items", "الأصناف"], ["/warehouses", "المخازن"], ["/reports", "التقارير"], ["/settings", "الإعدادات"]];
+
+  return destinations.map(([path, mobileLabel]) => {
+    const item = path === "/warehouses"
+      ? { icon: Warehouse, label: "المخازن", path }
+      : menuItems.find(candidate => candidate.path === path);
+    if (!item) throw new Error(`Mobile navigation destination is missing: ${path}`);
+    return { ...item, mobileLabel };
+  });
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { loading, user } = useAuth();
 
@@ -425,9 +437,59 @@ function FloatingQuickActions({ onNavigate, canCreateItems }: { onNavigate: (pat
   return <div className={`fixed z-[55] flex flex-col items-start gap-2 touch-none transition-[left,top,transform,opacity] duration-300 motion-reduce:transition-none ${position && !isDragging ? "quick-actions-settling" : ""} ${mobileDockClass} ${compactMode ? "w-12" : "w-auto"} opacity-100 ${(position && (open || compactMode)) || edgeMode ? "" : "bottom-24 right-4 lg:bottom-6 lg:right-6"}`} style={style} aria-label="إجراءات سريعة" onPointerEnter={() => { if (!compactMode) wakeIdle(); }} onFocus={() => { if (!compactMode) wakeIdle(); }}><div className={`flex flex-col items-start gap-2 overflow-hidden transition-all duration-200 ease-out motion-reduce:transition-none ${actionsMounted ? "max-h-56 opacity-100" : "max-h-0 opacity-0"} ${!open ? "pointer-events-none" : ""}`}>{actions.map(({ path, label, hint, icon: Icon, className }, index) => <button key={path} type="button" style={{ transitionDelay: open ? `${index * 45}ms` : `${(actions.length - index - 1) * 45}ms` }} onClick={() => { if (suppressClickRef.current) return; onNavigate(path); setOpen(false); }} title={`${label} — ${hint}`} aria-label={`${label}. ${hint}`} className={`quick-action-item inline-flex items-center gap-2 rounded-2xl px-3 py-2.5 text-xs font-black text-white transition-all duration-200 ease-out motion-reduce:transition-none motion-reduce:transform-none ${open ? "translate-x-0 opacity-100" : `${actionHiddenTransform} opacity-0`} hover:-translate-y-0.5 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${className}`}><span className="flex h-7 w-7 items-center justify-center rounded-xl bg-white/15"><Icon className="h-4 w-4" /></span><span>{label}</span></button>)}</div><button type="button" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onClick={() => { if (suppressClickRef.current) return; const opening = !open; setForceCompact(!opening); setOpenedFromEdge(opening ? (!position && (compactMode || openedFromEdge)) : false); if (!opening) { setCompactEdge("right"); } setIsIdle(false); setOpen(opening); }} title={open ? "إغلاق الإجراءات السريعة" : "فتح الإجراءات السريعة"} aria-label={open ? "إغلاق الإجراءات السريعة" : "فتح الإجراءات السريعة"} aria-expanded={open} className={`quick-actions-fab inline-flex items-center gap-2 rounded-2xl bg-[#0d4f62] text-xs font-black text-white shadow-[0_14px_30px_rgba(13,79,98,0.28)] transition-all duration-200 ease-out transition-shadow hover:-translate-y-0.5 hover:bg-[#0a4150] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0d4f62] focus-visible:ring-offset-2 ${compactMode ? `h-12 w-12 justify-center rounded-full p-0 ${compactColorClass} ${compactGlowClass}` : "px-3 py-2.5 bg-[#0d4f62] hover:bg-[#0a4150]"}`}><span className={`flex h-7 w-7 items-center justify-center rounded-xl bg-white/15 transition-transform duration-200 ${open ? "rotate-45" : ""}`}><Plus className="h-4 w-4" /></span>{!compactMode && <span>إجراءات سريعة</span>}</button></div>;
 }
 
-function MobileBottomNavigation({ items, activePath, onNavigate, darkMode, visible }: { items: NavigationItem[]; activePath: string; onNavigate: (path: string) => void; darkMode: boolean; visible: boolean }) {
-  return <nav className={`fixed inset-x-3 bottom-3 z-40 grid grid-cols-5 gap-1 rounded-[1.35rem] border p-2 shadow-[0_18px_48px_rgba(13,79,98,0.22)] backdrop-blur-xl transition-transform duration-300 ease-out motion-reduce:transition-none lg:hidden ${visible ? "translate-y-0" : "translate-y-[calc(100%+1rem)]"} ${darkMode ? "border-[#5c9ca4]/20 bg-[#102f3d]/95" : "border-white/80 bg-white/95"}`} dir="rtl" aria-label="التنقل السريع">
-    {items.map(item => { const Icon = item.icon; const active = activePath === item.path; return <button key={item.path} type="button" onClick={() => onNavigate(item.path)} className={`group flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] leading-4 font-black transition-all duration-200 ease-out motion-reduce:transition-none active:scale-95 ${active ? "bg-gradient-to-b from-[#0d4f62] to-[#167c87] text-white shadow-md" : darkMode ? "text-[#9bc5ca] hover:bg-white/10 hover:text-white" : "text-[#6b7f89] hover:bg-[#fff4df] hover:text-[#0d4f62]"}`} aria-current={active ? "page" : undefined} title={item.label}><span className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200 ease-out motion-reduce:transition-none ${active ? "scale-110 bg-[#ffe0a3] shadow-[0_0_0_4px_rgba(255,224,163,0.18)]" : darkMode ? "bg-white/5 group-hover:scale-105" : "bg-[#e8f1f2] group-hover:scale-105"}`}><Icon className={`h-[18px] w-[18px] transition-all duration-200 ease-out motion-reduce:transition-none ${active ? "h-5 w-5 text-[#0d4f62]" : darkMode ? "text-[#8ed3d1]" : "text-[#0d7180]"}`} /></span><span className="max-w-full whitespace-nowrap">{item.mobileLabel ?? item.label}</span></button>; })}
+function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { items: NavigationItem[]; activePath: string; onNavigate: (path: string) => void; darkMode: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const expandedRef = useRef(false);
+  const collapseTimerRef = useRef<number | null>(null);
+  const lastScrollYRef = useRef(0);
+  const revealBriefly = useCallback(() => {
+    expandedRef.current = true;
+    setExpanded(true);
+    if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current);
+    collapseTimerRef.current = window.setTimeout(() => {
+      expandedRef.current = false;
+      setExpanded(false);
+    }, 3200);
+  }, []);
+
+  useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const movingDown = currentScrollY > lastScrollYRef.current + 2;
+      lastScrollYRef.current = currentScrollY;
+      if (movingDown && currentScrollY > 24 && !expandedRef.current) revealBriefly();
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current);
+    };
+  }, [revealBriefly]);
+
+  const toggleExpanded = () => {
+    if (expanded) {
+      expandedRef.current = false;
+      setExpanded(false);
+      if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current);
+    } else revealBriefly();
+  };
+
+  return <nav className="fixed right-3 z-50 flex items-end gap-2 lg:hidden" dir="rtl" aria-label="التنقل الرئيسي" style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
+    <button type="button" onClick={toggleExpanded} aria-label={expanded ? "إغلاق قائمة التنقل" : "فتح أقسام البرنامج"} aria-expanded={expanded} className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#14b8a8] via-[#087f85] to-[#0d4f62] text-white shadow-[0_8px_20px_rgba(8,127,133,0.28)] ring-1 ring-white/70 transition-transform duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#36d6c3]/50 motion-reduce:transition-none" title={expanded ? "إغلاق قائمة التنقل" : "مفتاح المخزن — فتح الأقسام"}>
+      {expanded ? <X className="h-6 w-6" /> : <Warehouse className="h-6 w-6" />}
+    </button>
+    <div className={`origin-bottom-right flex shrink-0 flex-col items-stretch gap-1 overflow-hidden rounded-2xl border p-1.5 shadow-[0_12px_32px_rgba(7,35,48,0.22)] backdrop-blur-2xl transition-[max-height,opacity,transform] duration-200 ease-out motion-reduce:transition-none ${expanded ? "max-h-[15rem] translate-x-0 scale-100 opacity-100" : "pointer-events-none max-h-0 translate-x-3 scale-95 opacity-0"} ${darkMode ? "border-white/10 bg-[#0b202b]/95" : "border-white/80 bg-white/95"}`}>
+      {items.map(item => {
+        const Icon = item.icon;
+        const active = isNavigationPathActive(item.path, activePath);
+        return <button key={item.path} type="button" onClick={() => { expandedRef.current = false; setExpanded(false); if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current); onNavigate(item.path); }} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`flex h-10 w-36 shrink-0 items-center justify-start gap-2 rounded-xl px-2 text-right transition-all duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] motion-reduce:transition-none ${active ? darkMode ? "bg-[#39d6c2]/15 text-[#54e2d0]" : "bg-[#0d9488]/10 text-[#087f7c]" : darkMode ? "text-slate-300 hover:bg-white/10 hover:text-white" : "text-slate-600 hover:bg-slate-100 hover:text-[#087f7c]"}`}>
+          <Icon aria-hidden="true" className={`h-5 w-5 shrink-0 ${active ? "stroke-[2.5]" : ""}`} />
+          <span className="truncate text-xs font-bold">{item.mobileLabel ?? item.label}</span>
+          {active && <span aria-hidden="true" className="mr-auto h-1.5 w-1.5 shrink-0 rounded-full bg-[#20b9a8]" />}
+        </button>;
+      })}
+    </div>
   </nav>;
 }
 
@@ -436,9 +498,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   const [previewPermissions, setPreviewPermissions] = useState<PreviewPermissions | null>(() => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); return raw ? JSON.parse(raw) : null; } catch { return null; } });
   useEffect(() => { const syncPreview = () => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); setPreviewPermissions(raw ? JSON.parse(raw) : null); } catch { setPreviewPermissions(null); } }; window.addEventListener("smart-inventory-preview", syncPreview); return () => window.removeEventListener("smart-inventory-preview", syncPreview); }, []);
   const [darkMode, setDarkMode] = useState(() => typeof window !== "undefined" && window.localStorage.getItem("smart-inventory-theme") === "dark");
-  const [showMobileNavigation, setShowMobileNavigation] = useState(true);
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const lastScrollYRef = useRef(0);
   const { state, toggleSidebar } = useSidebar();
   useEffect(() => { document.documentElement.classList.toggle("dark", darkMode); window.localStorage.setItem("smart-inventory-theme", darkMode ? "dark" : "light"); }, [darkMode]);
   useEffect(() => { const applyNumberScale = () => { document.documentElement.dataset.numberScale = window.localStorage.getItem("smart-inventory-number-scale") || "normal"; }; applyNumberScale(); window.addEventListener("smart-inventory-number-scale", applyNumberScale); return () => window.removeEventListener("smart-inventory-number-scale", applyNumberScale); }, []);
@@ -480,11 +540,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
-      const previousScrollY = lastScrollYRef.current;
-      if (currentScrollY <= 16 || currentScrollY < previousScrollY - 4) setShowMobileNavigation(true);
-      else if (currentScrollY > previousScrollY + 4 && currentScrollY > 48) setShowMobileNavigation(false);
       setShowBackToTop(currentScrollY > 360);
-      lastScrollYRef.current = currentScrollY;
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
@@ -520,17 +576,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   const chatEnabled = hasScreenPermission("/chat");
   const navigationGroups = buildNavigationGroups(navigationItems, governanceItem);
   const activeMenuItem = navigationItems.find(item => isNavigationPathActive(item.path, location)) ?? menuItems[0];
-  const mobileNavigationItems = readOnlyRole ? [
-    { ...menuItems[0], mobileLabel: "الرئيسية" },
-    { ...menuItems[1], mobileLabel: "المخزون" },
-    { ...menuItems[8], mobileLabel: "التقارير" },
-  ] : [
-    { ...menuItems[0], mobileLabel: "الرئيسية" },
-    { ...menuItems[1], mobileLabel: "المخزون" },
-    { ...menuItems[2], mobileLabel: "الإضافة" },
-    { ...menuItems[3], mobileLabel: "الصرف" },
-    { ...menuItems[8], mobileLabel: "التقارير" },
-  ];
+  const mobileNavigationItems = buildMobileNavigationItems();
   const { logout } = useAuth();
   const showOnboarding = restartOnboarding || onboardingPreferences.data?.onboardingCompleted === false;
   const completeOnboarding = async () => { try { await saveOnboardingCompleted.mutateAsync({ completed: true }); setRestartOnboarding(false); await onboardingPreferences.refetch(); } catch (error: any) { toast.error(error?.message || "تعذر حفظ إكمال الشرح. حاول مرة أخرى."); } };
@@ -602,10 +648,10 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
       </SidebarInset>
       {previewPermissions ? <div className="fixed inset-x-3 bottom-4 z-[70] mx-auto flex max-w-2xl flex-wrap items-center justify-center gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/95 px-4 py-3 text-center text-xs font-black text-indigo-900 shadow-xl backdrop-blur"><span>وضع تجربة العرض</span><select value={String(previewPermissions.userId)} className="max-w-[170px] rounded-xl border border-indigo-300 bg-white px-2 py-1.5 text-xs font-black text-indigo-900" onChange={event => { const nextUserId = Number(event.target.value); const selected = (previewUsersQuery.data ?? []).find(item => item.id === nextUserId); const record = (previewPermissionsQuery.data ?? []).find(item => item.userId === nextUserId); if (!selected || !record) { toast.error("احفظ صلاحيات المستخدم أولاً قبل التبديل إليه"); return; } let allowedScreens: string[] = []; let allowedReports: string[] = []; try { allowedScreens = JSON.parse(record.allowedScreens); allowedReports = JSON.parse(record.allowedReports); } catch { toast.error("تعذر قراءة صلاحيات المستخدم"); return; } const nextPreview = { userId: selected.id, userName: selected.name, userEmail: selected.email, allowedScreens, allowedReports, readOnly: record.readOnly }; window.localStorage.setItem("smart-inventory-preview-permissions", JSON.stringify(nextPreview)); setPreviewPermissions(nextPreview); window.dispatchEvent(new Event("smart-inventory-preview")); setLocation("/"); }}>{(previewUsersQuery.data ?? []).map(item => <option key={item.id} value={item.id}>{item.name || item.email || `مستخدم ${item.id}`}</option>)}</select><Button type="button" size="sm" variant="outline" className="rounded-xl border-indigo-300 bg-white text-indigo-900" onClick={() => { window.localStorage.removeItem("smart-inventory-preview-permissions"); window.dispatchEvent(new Event("smart-inventory-preview")); setLocation("/governance"); }}>إنهاء المعاينة والعودة</Button></div> : readOnlyRole && <div className="pointer-events-none fixed inset-x-3 bottom-4 z-40 mx-auto max-w-xl rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-3 text-center text-xs font-black text-amber-800 shadow-lg backdrop-blur">حسابك مخصص للمشاهدة فقط — لا يمكنك إضافة أو تعديل أو حذف بيانات المخزون.</div>}
       {showBackToTop && <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="العودة إلى أعلى الصفحة" title="العودة للأعلى" className="back-to-top fixed bottom-24 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-2xl border border-[#8fd7ef] bg-[#e8f8ff] text-[#197da7] shadow-lg transition hover:-translate-y-0.5 md:bottom-8 md:left-8"><ArrowUpFromLine className="h-5 w-5" /></button>}
-      {!readOnlyRole && <FloatingQuickActions canCreateItems={canCreateItems} onNavigate={(path) => { setShowMobileNavigation(true); window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} />}
+      {!readOnlyRole && <FloatingQuickActions canCreateItems={canCreateItems} onNavigate={(path) => { window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} />}
       {!previewPermissions && chatEnabled && <ChatFloatingBubble />}
       {!previewPermissions && effectivePermissions?.allowedScreens.includes("inventory") && <VoiceStockQuery />}
-      <MobileBottomNavigation items={mobileNavigationItems} activePath={activeMenuItem.path} onNavigate={(path) => { setShowMobileNavigation(true); window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} darkMode={darkMode} visible={showMobileNavigation} />
+      <MobileBottomNavigation items={mobileNavigationItems} activePath={activeMenuItem.path} onNavigate={(path) => { window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} darkMode={darkMode} />
       {location.startsWith("/settings") && canAccessMigrationImport(user.role) && <Button type="button" onClick={() => window.location.assign("/migration-import")} className="fixed bottom-40 left-4 z-[52] gap-2 rounded-xl bg-[#0d4f62] text-xs font-black text-white shadow-lg shadow-[#0d4f62]/25 hover:bg-[#0a4150] md:bottom-24 md:left-8"><Upload className="h-4 w-4" />استيراد حزمة الترحيل</Button>}
       {location.startsWith("/settings") && <Button type="button" variant="outline" onClick={() => void launchOnboardingFromSettings()} disabled={saveOnboardingCompleted.isPending} className="fixed bottom-24 left-4 z-[52] gap-2 rounded-xl border-[#8fd1d0] bg-white/95 text-xs font-black text-[#0d4f62] shadow-lg backdrop-blur hover:bg-[#e8f7f6] md:bottom-8 md:left-8"><RotateCcw className="h-4 w-4" />{saveOnboardingCompleted.isPending ? "جارٍ التشغيل..." : "إعادة الجولة التعريفية"}</Button>}
       <OnboardingTour show={showOnboarding} onComplete={completeOnboarding} />

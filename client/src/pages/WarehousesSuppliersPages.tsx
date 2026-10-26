@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { resolveCompanyLogoUrl } from "@/lib/brandAssets";
 import { createReportMailtoUrl, sharePdfFile } from "@/lib/reportSharing";
+import { summarizeAccountStatementItems } from "@/lib/accountStatementGrouping";
 import { buildAccountStatementPdf, buildMainWarehousePdf, downloadAccountStatementExcel, downloadAccountStatementPdf, type ExportColumnKey } from "@/lib/inventoryExportFiles";
 import { ArrowRight, ArrowUpDown, Building2, Check, Copy, Download, Edit3, Eye, FileText, GripVertical, Loader2, Mail, MapPin, Package, Phone, Plus, Printer, Save, Search, Share2, Truck, UserRound, Warehouse } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -45,12 +46,14 @@ export function filterAndSortDirectory<T extends { name: string; phone?: string 
 }
 
 export type AccountStatementRow = { id: number; date: string; number: string; item: string | null; itemCode: string; quantity: number; unitPrice: number; total: number; type: "إضافة" | "صرف" | "مرتجع" | "تحويل"; documentImageUrl: string | null };
+function isReturnMovement(value: unknown) { return /مرتجع|ارتجاع|return/i.test(String(value ?? "")); }
 
-export function buildAccountStatementRows(rows: Array<{ id: number; date: string; eznNum: string; itemName: string | null; itemCode?: string | null; quantity: unknown; unitPrice?: unknown; totalValue?: unknown; documentImageUrl?: string | null; supplierId?: number | null; customerId?: number | null }>, kind: "supplier" | "customer", entityId: number): AccountStatementRow[] {
+export function buildAccountStatementRows(rows: Array<{ id: number; date: string; eznNum: string; itemName?: string | null; itemCode?: string | null; quantity: unknown; unitPrice?: unknown; totalValue?: unknown; documentImageUrl?: string | null; supplierId?: number | null; customerId?: number | null; transferType?: string | null }>, kind: "supplier" | "customer", entityId: number): AccountStatementRow[] {
   return rows.filter(row => (kind === "supplier" ? row.supplierId === entityId : row.customerId === entityId)).map(row => {
     const quantity = Number(row.quantity ?? 0);
     const totalValue = Number(row.totalValue ?? 0);
-    return { id: row.id, date: row.date, number: row.eznNum, item: row.itemName, itemCode: row.itemCode ?? "", quantity, unitPrice: Number(row.unitPrice ?? 0), total: totalValue, type: kind === "supplier" ? "إضافة" : "صرف", documentImageUrl: row.documentImageUrl ?? null };
+    const type = kind === "supplier" ? "إضافة" : row.transferType ? (isReturnMovement(row.transferType) ? "مرتجع" : "تحويل") : "صرف";
+    return { id: row.id, date: row.date, number: row.eznNum, item: row.itemName ?? null, itemCode: row.itemCode ?? "", quantity, unitPrice: Number(row.unitPrice ?? 0), total: totalValue, type, documentImageUrl: row.documentImageUrl ?? null };
   });
 }
 
@@ -250,6 +253,8 @@ export function CustomersPage() {
 
 
 type StatementKind = "supplier" | "customer";
+type AccountSummaryLine = "disbursement" | "negative" | "returns" | "net" | "financialValue";
+const accountSummaryLineLabels: Record<AccountSummaryLine, string> = { disbursement: "إجمالي الصرف", negative: "الكميات السالبة", returns: "المرتجعات", net: "الرصيد الصافي", financialValue: "إجمالي القيمة المالية" };
 export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const [, supplierParams] = useRoute("/suppliers/:id/statement");
   const [, customerParams] = useRoute("/customers/:id/statement");
@@ -258,6 +263,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const customers = trpc.customers.list.useQuery(undefined, { enabled: kind === "customer" });
   const additions = trpc.additions.account.useQuery({ supplierId: id }, { enabled: kind === "supplier" && id > 0 });
   const disbursements = trpc.disbursements.account.useQuery({ customerId: id }, { enabled: kind === "customer" && id > 0 });
+  const inventoryItems = trpc.items.list.useQuery(undefined, { enabled: id > 0 });
   const permissions = trpc.permissions.mine.useQuery();
   const settings = trpc.settings.list.useQuery();
   const preferences = trpc.preferences.get.useQuery();
@@ -270,6 +276,10 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [pdfColumnsOpen, setPdfColumnsOpen] = useState(false);
   const [selectedPdfColumns, setSelectedPdfColumns] = useState<ExportColumnKey[]>([]);
+  const [includeItemQuantitySummary, setIncludeItemQuantitySummary] = useState(false);
+  const [includeCompanyLogoInHeader, setIncludeCompanyLogoInHeader] = useState(true);
+  const [includeCurrentStockInItemSummary, setIncludeCurrentStockInItemSummary] = useState(false);
+  const [selectedPdfSummaryLines, setSelectedPdfSummaryLines] = useState<AccountSummaryLine[]>([]);
   const [pdfBuilding, setPdfBuilding] = useState(false);
   const [financialPreferenceVisible, setFinancialPreferenceVisible] = useState(false);
   const [permitFilter, setPermitFilter] = useState("");
@@ -287,7 +297,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     unitPrice: "سعر الوحدة",
     totalValue: "الإجمالي",
   };
-  const accountLoading = kind === "supplier" ? additions.isLoading || suppliers.isLoading : disbursements.isLoading || customers.isLoading;
+  const accountLoading = kind === "supplier" ? additions.isLoading || suppliers.isLoading || inventoryItems.isLoading : disbursements.isLoading || customers.isLoading || inventoryItems.isLoading;
   const accountDataAvailable = kind === "supplier" ? additions.data !== undefined && suppliers.data !== undefined : disbursements.data !== undefined && customers.data !== undefined;
   const accountError = !accountDataAvailable && (kind === "supplier" ? additions.error || suppliers.error : disbursements.error || customers.error);
   const canViewAccountFinancialDetails = permissions.data?.allowedReports.includes(WAREHOUSE_FINANCIAL_PERMISSION) ?? false;
@@ -319,25 +329,51 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   }, { additions: 0, disbursements: 0, returns: 0 }), [permitDetailRows]);
   const totalQuantity = rows.reduce((sum, row) => sum + row.quantity, 0);
   const total = rows.reduce((sum, row) => sum + row.total, 0);
+  const accountTotals = rows.reduce((summary, row) => {
+    if (kind === "customer") {
+      if (row.type === "صرف") row.quantity >= 0 ? summary.disbursed += row.quantity : summary.negative += Math.abs(row.quantity);
+      else if (row.type === "مرتجع") summary.returns += Math.abs(row.quantity);
+      else if (row.type === "تحويل") summary.transferNet += row.quantity;
+    }
+    summary.net = summary.disbursed - summary.negative - summary.returns + summary.transferNet;
+    return summary;
+  }, { disbursed: 0, negative: 0, returns: 0, transferNet: 0, net: 0 });
+  const stockByIdentity = useMemo(() => new Map((inventoryItems.data ?? []).map(item => [String(item.code || item.name || "").trim().toLocaleLowerCase("ar-EG"), Number(item.currentStock ?? 0)])), [inventoryItems.data]);
+  const unitByIdentity = useMemo(() => new Map((inventoryItems.data ?? []).map(item => [String(item.code || item.name || "").trim().toLocaleLowerCase("ar-EG"), item.unit ?? null])), [inventoryItems.data]);
   const exportRows = rows.map(row => ({
     id: row.id,
+    currentStock: kind === "supplier" ? (stockByIdentity.get(String(row.itemCode || row.item || "").trim().toLocaleLowerCase("ar-EG")) ?? 0) : undefined,
+    unit: unitByIdentity.get(String(row.itemCode || row.item || "").trim().toLocaleLowerCase("ar-EG")) ?? null,
     type: row.type,
     date: row.date,
     eznNum: row.number,
     name: row.item ?? "—",
-    itemCode: row.item ?? "—",
+    itemCode: row.itemCode || row.item || "—",
     quantity: row.quantity,
     detail: entity?.name ?? "—",
     unitPrice: row.unitPrice,
     totalValue: row.total,
   }));
   const companyLogo = resolveCompanyLogoUrl(settings.data?.find(item => item.key === "company_logo")?.value ?? settings.data?.find(item => item.key === "company_logo_url")?.value);
+  const watermarkEnabled = settings.data?.find(item => item.key === "report_watermark_enabled")?.value !== "false";
+  const watermarkOpacity = Number(settings.data?.find(item => item.key === "report_watermark_opacity")?.value ?? "0.08");
+  const watermarkScale = Number(settings.data?.find(item => item.key === "report_watermark_scale")?.value ?? "0.42");
+  const watermarkPosition = (settings.data?.find(item => item.key === "report_watermark_position")?.value ?? "center") as "center" | "top" | "bottom";
+  const watermarkRepeat = settings.data?.find(item => item.key === "report_watermark_repeat")?.value === "true";
+  const buildPdfItemSummary = () => {
+    if (!includeItemQuantitySummary) return undefined;
+    const summary = summarizeAccountStatementItems(exportRows);
+    return includeCurrentStockInItemSummary ? summary : summary.map(({ currentStock: _currentStock, ...item }) => item);
+  };
   const reportSummary = [
-    `الجهة: ${entity?.name ?? "—"}`,
+    `${kind === "customer" ? "جهة الصرف" : "المورد"}: ${entity?.name ?? "—"}`,
     `إجمالي الكمية: ${totalQuantity.toLocaleString("en-US")}`,
-    ...(canViewAccountFinancialDetails ? [`إجمالي القيمة: ${total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م`] : []),
+    ...(kind === "customer" && selectedPdfSummaryLines.includes("disbursement") ? [`إجمالي الصرف: ${accountTotals.disbursed.toLocaleString("en-US")}`] : []),
+    ...(kind === "customer" && selectedPdfSummaryLines.includes("negative") ? [`الكميات السالبة: ${accountTotals.negative.toLocaleString("en-US")}`] : []),
+    ...(kind === "customer" && selectedPdfSummaryLines.includes("returns") ? [`المرتجعات: ${accountTotals.returns.toLocaleString("en-US")}`] : []),
+    ...(kind === "customer" && selectedPdfSummaryLines.includes("net") ? [`الرصيد الصافي: ${accountTotals.net.toLocaleString("en-US")}`] : []),
+    ...(selectedPdfSummaryLines.includes("financialValue") && canViewAccountFinancialDetails ? [`إجمالي القيمة المالية: ${total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م`] : []),
   ];
-
   useEffect(() => {
     const savedColumns = preferences.data?.reportColumnOrder?.[accountPreferenceKey] ?? [];
     const normalizedColumns = savedColumns.filter(column => accountColumns.includes(column as ExportColumnKey)) as ExportColumnKey[];
@@ -393,6 +429,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     });
   };
   const toggleAccountColumn = (column: ExportColumnKey) => setSelectedPdfColumns(current => current.includes(column) ? current.filter(item => item !== column) : [...current, column]);
+  const toggleAccountSummaryLine = (line: AccountSummaryLine) => setSelectedPdfSummaryLines(current => current.includes(line) ? current.filter(item => item !== line) : [...current, line]);
   const openAccountColumns = () => {
     const savedColumns = preferences.data?.reportColumnOrder?.[accountPreferenceKey] ?? [];
     const normalizedColumns = savedColumns.filter(column => accountColumns.includes(column as ExportColumnKey)) as ExportColumnKey[];
@@ -407,9 +444,17 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     setPdfBuilding(true);
     try {
       saveAccountColumnOrder(selectedPdfColumns);
+      const itemSummary = buildPdfItemSummary();
       const doc = await buildAccountStatementPdf(exportRows, {
         columns: selectedPdfColumns,
+        itemSummary,
         logo: companyLogo,
+        includeHeaderLogo: includeCompanyLogoInHeader,
+        watermarkEnabled,
+        watermarkOpacity,
+        watermarkScale,
+        watermarkPosition,
+        watermarkRepeat,
         date: new Date(),
         title: `كشف حساب ${kind === "supplier" ? "المورد" : "العميل/الجهة"} - ${entity?.name ?? ""}`,
         summary: reportSummary,
@@ -432,7 +477,14 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
       } else {
         await downloadAccountStatementPdf(exportRows, {
           columns: selectedPdfColumns,
+          itemSummary: buildPdfItemSummary(),
           logo: companyLogo,
+          includeHeaderLogo: includeCompanyLogoInHeader,
+          watermarkEnabled,
+          watermarkOpacity,
+          watermarkScale,
+          watermarkPosition,
+          watermarkRepeat,
           date: new Date(),
           summary: reportSummary,
           title: `كشف حساب ${kind === "supplier" ? "المورد" : "العميل/الجهة"} - ${entity?.name ?? ""}`,
@@ -500,10 +552,11 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
           <div className="flex gap-2"><Button type="button" onClick={() => { setAppliedPermitFilter(permitFilter.trim()); setAppliedItemSearch(itemSearch.trim()); }} className="h-11 rounded-xl bg-[#0d7180] font-black text-white hover:bg-[#095d69]">تطبيق الفلتر</Button><Button type="button" variant="outline" onClick={() => { setPermitFilter(""); setAppliedPermitFilter(""); setItemSearch(""); setAppliedItemSearch(""); }} disabled={!permitFilter && !appliedPermitFilter && !itemSearch && !appliedItemSearch} className="h-11 rounded-xl">مسح</Button></div>
         </CardContent>
       </Card>
-      <div className={`grid gap-4 ${showAccountFinancialDetails ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+      <div className={`grid gap-4 ${kind === "customer" ? "sm:grid-cols-3 lg:grid-cols-6" : showAccountFinancialDetails ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">عدد الحركات</p><p className="mt-2 text-2xl font-black text-[#102a43]">{rows.length}</p></CardContent></Card>
         <Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">إجمالي الكميات</p><p className="mt-2 text-2xl font-black text-[#0d806c]">{totalQuantity.toLocaleString("en-US")}</p></CardContent></Card>
-        {showAccountFinancialDetails ? <Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">إجمالي القيمة</p><p className="mt-2 text-2xl font-black text-[#bd5147]">{total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م</p></CardContent></Card> : null}
+        {kind === "customer" ? <><Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">إجمالي الصرف</p><p className="mt-2 text-2xl font-black text-[#bd5147]">{accountTotals.disbursed.toLocaleString("en-US")}</p></CardContent></Card><Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">السالب والمرتجع</p><p className="mt-2 text-2xl font-black text-[#a96821]">{(accountTotals.negative + accountTotals.returns).toLocaleString("en-US")}</p></CardContent></Card><Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">صافي التحويلات</p><p className="mt-2 text-2xl font-black text-[#0d7180]">{accountTotals.transferNet.toLocaleString("en-US")}</p></CardContent></Card><Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">الرصيد الصافي</p><p className="mt-2 text-2xl font-black text-[#0d4f62]">{accountTotals.net.toLocaleString("en-US")}</p></CardContent></Card></> : null}
+        {kind === "supplier" && showAccountFinancialDetails ? <Card className={surface}><CardContent className="p-5"><p className="text-xs font-bold text-slate-400">إجمالي القيمة</p><p className="mt-2 text-2xl font-black text-[#bd5147]">{total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م</p></CardContent></Card> : null}
       </div>
       {appliedPermitFilter ? <Card id="account-permit-details-card" className={`${surface} overflow-hidden`}>
         <CardHeader className="border-b border-[#edf2f5] bg-gradient-to-l from-[#eef8f7] to-white pb-4"><CardTitle className="flex items-center gap-2 text-lg font-black text-[#102a43]"><FileText className="h-5 w-5 text-[#0d7180]" />ملخص الإذن رقم {appliedPermitFilter}</CardTitle><p className="mt-1 text-xs text-slate-500">{kind === "supplier" ? "تفاصيل مجمعة من حركات الإضافة والصرف والارتجاع." : "تفاصيل مجمعة من حركات الصرف والارتجاع."}</p></CardHeader>
@@ -516,9 +569,13 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
           <Dialog open={Boolean(permitImage)} onOpenChange={open => { if (!open) setPermitImage(null); }}><DialogContent className="max-w-4xl rounded-2xl bg-white p-4" dir="rtl"><DialogHeader><DialogTitle className="font-black text-[#102a43]">صورة الإذن رقم {appliedPermitFilter}</DialogTitle><DialogDescription>يمكنك معاينة صورة الإذن ثم تنزيلها.</DialogDescription></DialogHeader>{permitImage ? <div className="flex min-h-[45vh] items-center justify-center rounded-2xl bg-slate-950/5 p-3"><img src={permitImage.url} alt={`صورة إذن ${appliedPermitFilter}`} className="max-h-[65vh] max-w-full rounded-xl object-contain" /></div> : null}<DialogFooter><Button type="button" variant="outline" onClick={() => setPermitImage(null)} className="rounded-xl">إغلاق</Button>{permitImage ? <a href={permitImage.url} download={permitImage.name} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0d4f62] px-4 text-sm font-bold text-white"><Download className="ml-2 h-4 w-4" />تنزيل الصورة</a> : null}</DialogFooter></DialogContent></Dialog>
           <Dialog open={pdfColumnsOpen} onOpenChange={setPdfColumnsOpen}>
             <DialogContent className="max-w-2xl rounded-2xl bg-white" dir="rtl">
-              <DialogHeader><DialogTitle className="text-xl font-black text-[#102a43]">اختيار أعمدة كشف الحساب</DialogTitle><DialogDescription>اسحب الأعمدة لترتيبها من اليمين إلى اليسار، ثم اختر الأعمدة التي تريد ظهورها في PDF وExcel.</DialogDescription></DialogHeader>
+              <DialogHeader><DialogTitle className="text-xl font-black text-[#102a43]">اختيار أعمدة كشف الحساب</DialogTitle><DialogDescription>اسحب الأعمدة لترتيبها من اليمين إلى اليسار، ثم اختر الأعمدة التي تريد ظهورها في PDF وExcel. ملخص كميات الأصناف خيار إضافي لملف PDF فقط.</DialogDescription></DialogHeader>
               <div className="rounded-xl border border-dashed border-[#b9d4d9] bg-[#f8fcfc] p-3"><p className="mb-2 text-xs font-bold text-[#0d4f62]">أول بطاقة في القائمة تظهر أقصى اليمين في التقرير.</p><div className="flex flex-wrap gap-2">{selectedPdfColumns.map(column => <button key={`account-drag-${column}`} type="button" draggable onDragStart={event => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", column); }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); moveAccountColumn(event.dataTransfer.getData("text/plain") as ExportColumnKey, column); }} className="inline-flex cursor-grab items-center gap-1 rounded-lg border border-[#9fcbd0] bg-white px-2.5 py-1.5 text-xs font-bold text-[#0d4f62] shadow-sm"><GripVertical className="h-3.5 w-3.5" />{accountColumnLabels[column]}</button>)}</div></div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">{accountColumns.map(column => <label key={column} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${selectedPdfColumns.includes(column) ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={selectedPdfColumns.includes(column)} onChange={() => toggleAccountColumn(column)} className="h-4 w-4 accent-[#0d7180]" /><span className="text-sm font-bold text-[#102a43]">{accountColumnLabels[column]}</span></label>)}</div>
+              <label className={`mt-3 flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${includeItemQuantitySummary ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={includeItemQuantitySummary} onChange={event => setIncludeItemQuantitySummary(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#0d7180]" /><span><span className="block text-sm font-bold text-[#102a43]">ملخص كميات الأصناف في الترويسة</span><span className="mt-1 block text-xs leading-5 text-slate-500">يُبقي كل حركة وتاريخ ورقم إذن كما هي، ويضيف أعلى PDF صافي كمية كل صنف بعد خصم الكميات السالبة. يطبق هذا الخيار على PDF فقط.</span></span></label>
+              <label className={`mt-3 flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${includeCompanyLogoInHeader ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={includeCompanyLogoInHeader} onChange={event => setIncludeCompanyLogoInHeader(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#0d7180]" /><span><span className="block text-sm font-bold text-[#102a43]">إظهار شعار الشركة في ترويسة PDF</span><span className="mt-1 block text-xs leading-5 text-slate-500">يمكنك إلغاء التحديد لإخفاء الشعار من الترويسة فقط؛ إعداد العلامة المائية لا يتغير.</span></span></label>
+          {kind === "supplier" ? <label className={`mt-3 flex cursor-pointer items-start gap-3 rounded-xl border p-3 ${includeCurrentStockInItemSummary ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={includeCurrentStockInItemSummary} onChange={event => setIncludeCurrentStockInItemSummary(event.target.checked)} disabled={!includeItemQuantitySummary} className="mt-0.5 h-4 w-4 accent-[#0d7180]" /><span><span className="block text-sm font-bold text-[#102a43]">إظهار الرصيد الحالي بجوار كل صنف</span><span className="mt-1 block text-xs leading-5 text-slate-500">يضيف عمود الرصيد الحالي إلى جدول ملخص المورد. فعّل ملخص كميات الأصناف أولاً.</span></span></label> : null}
+              {kind === "customer" ? <div className="mt-4 rounded-xl border border-dashed border-[#b9d4d9] bg-[#f8fcfc] p-3"><p className="mb-2 text-xs font-black text-[#0d4f62]">بيانات الترويسة الاختيارية</p><p className="mb-3 text-xs text-slate-500">سيظهر التاريخ ثم جهة الصرف وإجمالي الكمية تلقائياً. اختر أي بيانات إضافية تريدها في الترويسة.</p><div className="grid gap-3 sm:grid-cols-2">{(Object.keys(accountSummaryLineLabels) as AccountSummaryLine[]).map(line => <label key={line} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 ${selectedPdfSummaryLines.includes(line) ? "border-[#0d7180] bg-[#eef7f7]" : "border-[#dce7ee] bg-white"}`}><input type="checkbox" checked={selectedPdfSummaryLines.includes(line)} onChange={() => toggleAccountSummaryLine(line)} className="h-4 w-4 accent-[#0d7180]" /><span className="text-sm font-bold text-[#102a43]">{accountSummaryLineLabels[line]}</span></label>)}</div></div> : null}
               <DialogFooter><Button type="button" variant="outline" onClick={() => setPdfColumnsOpen(false)} className="rounded-xl">إلغاء</Button><Button type="button" variant="outline" onClick={() => { const next = [...accountColumns]; setSelectedPdfColumns(next); saveAccountColumnOrder(next); }} className="rounded-xl">إظهار الكل</Button><Button type="button" onClick={() => void openAccountPdfPreview()} disabled={!selectedPdfColumns.length || pdfBuilding} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">فتح معاينة PDF</Button></DialogFooter>
             </DialogContent>
           </Dialog>

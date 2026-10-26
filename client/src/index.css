@@ -3039,3 +3039,32 @@ body {
     text-shadow: 0 1px 1px rgba(0, 0, 0, 0.22);
   }
 }
+
+/* معالجة عامة نهائية: لا أسطح بيضاء أو نصوص رمادية منخفضة التباين في الوضع الداكن */
+@layer components {
+  .dark [class*="bg-white"],
+  .dark [class*="bg-[#f7"],
+  .dark [class*="bg-[#f8"],
+  .dark [class*="bg-[#f9"],
+  .dark [class*="bg-[#fa"],
+  .dark [class*="bg-[#fb"],
+  .dark [class*="bg-[#fc"],
+  .dark [class*="bg-[#e7"],
+  .dark [class*="bg-[#e8"],
+  .dark [class*="bg-[#e9"] {
+    background-color: #1c3039 !important;
+    color: #edf8fb !important;
+  }
+  .dark [class*="text-slate-300"],
+  .dark [class*="text-slate-400"],
+  .dark [class*="text-slate-500"],
+  .dark [class*="text-slate-600"],
+  .dark [class*="text-gray-300"],
+  .dark [class*="text-gray-400"],
+  .dark [class*="text-gray-500"],
+  .dark [class*="text-gray-600"] { color: #d1e0e5 !important; }
+  .dark [class*="border-slate-100"],
+  .dark [class*="border-slate-200"],
+  .dark [class*="border-gray-100"],
+  .dark [class*="border-gray-200"] { border-color: rgba(169, 218, 226, 0.28) !important; }
+}

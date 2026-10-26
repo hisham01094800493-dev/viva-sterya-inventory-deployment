@@ -16,8 +16,9 @@ export function GlobalVoiceSearch() {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const command = useMemo(() => parseGlobalVoiceSearch(text), [text]);
-  const enabled = command.terms.trim().length >= 2;
-  const movementSearch = command.permitNumber ? { permitSearch: command.permitNumber, fromDate: command.period?.from, toDate: command.period?.to } : { itemSearch: command.period ? undefined : command.terms, fromDate: command.period?.from, toDate: command.period?.to };
+  const movementIntent = command.intent === "additions" || command.intent === "disbursements" || command.intent === "transfers";
+  const enabled = command.terms.trim().length >= 2 || movementIntent;
+  const movementSearch = command.permitNumber ? { permitSearch: command.permitNumber, fromDate: command.period?.from, toDate: command.period?.to } : { itemSearch: command.period || !command.terms ? undefined : command.terms, fromDate: command.period?.from, toDate: command.period?.to };
   const items = trpc.items.list.useQuery({ search: command.terms }, { enabled });
   const suppliers = trpc.suppliers.list.useQuery(undefined, { enabled });
   const customers = trpc.customers.list.useQuery(undefined, { enabled });

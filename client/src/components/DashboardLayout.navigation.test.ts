@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGovernanceNavigationItems, buildNavigationGroups, canAccessMigrationImport, isNavigationPathActive, SIDEBAR_VISUAL_CLASSES } from "./DashboardLayout";
+import { buildGovernanceNavigationItems, buildMobileNavigationItems, buildNavigationGroups, canAccessMigrationImport, isNavigationPathActive, SIDEBAR_VISUAL_CLASSES } from "./DashboardLayout";
 
 describe("buildGovernanceNavigationItems", () => {
   it("exposes the migration import link to admins only", () => {
@@ -37,5 +37,19 @@ describe("buildGovernanceNavigationItems", () => {
     expect(isNavigationPathActive("/warehouses", "/warehouses/2")).toBe(true);
     expect(isNavigationPathActive("/governance?tab=backups", "/governance?tab=backups")).toBe(true);
     expect(isNavigationPathActive("/governance?tab=backups", "/governance?tab=backup-center")).toBe(false);
+  });
+});
+
+describe("buildMobileNavigationItems", () => {
+  it("shows the main sections and excludes movement shortcuts from the bottom dock", () => {
+    const items = buildMobileNavigationItems();
+    expect(items.map(({ mobileLabel, path }) => [mobileLabel, path])).toEqual([
+      ["الرئيسية", "/"],
+      ["الأصناف", "/items"],
+      ["المخازن", "/warehouses"],
+      ["التقارير", "/reports"],
+      ["الإعدادات", "/settings"],
+    ]);
+    expect(items.some(({ path }) => ["/additions", "/disbursements"].includes(path))).toBe(false);
   });
 });
