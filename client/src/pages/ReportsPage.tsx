@@ -540,17 +540,19 @@ export default function ReportsPage() {
     { label: "إجمالي المنصرف", value: formatQuantity(totalOutgoing), hint: `${filteredDisbursements.length} إذن صرف`, Icon: FileText, tone: "text-[#a66a16] bg-[#fff4dd]" },
   ] as const;
 
+  const selectedReport = reportCatalog.find(item => item.type === reportType) ?? reportCatalog[0];
+
   return <DashboardLayout><div className="mx-auto w-full min-w-0 max-w-[1500px] space-y-5">
     <OfflineDataNotice resource="التقارير" hasCachedData={Boolean(reportDataset.data || items.data || summary.data)} />
     <PageHeader from={from} to={to} onRefresh={() => { void Promise.all([utils.items.list.invalidate(), utils.reports.dataset.invalidate(), utils.dashboard.summary.invalidate()]); }} refreshing={refreshing} />
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {statCards.map(({ label, value, hint, Icon, tone }) => <Card key={label} className="rounded-[1.35rem] border-[#e4edf1] bg-white shadow-[0_12px_30px_rgba(18,44,84,0.05)]"><CardContent className="flex items-center justify-between p-4"><div><p className="text-xs font-bold text-slate-400">{label}</p><p className="mt-2 text-2xl font-black text-[#102a43]">{value}</p><p className="mt-1 text-[11px] font-bold text-slate-400">{hint}</p></div><div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone}`}><Icon className="h-5 w-5" /></div></CardContent></Card>)}
+    <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#dce7ee] bg-white/80 px-3 py-2 shadow-[0_8px_24px_rgba(18,44,84,0.04)]">
+      {statCards.map(({ label, value, Icon, tone }) => <div key={label} className="flex min-w-[132px] flex-1 items-center gap-2 rounded-xl bg-[#f7fbfc] px-3 py-2"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}><Icon className="h-4 w-4" /></span><div className="min-w-0"><p className="truncate text-[10px] font-bold text-slate-400">{label}</p><p className="text-base font-black text-[#102a43]">{value}</p></div></div>)}
     </div>
 
-    <Card className="overflow-hidden rounded-[1.5rem] border-[#dce7ee] bg-white shadow-[0_14px_38px_rgba(18,44,84,0.06)]">
-      <CardContent className="p-3 sm:p-4">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="text-lg font-black text-[#102a43]">مركز التقارير</p><p className="mt-1 text-xs text-slate-400">اختر نوع التقرير من بطاقة واضحة للوصول الأسرع.</p></div><Badge className="rounded-full border-[#b9d4d9] bg-[#f7fbfc] px-3 py-1 text-[#0d4f62]">{from || "بداية البيانات"} — {to || "اليوم"}</Badge></div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">{reportCatalog.map(({ type, title, description, value, Icon, active }) => <button key={type} type="button" onClick={() => setReportType(type)} className={`group rounded-xl border p-3 text-right transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#0d7180] ${reportType === type ? `${active} shadow-sm` : "border-[#e5eef1] bg-white hover:border-[#b9d4d9]"}`}><div className="flex items-start justify-between gap-2"><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${reportType === type ? "bg-white/80 text-[#0d4f62]" : "bg-[#f7fbfc] text-[#0d7180]"}`}><Icon className="h-5 w-5" /></span>{reportType === type ? <span className="rounded-full bg-[#0d4f62] px-2 py-1 text-[10px] font-black text-white">مفتوح</span> : null}</div><p className="mt-3 text-sm font-black text-[#102a43]">{title}</p><p className="mt-1 min-h-8 text-[10px] leading-4 text-slate-500">{description}</p><p className="mt-3 text-xs font-black text-[#0d7180]">{value}</p></button>)}</div>
+    <Card className="rounded-[1.5rem] border-[#dce7ee] bg-white shadow-[0_12px_34px_rgba(18,44,84,0.05)]">
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8f1f2] text-[#0d4f62]"><selectedReport.Icon className="h-5 w-5" /></span><div><p className="text-xs font-bold text-slate-400">التقرير الحالي</p><p className="text-base font-black text-[#102a43]">{selectedReport.title}</p><p className="mt-0.5 text-[11px] text-slate-500">{selectedReport.description}</p></div></div>
+        <label className="flex w-full flex-col gap-1 text-xs font-bold text-slate-500 sm:w-64"><span>اختيار نوع التقرير</span><select value={reportType} onChange={event => setReportType(event.target.value as typeof reportType)} className="h-10 w-full rounded-xl border border-[#b9d4d9] bg-white px-3 font-black text-[#0d4f62] outline-none focus:ring-2 focus:ring-[#b9d4d9]"><option value="overview">نظرة تشغيلية</option>{reportCatalog.filter(item => item.type !== "overview").map(item => <option key={item.type} value={item.type}>{item.title}</option>)}</select></label>
       </CardContent>
     </Card>
 
