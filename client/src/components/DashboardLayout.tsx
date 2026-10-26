@@ -470,18 +470,19 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
     } else revealBriefly();
   };
 
-  return <nav className="fixed right-3 z-50 flex items-center gap-2 lg:hidden" dir="rtl" aria-label="التنقل الرئيسي" style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
+  return <nav className="fixed right-3 z-50 flex items-end gap-2 lg:hidden" dir="rtl" aria-label="التنقل الرئيسي" style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
     <button type="button" onClick={toggleExpanded} aria-label={expanded ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"} aria-expanded={expanded} className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#14b8a8] via-[#087f85] to-[#0d4f62] text-white shadow-[0_10px_28px_rgba(8,127,133,0.38)] ring-1 ring-white/70 transition-transform duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#36d6c3]/50 motion-reduce:transition-none ${expanded ? "rotate-0" : "animate-pulse motion-reduce:animate-none"}`} title={expanded ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"}>
       {!expanded && <span aria-hidden="true" className="absolute inset-0 rounded-full bg-[#21c9b6]/30 animate-ping motion-reduce:animate-none" />}
       {expanded ? <X className="relative h-6 w-6" /> : <Menu className="relative h-6 w-6" />}
     </button>
-    <div className={`flex shrink-0 items-center gap-1 overflow-hidden rounded-2xl border p-1 shadow-[0_12px_32px_rgba(7,35,48,0.22)] backdrop-blur-2xl transition-all duration-300 ease-out motion-reduce:transition-none ${expanded ? "max-w-[14rem] translate-x-0 opacity-100" : "pointer-events-none max-w-0 translate-x-3 opacity-0"} ${darkMode ? "border-white/10 bg-[#0b202b]/95" : "border-white/80 bg-white/95"}`}>
+    <div className={`flex shrink-0 flex-col items-stretch gap-1 overflow-hidden rounded-2xl border p-1.5 shadow-[0_12px_32px_rgba(7,35,48,0.22)] backdrop-blur-2xl transition-all duration-300 ease-out motion-reduce:transition-none ${expanded ? "max-h-[14rem] translate-x-0 opacity-100" : "pointer-events-none max-h-0 translate-x-3 opacity-0"} ${darkMode ? "border-white/10 bg-[#0b202b]/95" : "border-white/80 bg-white/95"}`}>
       {items.map(item => {
         const Icon = item.icon;
         const active = isNavigationPathActive(item.path, activePath);
-        return <button key={item.path} type="button" onClick={() => { setExpanded(false); if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current); onNavigate(item.path); }} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-200 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] motion-reduce:transition-none ${active ? darkMode ? "bg-[#39d6c2]/15 text-[#54e2d0]" : "bg-[#0d9488]/10 text-[#087f7c]" : darkMode ? "text-slate-300 hover:bg-white/10 hover:text-white" : "text-slate-600 hover:bg-slate-100 hover:text-[#087f7c]"}`}>
-          <Icon aria-hidden="true" className={`h-5 w-5 ${active ? "stroke-[2.5]" : ""}`} />
-          {active && <span aria-hidden="true" className="absolute bottom-1 h-0.5 w-3 rounded-full bg-[#20b9a8]" />}
+        return <button key={item.path} type="button" onClick={() => { setExpanded(false); if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current); onNavigate(item.path); }} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`flex h-10 w-36 shrink-0 items-center justify-start gap-2 rounded-xl px-2 text-right transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] motion-reduce:transition-none ${active ? darkMode ? "bg-[#39d6c2]/15 text-[#54e2d0]" : "bg-[#0d9488]/10 text-[#087f7c]" : darkMode ? "text-slate-300 hover:bg-white/10 hover:text-white" : "text-slate-600 hover:bg-slate-100 hover:text-[#087f7c]"}`}>
+          <Icon aria-hidden="true" className={`h-5 w-5 shrink-0 ${active ? "stroke-[2.5]" : ""}`} />
+          <span className="truncate text-xs font-bold">{item.mobileLabel ?? item.label}</span>
+          {active && <span aria-hidden="true" className="mr-auto h-1.5 w-1.5 shrink-0 rounded-full bg-[#20b9a8]" />}
         </button>;
       })}
     </div>
