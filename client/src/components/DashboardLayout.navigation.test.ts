@@ -48,6 +48,7 @@ describe("buildMobileNavigationItems", () => {
       ["الأصناف", "/items"],
       ["المخازن", "/warehouses"],
       ["التقارير", "/reports"],
+      ["الإعدادات", "/settings"],
     ]);
     expect(items.some(({ path }) => ["/additions", "/disbursements"].includes(path))).toBe(false);
   });
