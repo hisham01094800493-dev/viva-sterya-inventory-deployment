@@ -114,7 +114,7 @@ export function GoogleSearchButton() {
   </>;
 }
 
-type NavigationItem = { icon: React.ComponentType<{ className?: string }>; label: string; path: string; mobileLabel?: string };
+type NavigationItem = { icon: React.ComponentType<{ className?: string }>; label: string; path: string; mobileLabel?: string; mobileHint?: string };
 export type NavigationGroup = { id: string; icon: React.ComponentType<{ className?: string }>; label: string; description: string; items: NavigationItem[] };
 type PreviewPermissions = { userId: number; userName?: string | null; userEmail?: string | null; allowedScreens: string[]; allowedReports: string[]; readOnly: boolean };
 const MOVEMENT_FINANCIAL_PERMISSION = "warehouse-financial-details";
@@ -274,14 +274,17 @@ const menuItems = [
 ];
 
 export function buildMobileNavigationItems(): NavigationItem[] {
-  const destinations: Array<[string, string]> = [["/", "الرئيسية"], ["/items", "الأصناف"], ["/warehouses", "المخازن"], ["/reports", "التقارير"], ["/settings", "الإعدادات"]];
-
-  return destinations.map(([path, mobileLabel]) => {
-    const item = path === "/warehouses"
-      ? { icon: Warehouse, label: "المخازن", path }
-      : menuItems.find(candidate => candidate.path === path);
+  const destinations: Array<[string, string, string]> = [
+    ["/", "الرئيسية", "ملخص العمل"],
+    ["/items", "الأصناف", "المخزون والكميات"],
+    ["/additions", "إضافة", "إذن إضافة جديد"],
+    ["/disbursements", "صرف", "إذن صرف جديد"],
+    ["/reports", "التقارير", "المتابعة والنتائج"],
+  ];
+  return destinations.map(([path, mobileLabel, mobileHint]) => {
+    const item = menuItems.find(candidate => candidate.path === path);
     if (!item) throw new Error(`Mobile navigation destination is missing: ${path}`);
-    return { ...item, mobileLabel };
+    return { ...item, mobileLabel, mobileHint };
   });
 }
 
@@ -526,20 +529,22 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
   const navStyle = position ? { left: `${position.x}px`, top: `${position.y}px` } : { right: "0.75rem", bottom: "calc(1rem + env(safe-area-inset-bottom))" };
   // Fan the shortcuts into a quarter circle toward the safe area (up and left).
   const radialSlots = [
-    { x: -78, y: -2 },
-    { x: -72, y: -58 },
-    { x: -38, y: -96 },
-    { x: 0, y: -112 },
+    { x: -94, y: 0 },
+    { x: -88, y: -48 },
+    { x: -64, y: -86 },
+    { x: -34, y: -112 },
+    { x: 0, y: -124 },
   ];
   return <nav className="fixed z-[9999] h-16 w-16 pointer-events-auto" dir="rtl" aria-label="مركز الاختصارات الرئيسي" style={{ ...navStyle, zIndex: 9999 }}>
     <div className="pointer-events-none absolute inset-0 overflow-visible">
-      {items.slice(0, 4).map((item, index) => {
+      {items.slice(0, 5).map((item, index) => {
         const Icon = item.icon;
         const slot = radialSlots[index] ?? radialSlots[radialSlots.length - 1];
         const active = isNavigationPathActive(item.path, activePath);
-        return <button key={item.path} type="button" onClick={() => { expandedRef.current = false; setExpanded(false); if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current); onNavigate(item.path); }} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`pointer-events-auto absolute right-1/2 top-1/2 flex h-11 w-11 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border text-white shadow-lg transition-[transform,opacity] duration-300 ease-out active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] motion-reduce:transition-none ${active ? "border-[#c7fff7] bg-[#087f85] ring-2 ring-[#36d6c3]/40" : darkMode ? "border-white/20 bg-[#173a46]" : "border-white/80 bg-[#0d7180]"} ${expanded ? "opacity-100" : "pointer-events-none opacity-0"}`} style={{ transform: expanded ? `translate(calc(50% + ${slot.x}px), calc(-50% + ${slot.y}px)) scale(1)` : "translate(50%, -50%) scale(.35)" }}>
+        return <button key={item.path} type="button" onClick={() => { expandedRef.current = false; setExpanded(false); if (collapseTimerRef.current !== null) window.clearTimeout(collapseTimerRef.current); onNavigate(item.path); }} aria-label={item.mobileLabel ?? item.label} aria-current={active ? "page" : undefined} title={item.mobileLabel ?? item.label} className={`pointer-events-auto absolute right-1/2 top-1/2 flex h-12 min-w-12 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border text-white shadow-lg transition-[transform,opacity] duration-300 ease-out active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36d6c3] motion-reduce:transition-none ${active ? "border-[#c7fff7] bg-[#087f85] ring-2 ring-[#36d6c3]/40" : darkMode ? "border-white/20 bg-[#173a46]" : "border-white/80 bg-[#0d7180]"} ${expanded ? "opacity-100" : "pointer-events-none opacity-0"}`} style={{ transform: expanded ? `translate(calc(50% + ${slot.x}px), calc(-50% + ${slot.y}px)) scale(1)` : "translate(50%, -50%) scale(.35)" }}>
           <Icon aria-hidden="true" className="h-5 w-5" />
-          <span className="sr-only">{item.mobileLabel ?? item.label}</span>
+          <span className="absolute top-full mt-1 whitespace-nowrap rounded-full border border-white/80 bg-white px-1.5 py-0.5 text-[9px] font-black text-[#0d4f62] shadow-sm dark:border-white/10 dark:bg-[#102a35] dark:text-white">{item.mobileLabel ?? item.label}</span>
+          <span className="sr-only">{item.mobileHint ?? item.label}</span>
         </button>;
       })}
     </div>
