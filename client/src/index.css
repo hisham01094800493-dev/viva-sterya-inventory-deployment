@@ -199,6 +199,8 @@
     .quick-actions-mobile-docked-right { transform: translateX(24px); }
     .quick-actions-mobile-docked-left .quick-actions-fab { border-radius: 0 9999px 9999px 0; }
     .quick-actions-mobile-docked-right .quick-actions-fab { border-radius: 9999px 0 0 9999px; }
+    .pwa-bottom-banner { bottom: calc(8.5rem + env(safe-area-inset-bottom)) !important; max-width: calc(100vw - 1rem); }
+    .smart-topbar { min-height: 3.5rem !important; padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
   }
   @media (prefers-reduced-motion: reduce) {
     .quick-actions-settling { transition: none; }

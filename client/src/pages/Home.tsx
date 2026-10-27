@@ -339,10 +339,10 @@ export default function Home() {
     <DashboardLayout>
       <div className="home-dashboard mx-auto max-w-[1500px] space-y-5 lg:space-y-6">
         {isReadOnly && <section className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900 shadow-sm"><p className="text-sm font-black">لوحة متابعة للقراءة فقط</p><p className="mt-1 text-xs leading-6">هذا الحساب مخصص لمشاهدة الأرصدة والتقارير والتنبيهات. لا يمكنه إضافة أو تعديل أو حذف بيانات المخزون.</p></section>}
-        <section className="home-hero relative overflow-hidden rounded-[1.6rem] bg-[#0d4f62] px-5 py-6 text-white shadow-[0_20px_50px_rgba(13,79,98,0.2)] md:px-7 md:py-7">
+        <section className="home-hero relative overflow-hidden rounded-[1.6rem] bg-[#0d4f62] px-4 py-4 text-white shadow-[0_20px_50px_rgba(13,79,98,0.2)] md:px-7 md:py-7">
           <div className="absolute -left-16 -top-20 h-64 w-64 rounded-full border-[28px] border-white/5" />
           <div className="absolute -bottom-28 right-24 h-72 w-72 rounded-full border-[36px] border-[#d08a3b]/10" />
-          <div className="relative z-10 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+          <div className="relative z-10 flex flex-col justify-between gap-3 md:gap-5 md:flex-row md:items-end">
             <div>
               <HomeHeroDateTime />
               <p className="text-xs font-black uppercase tracking-[0.28em] text-[#f5c27b]">SMART INVENTORY</p>
