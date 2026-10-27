@@ -261,7 +261,7 @@ function GroupedNavigation({ groups, location, isCollapsed, onNavigate, onExpand
 const menuItems = [
   { icon: LayoutDashboard, label: "نظرة عامة", path: "/" },
   { icon: Package, label: "المخزون", path: "/items" },
-  { icon: ClipboardList, label: "مراجعة المخزون", path: "/inventory-audit" },
+  { icon: ClipboardList, label: "تقرير الجرد الشامل", path: "/inventory-audit" },
   { icon: ArrowDownToLine, label: "إضافات المخزون", path: "/additions" },
   { icon: ArrowUpFromLine, label: "أذونات الصرف", path: "/disbursements" },
   { icon: ArrowLeftRight, label: "التحويلات والمرتجعات", path: "/transfers" },
@@ -280,6 +280,7 @@ export function buildMobileNavigationItems(): NavigationItem[] {
     ["/additions", "إضافة", "إذن إضافة جديد"],
     ["/disbursements", "صرف", "إذن صرف جديد"],
     ["/reports", "التقارير", "المتابعة والنتائج"],
+    ["/inventory-audit", "الجرد", "أرصدة الأصناف حسب المخزن"],
   ];
   return destinations.map(([path, mobileLabel, mobileHint]) => {
     const item = menuItems.find(candidate => candidate.path === path);
@@ -422,8 +423,8 @@ function FloatingQuickActions({ onNavigate, canCreateItems }: { onNavigate: (pat
   useEffect(() => { if (open) { setActionsMounted(true); return; } if (!actionsMounted) return; const timer = window.setTimeout(() => setActionsMounted(false), 300); return () => window.clearTimeout(timer); }, [open, actionsMounted]);
   useEffect(() => { if (!open) return; const timer = window.setTimeout(() => { setForceCompact(true); setOpenedFromEdge(false); setOpen(false); }, 2000); return () => window.clearTimeout(timer); }, [open, collapseNonce]);
   useEffect(() => { if (preferences.data?.quickActions?.length) { setEnabledPaths(preferences.data.quickActions); window.localStorage.setItem("smart-inventory-quick-actions", JSON.stringify(preferences.data.quickActions)); return; } const sync = () => { try { const saved = JSON.parse(window.localStorage.getItem("smart-inventory-quick-actions") || "null"); if (Array.isArray(saved) && saved.length) setEnabledPaths(saved); } catch { /* use current selection */ } }; window.addEventListener("smart-inventory-quick-actions", sync); return () => window.removeEventListener("smart-inventory-quick-actions", sync); }, [preferences.data]);
-  const allActions = [{ path: "/items?create=1", label: "إضافة صنف", hint: "فتح نموذج صنف جديد", icon: Package, className: "bg-[#0d4f62] hover:bg-[#0a4150] shadow-[0_12px_28px_rgba(13,79,98,0.28)]" }, { path: "/additions", label: "تسجيل إضافة", hint: "اختصار سطح المكتب: Alt + I", icon: Plus, className: "bg-[#0d806c] hover:bg-[#0a6f5d] shadow-[0_12px_28px_rgba(13,128,108,0.28)]" }, { path: "/disbursements", label: "تسجيل صرف", hint: "اختصار سطح المكتب: Alt + O", icon: ArrowUpFromLine, className: "bg-[#bd5147] hover:bg-[#a9443c] shadow-[0_12px_28px_rgba(189,81,71,0.24)]" }, { path: "/transfers", label: "مرتجع أو تحويل", hint: "إدارة المرتجعات والتحويل بين المخازن", icon: ArrowLeftRight, className: "bg-[#a96821] hover:bg-[#8f571a] shadow-[0_12px_28px_rgba(169,104,33,0.24)]" }];
-  const visiblePaths = canCreateItems && !enabledPaths.includes("/items?create=1") ? ["/items?create=1", ...enabledPaths] : enabledPaths;
+  const allActions = [{ path: "/items?create=1", label: "إضافة صنف", hint: "فتح نموذج صنف جديد", icon: Package, className: "bg-[#0d4f62] hover:bg-[#0a4150] shadow-[0_12px_28px_rgba(13,79,98,0.28)]" }, { path: "/additions", label: "تسجيل إضافة", hint: "اختصار سطح المكتب: Alt + I", icon: Plus, className: "bg-[#0d806c] hover:bg-[#0a6f5d] shadow-[0_12px_28px_rgba(13,128,108,0.28)]" }, { path: "/disbursements", label: "تسجيل صرف", hint: "اختصار سطح المكتب: Alt + O", icon: ArrowUpFromLine, className: "bg-[#bd5147] hover:bg-[#a9443c] shadow-[0_12px_28px_rgba(189,81,71,0.24)]" }, { path: "/transfers", label: "مرتجع أو تحويل", hint: "إدارة المرتجعات والتحويل بين المخازن", icon: ArrowLeftRight, className: "bg-[#a96821] hover:bg-[#8f571a] shadow-[0_12px_28px_rgba(169,104,33,0.24)]" }, { path: "/inventory-audit", label: "تقرير الجرد الشامل", hint: "عرض أرصدة الأصناف حسب كل مخزن", icon: ClipboardList, className: "bg-[#167c87] hover:bg-[#116772] shadow-[0_12px_28px_rgba(22,124,135,0.26)]" }];
+  const visiblePaths = [...(canCreateItems && !enabledPaths.includes("/items?create=1") ? ["/items?create=1", ...enabledPaths] : enabledPaths), ...(enabledPaths.includes("/inventory-audit") ? [] : ["/inventory-audit"])];
   const actions = visiblePaths.map(path => allActions.find(action => action.path === path)).filter((action): action is (typeof allActions)[number] => Boolean(action));
   const clampPosition = (x: number, y: number, width: number, height: number) => clampQuickActionsPosition({ x, y }, { width: window.innerWidth, height: window.innerHeight }, Math.max(width, height));
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => { const compact = compactMode; setIsDragging(true); if (!compact) { wakeIdle(); setOpenedFromEdge(false); } const rect = event.currentTarget.getBoundingClientRect(); dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originX: rect.left, originY: rect.top, moved: false }; event.currentTarget.setPointerCapture(event.pointerId); };
@@ -534,10 +535,11 @@ function MobileBottomNavigation({ items, activePath, onNavigate, darkMode }: { i
     { x: -64, y: -86 },
     { x: -34, y: -112 },
     { x: 0, y: -124 },
+    { x: -108, y: -104 },
   ];
   return <nav className="fixed z-[9999] h-16 w-16 pointer-events-auto" dir="rtl" aria-label="مركز الاختصارات الرئيسي" style={{ ...navStyle, zIndex: 9999 }}>
     <div className="pointer-events-none absolute inset-0 overflow-visible">
-      {items.slice(0, 5).map((item, index) => {
+      {items.slice(0, 6).map((item, index) => {
         const Icon = item.icon;
         const slot = radialSlots[index] ?? radialSlots[radialSlots.length - 1];
         const active = isNavigationPathActive(item.path, activePath);
