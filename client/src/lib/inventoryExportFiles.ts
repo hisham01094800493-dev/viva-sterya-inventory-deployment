@@ -542,14 +542,22 @@ export async function buildMainWarehousePdf(cards: ItemCardPdfData[], options: {
 }
 
 export type CompanyInventoryAuditPdfData = { warehouses: Array<{ id: number; slot: number; name: string }>; rows: Array<{ id: number; code: string; name: string; unit: string | null; totalCurrentStock: number; warehouseBalances: Array<{ warehouseId: number; slot: number; name: string; currentStock: number }> }>; summary: { totalItems: number; totalCompanyBalance: number } };
-export async function buildCompanyInventoryAuditPdf(report: CompanyInventoryAuditPdfData, options: { logo?: string | null; date?: Date; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean } = {}) {
+export async function buildCompanyInventoryAuditPdf(report: CompanyInventoryAuditPdfData, options: { logo?: string | null; date?: Date; columns?: string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean } = {}) {
   const { jsPDF, autoTable } = await loadPdfTools();
   const doc = await configureArabicPdf(new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" }));
   const logo = await resolveLogo(options.logo);
   const watermarkLogo = options.watermarkEnabled === false ? null : logo;
   const visualWarehouses = [...report.warehouses].sort((left, right) => right.slot - left.slot);
   const totalLabel = visualWarehouses.length === 1 ? "إجمالي المخزن" : "إجمالي الشركة";
-  const visualHeaders = [totalLabel, ...visualWarehouses.map(warehouse => warehouse.name), "الوحدة", "اسم الصنف", "الكود"];
+  const selectedColumns = new Set(options.columns?.length ? options.columns : ["code", "name", "unit", "warehouses", "total"]);
+  const columns = [
+    ...(selectedColumns.has("total") ? [{ key: "total", header: totalLabel, value: (row: CompanyInventoryAuditPdfData["rows"][number]) => row.totalCurrentStock }] : []),
+    ...(selectedColumns.has("warehouses") ? visualWarehouses.map(warehouse => ({ key: `warehouse-${warehouse.id}`, header: warehouse.name, value: (row: CompanyInventoryAuditPdfData["rows"][number]) => row.warehouseBalances.find(balance => balance.warehouseId === warehouse.id)?.currentStock ?? 0 })) : []),
+    ...(selectedColumns.has("unit") ? [{ key: "unit", header: "الوحدة", value: (row: CompanyInventoryAuditPdfData["rows"][number]) => shapeArabic(doc, row.unit || "—") }] : []),
+    ...(selectedColumns.has("name") ? [{ key: "name", header: "اسم الصنف", value: (row: CompanyInventoryAuditPdfData["rows"][number]) => shapeArabic(doc, row.name) }] : []),
+    ...(selectedColumns.has("code") ? [{ key: "code", header: "الكود", value: (row: CompanyInventoryAuditPdfData["rows"][number]) => row.code }] : []),
+  ];
+  const visualHeaders = columns.map(column => column.header);
   const summary = [`عدد الأصناف: ${report.summary.totalItems.toLocaleString("en-US")}`, `إجمالي رصيد الشركة: ${report.summary.totalCompanyBalance.toLocaleString("en-US", { maximumFractionDigits: 3 })}`];
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
   logoAndDate(doc, visualWarehouses.length === 1 ? `تقرير جرد ${visualWarehouses[0].name}` : "تقرير الجرد الشامل حسب المخازن", logo, options.date, summary);
@@ -557,11 +565,11 @@ export async function buildCompanyInventoryAuditPdf(report: CompanyInventoryAudi
     startY: getReportHeaderHeight(summary),
     margin: { left: 24, right: 24 },
     head: [visualHeaders.map(header => shapeArabic(doc, header))],
-    body: report.rows.map(row => [row.totalCurrentStock.toLocaleString("en-US", { maximumFractionDigits: 3 }), ...visualWarehouses.map(warehouse => (row.warehouseBalances.find(balance => balance.warehouseId === warehouse.id)?.currentStock ?? 0).toLocaleString("en-US", { maximumFractionDigits: 3 })), shapeArabic(doc, row.unit || "—"), shapeArabic(doc, row.name), row.code]),
+    body: report.rows.map(row => columns.map(column => { const value = column.value(row); return typeof value === "number" ? value.toLocaleString("en-US", { maximumFractionDigits: 3 }) : value; })),
     styles: { font: getArabicPdfFont(doc), fontSize: 8.5, cellPadding: 5, halign: "right", minCellHeight: 24, overflow: "linebreak" , lineColor: [137, 162, 172], lineWidth: 0.55},
     headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.6, font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: 8.5, halign: "center" },
     columnStyles: Object.fromEntries(visualHeaders.map((header, index) => [index, { cellWidth: header === "اسم الصنف" ? 176 : header === "الكود" ? 74 : header === "الوحدة" ? 46 : 72, halign: header === "اسم الصنف" ? "right" : "center", overflow: header === "اسم الصنف" ? "linebreak" : undefined }])),
-    didParseCell: data => { if (data.section === "body" && (data.column.index === 0 || (data.column.index > 0 && data.column.index <= visualWarehouses.length))) { data.cell.styles.fontStyle = "bold"; data.cell.styles.textColor = [0, 0, 0]; } },
+    didParseCell: data => { if (data.section === "body" && columns[data.column.index]?.key !== "name") { data.cell.styles.fontStyle = "bold"; data.cell.styles.textColor = [0, 0, 0]; } },
     willDrawPage: data => { if (data.pageNumber > 1) drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat); },
   });
   return doc;
