@@ -328,6 +328,13 @@ export async function buildMovementPdf(rows: MovementExportItem[], options: { co
       margin: { left: summaryLeft, right: accountSummary ? 36 : 150 },
     });
     detailsStartY = Math.max(detailsStartY, ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? detailsStartY) + 18);
+    if (accountSummary) {
+      doc.setFont(getArabicPdfFont(doc), "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(13, 79, 98);
+      doc.text(shapeArabic(doc, "تفاصيل حركة الصنف"), pageWidth / 2, detailsStartY, { align: "center", baseline: "middle" });
+      detailsStartY += 16;
+    }
   }
   const body = enriched.map(row => visualKeys.map(key => {
     if (key === "documentImage") return row.documentImageDataUrl ? "" : "—";
