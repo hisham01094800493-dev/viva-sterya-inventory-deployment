@@ -516,6 +516,13 @@
   .home-stat-card { transition: transform 180ms cubic-bezier(.23,1,.32,1), box-shadow 180ms ease, border-color 180ms ease; }
   .home-stat-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--smart-teal) 30%, var(--app-border)); box-shadow: 0 16px 34px rgba(18, 44, 84, 0.1); }
   .home-stat-value { font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
+  .report-filter-card, .movement-filter-card { scroll-margin-top: 5rem; }
+  .report-filter-grid { align-items: end; }
+  .report-filter-grid > label, .movement-filter-content > label { min-width: 0; }
+  .report-export-actions { position: sticky; top: 0.5rem; z-index: 4; }
+  .report-export-actions > button, .movement-filter-content > button { min-height: 2.5rem; white-space: nowrap; }
+  .movement-advanced-filters { animation: filter-panel-in 180ms cubic-bezier(.23,1,.32,1); }
+  @keyframes filter-panel-in { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
   :where(button, a, input, textarea, select):focus-visible {
     outline: 3px solid color-mix(in srgb, var(--smart-gold) 72%, white);
@@ -590,6 +597,15 @@
   .movement-table-scroller > table th:first-child, .movement-table-scroller > table td:first-child { min-width: 132px; }
   .account-statement-scroll-region > table th:first-child, .account-statement-scroll-region > table td:first-child { min-width: 92px; }
   [role="dialog"] { width: calc(100vw - 1rem) !important; max-width: calc(100vw - 1rem) !important; border-radius: 1.15rem !important; }
+  .report-filter-content, .movement-filter-content { padding: 0.9rem !important; gap: 0.65rem !important; }
+  .report-filter-grid { gap: 0.65rem !important; }
+  .report-export-actions { position: static; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .report-export-actions > button, .movement-filter-content > button { width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .movement-filter-content > label { flex-basis: 100%; min-width: 100%; }
+  .movement-filter-content > button { flex: 1 1 calc(50% - 0.35rem); }
+  .movement-advanced-filters { padding: 0.75rem !important; gap: 0.65rem !important; }
+  .movement-advanced-filters > label { flex-basis: 100%; min-width: 100%; }
+  .movement-advanced-filters > button { width: 100%; }
 }
 
 @layer components {
