@@ -481,7 +481,34 @@
     --smart-gold: #d08a3b;
     --smart-coral: #bd5147;
     --smart-ink: #102a43;
+    --app-surface: #ffffff;
+    --app-surface-muted: #f7fbfc;
+    --app-border: #dce7ee;
   }
+
+  .smart-topbar {
+    background: color-mix(in srgb, var(--app-surface) 82%, transparent) !important;
+    border-color: color-mix(in srgb, var(--app-border) 78%, transparent) !important;
+    box-shadow: 0 10px 28px rgba(18, 58, 79, 0.06) !important;
+  }
+  .smart-topbar-title { color: var(--smart-ink); }
+  .smart-topbar-eyebrow { color: var(--smart-teal); }
+  .smart-topbar-status { border-color: var(--app-border); background: var(--app-surface); color: var(--smart-teal-deep); }
+  .smart-topbar-action { border-color: var(--app-border); background: var(--app-surface); color: var(--smart-teal-deep); }
+  .smart-topbar-action:hover { background: var(--app-surface-muted); }
+  .smart-dialog-surface { border-color: var(--app-border) !important; background: var(--app-surface) !important; box-shadow: 0 24px 70px rgba(18, 44, 84, 0.18) !important; }
+  .smart-dialog-header { border-bottom: 1px solid var(--app-border); background: linear-gradient(135deg, var(--app-surface-muted), var(--app-surface)); }
+  .smart-table-shell { border: 1px solid var(--app-border); border-radius: 1.25rem; overflow: auto; background: var(--app-surface); }
+  .smart-table-shell table { border-collapse: separate; border-spacing: 0; }
+  .smart-table-shell thead th { position: sticky; top: 0; z-index: 10; background: var(--app-surface-muted); box-shadow: 0 1px 0 var(--app-border); }
+  .smart-table-shell tbody tr { transition: background-color 160ms ease; }
+  .smart-table-shell tbody tr:hover { background: color-mix(in srgb, var(--smart-teal) 6%, var(--app-surface)); }
+  .overflow-x-auto > table thead th { position: sticky; top: 0; z-index: 8; background: var(--app-surface-muted); box-shadow: 0 1px 0 var(--app-border); }
+  .overflow-x-auto > table tbody tr { transition: background-color 160ms ease; }
+  .overflow-x-auto > table tbody tr:hover { background: color-mix(in srgb, var(--smart-teal) 5%, var(--app-surface)); }
+  .home-stat-card { transition: transform 180ms cubic-bezier(.23,1,.32,1), box-shadow 180ms ease, border-color 180ms ease; }
+  .home-stat-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--smart-teal) 30%, var(--app-border)); box-shadow: 0 16px 34px rgba(18, 44, 84, 0.1); }
+  .home-stat-value { font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
 
   :where(button, a, input, textarea, select):focus-visible {
     outline: 3px solid color-mix(in srgb, var(--smart-gold) 72%, white);
@@ -529,6 +556,17 @@
   .dark .smart-table tbody tr:hover { background: linear-gradient(90deg, rgba(61,170,157,.12), rgba(208,138,59,.09)); }
   .dark .smart-table thead th { color: #9bc5ca; }
   .dark .smart-chip { border-color: rgba(142,211,209,.2); background: rgba(23,67,78,.78); color: #c9e8df; }
+  .dark { --app-surface: #183744; --app-surface-muted: #1e4652; --app-border: rgba(142, 211, 209, 0.24); }
+  .dark .smart-topbar { background: rgba(16, 39, 50, 0.94) !important; border-color: rgba(125, 190, 197, 0.18) !important; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2) !important; }
+  .dark .smart-topbar-title { color: #e7f2f3 !important; }
+  .dark .smart-topbar-eyebrow { color: #8ed3d1 !important; }
+  .dark .smart-topbar-status { background: #183744 !important; border-color: rgba(142, 211, 209, 0.25) !important; color: #c9eff0 !important; }
+  .dark .smart-topbar-action { background: #183744 !important; border-color: rgba(142, 211, 209, 0.25) !important; color: #c9eff0 !important; }
+  .dark .smart-dialog-header { background: linear-gradient(135deg, #1e4652, #183744); border-color: rgba(142, 211, 209, 0.2); }
+  .dark .smart-table-shell { background: #183744; border-color: rgba(142, 211, 209, 0.22); }
+  .dark .smart-table-shell thead th { background: #1e4652; color: #c9e8df; box-shadow: 0 1px 0 rgba(142, 211, 209, 0.2); }
+  .dark .smart-table-shell tbody tr:hover { background: rgba(61, 170, 157, 0.12); }
+  .dark .bg-\[\#fbfdff\], .dark .bg-\[\#f7fbfc\], .dark .bg-\[\#fffaf0\], .dark .bg-\[\#fffafa\] { background-color: #1e4652 !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {

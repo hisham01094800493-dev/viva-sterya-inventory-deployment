@@ -688,19 +688,19 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
           </SidebarFooter>
         </Sidebar>
       <SidebarInset className="w-full max-w-full min-w-0 flex-1 bg-transparent">
-        <header className="dark-surface sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/70 bg-white/55 px-4 shadow-[0_8px_24px_rgba(18,58,79,0.04)] backdrop-blur-xl md:px-8">
+        <header className="smart-topbar dark-surface sticky top-0 z-30 flex min-h-16 items-center justify-between gap-3 border-b px-4 py-2 backdrop-blur-xl md:px-8">
           <div className="flex items-center gap-3">
-            <SidebarTrigger className="h-9 w-9 rounded-xl shadow-sm transition-colors hover:bg-[#a8c1b5]" style={{ backgroundColor: "#b7cdc3", color: "#09090b" }} /><Button type="button" variant="ghost" size="icon" onClick={() => setDarkMode(value => !value)} className={`theme-toggle-icon h-9 w-9 rounded-xl shadow-sm transition-colors hover:opacity-90 ${darkMode ? "bg-[#c9d2cd] text-[#1d2929]" : "bg-[#09090b] text-white"}`} aria-label={darkMode ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"} title={darkMode ? "الانتقال إلى الوضع الفاتح" : "الانتقال إلى الوضع الليلي"}><span className="theme-toggle-glyph-wrap" aria-hidden="true">{darkMode ? <Sun key="sun" className="theme-toggle-glyph theme-toggle-sun h-4 w-4" /> : <Moon key="moon" className="theme-toggle-glyph theme-toggle-moon h-4 w-4" />}</span></Button>
+            <SidebarTrigger className="smart-topbar-action h-9 w-9 rounded-xl shadow-sm transition-transform hover:-translate-y-0.5" /><Button type="button" variant="ghost" size="icon" onClick={() => setDarkMode(value => !value)} className={`smart-topbar-action theme-toggle-icon h-9 w-9 rounded-xl shadow-sm transition-transform hover:-translate-y-0.5 ${darkMode ? "" : ""}`} aria-label={darkMode ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"} title={darkMode ? "الانتقال إلى الوضع الفاتح" : "الانتقال إلى الوضع الليلي"}><span className="theme-toggle-glyph-wrap" aria-hidden="true">{darkMode ? <Sun key="sun" className="theme-toggle-glyph theme-toggle-sun h-4 w-4" /> : <Moon key="moon" className="theme-toggle-glyph theme-toggle-moon h-4 w-4" />}</span></Button>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d08a3b]" style={{color: '#da0b49'}}>Smart Inventory / إدارة المخزون</p>
-              <h1 className="text-lg font-black text-[#102a43]" style={{color: '#036fd3'}}>{activeMenuItem.label}</h1>
+              <p className="smart-topbar-eyebrow text-[10px] font-black uppercase tracking-[0.2em]">Smart Inventory / إدارة المخزون</p>
+              <h1 className="smart-topbar-title text-lg font-black">{activeMenuItem.label}</h1>
             </div>
           </div>
-          <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
+            <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
             <div className="flex shrink-0 items-center rounded-xl border border-red-200 bg-red-50/80 p-0.5 shadow-sm sm:rounded-2xl sm:p-1" aria-label="البحث الصوتي"><div className="rounded-lg bg-red-50 [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg [&_button]:border-red-200 [&_button]:bg-red-50 [&_button]:text-red-600 [&_button]:hover:bg-red-100 sm:rounded-xl sm:[&_button]:h-9 sm:[&_button]:w-9"><GlobalVoiceSearch /></div></div>
             <NotificationBell chatEnabled={chatEnabled} />
             {isMovementPage && canViewMovementFinancialDetails ? <Button type="button" variant="outline" size="sm" onClick={() => void toggleMovementFinancialDetails()} disabled={updatePreferences.isPending || onboardingPreferences.isLoading} aria-pressed={showMovementFinancialDetails} className="movement-financial-toggle inline-flex rounded-xl px-2 text-[10px] font-black sm:px-3 sm:text-xs">{showMovementFinancialDetails ? "إخفاء التفاصيل المالية" : "إظهار التفاصيل المالية"}</Button> : null}
-            <div className="hidden rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500 sm:block" style={{color: '#05524d'}}>نظام Smart Inventory • البيانات محفوظة</div>
+            <div className="smart-topbar-status hidden rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500 sm:block">نظام Smart Inventory • البيانات محفوظة</div>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0d4f62] text-xs font-black text-white">{user.name?.charAt(0) ?? "م"}</div>
           </div>
         </header>
