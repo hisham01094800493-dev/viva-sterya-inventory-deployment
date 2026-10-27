@@ -548,10 +548,11 @@ export async function buildCompanyInventoryAuditPdf(report: CompanyInventoryAudi
   const logo = await resolveLogo(options.logo);
   const watermarkLogo = options.watermarkEnabled === false ? null : logo;
   const visualWarehouses = [...report.warehouses].sort((left, right) => right.slot - left.slot);
-  const visualHeaders = ["إجمالي الشركة", ...visualWarehouses.map(warehouse => warehouse.name), "الوحدة", "اسم الصنف", "الكود"];
+  const totalLabel = visualWarehouses.length === 1 ? "إجمالي المخزن" : "إجمالي الشركة";
+  const visualHeaders = [totalLabel, ...visualWarehouses.map(warehouse => warehouse.name), "الوحدة", "اسم الصنف", "الكود"];
   const summary = [`عدد الأصناف: ${report.summary.totalItems.toLocaleString("en-US")}`, `إجمالي رصيد الشركة: ${report.summary.totalCompanyBalance.toLocaleString("en-US", { maximumFractionDigits: 3 })}`];
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
-  logoAndDate(doc, "تقرير الجرد الشامل حسب المخازن", logo, options.date, summary);
+  logoAndDate(doc, visualWarehouses.length === 1 ? `تقرير جرد ${visualWarehouses[0].name}` : "تقرير الجرد الشامل حسب المخازن", logo, options.date, summary);
   autoTable(doc, {
     startY: getReportHeaderHeight(summary),
     margin: { left: 24, right: 24 },
