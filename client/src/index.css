@@ -846,7 +846,14 @@
   .inventory-audit-page table tbody tr:hover { transform: translateX(-2px); }
   .dark .inventory-audit-page [class*="bg-white"] { background-color: #3f4545 !important; }
   .dark .inventory-audit-page [class*="bg-[#f7fbfc]"] { background-color: #354b4d !important; }
+  .dark .inventory-audit-page [class*="bg-[#fbf8ff]"],
+  .dark .inventory-audit-page [class*="bg-[#f7faff]"],
+  .dark .inventory-audit-page [class*="bg-[#fff8fa]"] { background-color: #414345 !important; }
   .dark .inventory-audit-page [class*="bg-[#fffaf5]"] { background-color: #4a443c !important; }
+  .dark .inventory-audit-page [class*="bg-[#f1e9ff]"],
+  .dark .inventory-audit-page [class*="bg-[#e8f1fb]"],
+  .dark .inventory-audit-page [class*="bg-[#ffecef]"],
+  .dark .inventory-audit-page [class*="bg-[#fff1df]"] { background-color: #514a45 !important; }
   .dark .inventory-audit-page [class*="bg-[#e8f1f2]"],
   .dark .inventory-audit-page [class*="bg-[#e8f7f6]"] { background-color: #31565a !important; }
   .dark .inventory-audit-page [class*="border-[#dce7ee]"],
@@ -860,6 +867,12 @@
   .dark .inventory-audit-page [class*="text-[#0d4f62]"] { color: #b7e5e1 !important; }
   .dark .inventory-audit-page [class*="text-[#0d806c]"] { color: #8bd8c8 !important; }
   .dark .inventory-audit-page [class*="text-[#a96821]"] { color: #f3c487 !important; }
+  .dark .inventory-audit-page [class*="text-[#6d3f91]"],
+  .dark .inventory-audit-page [class*="text-[#7b4aa0]"] { color: #d7b9f3 !important; }
+  .dark .inventory-audit-page [class*="text-[#35669a]"],
+  .dark .inventory-audit-page [class*="text-[#3975ae]"] { color: #acd0f2 !important; }
+  .dark .inventory-audit-page [class*="text-[#a43f58]"],
+  .dark .inventory-audit-page [class*="text-[#b94b68]"] { color: #f0b2c1 !important; }
   .dark .inventory-audit-page table thead { background-color: #354b4d !important; }
   .dark .inventory-audit-page table tbody tr:hover { background-color: rgba(112, 190, 186, 0.12) !important; }
 }
