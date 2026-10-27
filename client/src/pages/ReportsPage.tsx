@@ -313,6 +313,7 @@ export default function ReportsPage() {
   const [movementFilter, setMovementFilter] = useState<MovementFilter>("all");
   const [varianceFilter, setVarianceFilter] = useState<VarianceFilter>("all");
   const [accountComparisonMetric, setAccountComparisonMetric] = useState<AccountComparisonMetric>("value");
+  const [balanceWarehouseId, setBalanceWarehouseId] = useState<number | null>(null);
   const [appliedReportFilters, setAppliedReportFilters] = useState({ from: "", to: today(), movement: "all" as MovementFilter, variance: "all" as VarianceFilter, unlinked: "", permit: "", itemCode: "", itemName: "", warehouse: "", incomingFrom: "", outgoingTo: "", additionPurpose: "", disbursementPurpose: "", returnPurpose: "" });
   const [selectedVarianceCode, setSelectedVarianceCode] = useState<string | null>(null);
   const [summaryItemCode, setSummaryItemCode] = useState<string | null>(null);
@@ -335,6 +336,7 @@ export default function ReportsPage() {
   const reportDatasetInput = useMemo(() => ({ includeRows: reportRowsRequired, fromDate: appliedReportFilters.from || undefined, toDate: appliedReportFilters.to || undefined, permitSearch: appliedReportFilters.permit || undefined, incomingFromSearch: appliedReportFilters.incomingFrom || undefined, outgoingToSearch: appliedReportFilters.outgoingTo || undefined, additionPurposeSearch: appliedReportFilters.additionPurpose || undefined, disbursementPurposeSearch: appliedReportFilters.disbursementPurpose || undefined, returnPurposeSearch: appliedReportFilters.returnPurpose || undefined }), [reportRowsRequired, appliedReportFilters.from, appliedReportFilters.to, appliedReportFilters.permit, appliedReportFilters.incomingFrom, appliedReportFilters.outgoingTo, appliedReportFilters.additionPurpose, appliedReportFilters.disbursementPurpose, appliedReportFilters.returnPurpose]);
   const items = trpc.items.list.useQuery(undefined, inventoryQueryOptions);
   const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
+  const warehouseBalanceRows = trpc.items.warehouseStocks.useQuery({ warehouseId: balanceWarehouseId ?? 1 }, { ...inventoryQueryOptions, enabled: Boolean(balanceWarehouseId) });
   const reportDataset = trpc.reports.dataset.useQuery(reportDatasetInput, inventoryQueryOptions);
   const customers = trpc.customers.list.useQuery(undefined, inventoryQueryOptions);
   const suppliers = trpc.suppliers.list.useQuery(undefined, inventoryQueryOptions);
@@ -380,6 +382,10 @@ export default function ReportsPage() {
   const defaultSupplierName = settings.data?.find(item => item.key === "report_default_supplier")?.value?.trim() || "—";
   const defaultCustomerName = settings.data?.find(item => item.key === "report_default_customer")?.value?.trim() || "—";
 
+  useEffect(() => {
+    if (balanceWarehouseId == null && warehouses.data?.length) setBalanceWarehouseId(warehouses.data[0].id);
+  }, [balanceWarehouseId, warehouses.data]);
+
   const inventoryRows = useMemo(() => (items.data ?? []).filter(item => inDateRange(item.createdAt, appliedReportFilters.from, appliedReportFilters.to)), [items.data, appliedReportFilters]);
   const filteredAdditions = reportDataset.data?.additions ?? [];
   const filteredDisbursements = reportDataset.data?.disbursements ?? [];
@@ -402,6 +408,14 @@ export default function ReportsPage() {
     return reorder > 0 ? current <= reorder * threshold : current <= 0;
   }).length, [inventoryRows, summary.data?.thresholdPercentage]);
   const totalCurrent = inventoryRows.reduce((sum, item) => sum + Number(item.currentStock ?? 0), 0);
+  const warehouseBalanceByUnit = useMemo(() => {
+    const grouped = new Map<string, number>();
+    for (const row of warehouseBalanceRows.data ?? []) {
+      const unit = String(row.unit || "بدون وحدة").trim() || "بدون وحدة";
+      grouped.set(unit, (grouped.get(unit) ?? 0) + Number(row.currentStock ?? 0));
+    }
+    return Array.from(grouped, ([unit, quantity]) => ({ unit, quantity })).sort((left, right) => right.quantity - left.quantity);
+  }, [warehouseBalanceRows.data]);
   const totalIncoming = Number(reportDataset.data?.summary.additions.quantity ?? 0);
   const totalOutgoing = Number(reportDataset.data?.summary.disbursements.quantity ?? 0);
   const varianceRows = reportDataset.data?.varianceRows ?? [];
@@ -585,7 +599,7 @@ export default function ReportsPage() {
     <OfflineDataNotice resource="التقارير" hasCachedData={Boolean(reportDataset.data || items.data || summary.data)} />
     <PageHeader from={from} to={to} onRefresh={() => { void Promise.all([utils.items.list.invalidate(), utils.reports.dataset.invalidate(), utils.dashboard.summary.invalidate()]); }} refreshing={refreshing} />
     <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#dce7ee] bg-white/80 px-3 py-2 shadow-[0_8px_24px_rgba(18,44,84,0.04)]">
-      {statCards.map(({ label, value, Icon, tone }) => <div key={label} className="flex min-w-[132px] flex-1 items-center gap-2 rounded-xl bg-[#f7fbfc] px-3 py-2"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}><Icon className="h-4 w-4" /></span><div className="min-w-0"><p className="truncate text-[10px] font-bold text-slate-400">{label}</p><p className="text-base font-black text-[#102a43]">{value}</p></div></div>)}
+      {statCards.map(({ label, value, Icon, tone }) => label === "الرصيد الحالي" ? <div key={label} className="min-w-[220px] flex-1 rounded-xl bg-[#f7fbfc] px-3 py-2"><div className="flex items-center gap-2"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}><Icon className="h-4 w-4" /></span><div className="min-w-0"><p className="truncate text-[10px] font-bold text-slate-400">الرصيد الحالي حسب المخزن</p><p className="text-base font-black text-[#102a43]">{balanceWarehouseId ? (warehouses.data?.find(warehouse => warehouse.id === balanceWarehouseId)?.name ?? value) : value}</p></div></div><select value={balanceWarehouseId ?? ""} onChange={event => setBalanceWarehouseId(Number(event.target.value) || null)} className="mt-2 h-8 w-full rounded-lg border border-[#b9d4d9] bg-white px-2 text-[11px] font-black text-[#0d4f62]" aria-label="اختيار مخزن لعرض رصيده"><option value="">كل المخازن</option>{(warehouses.data ?? []).map(warehouse => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select>{balanceWarehouseId ? <div className="mt-2 flex flex-wrap gap-1.5">{warehouseBalanceByUnit.length ? warehouseBalanceByUnit.map(item => <span key={item.unit} className="rounded-full bg-[#e8f7f6] px-2 py-1 text-[10px] font-black text-[#0d4f62]">{formatQuantity(item.quantity)} {item.unit}</span>) : <span className="text-[10px] text-slate-400">لا توجد أرصدة مسجلة</span>}</div> : <p className="mt-2 text-[10px] text-slate-400">اختر مخزنًا لعرض الرصيد حسب الوحدة</p>}</div> : <div key={label} className="flex min-w-[132px] flex-1 items-center gap-2 rounded-xl bg-[#f7fbfc] px-3 py-2"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}><Icon className="h-4 w-4" /></span><div className="min-w-0"><p className="truncate text-[10px] font-bold text-slate-400">{label}</p><p className="text-base font-black text-[#102a43]">{value}</p></div></div>)}
     </div>
 
     <Card className="rounded-[1.5rem] border-[#dce7ee] bg-white shadow-[0_12px_34px_rgba(18,44,84,0.05)]">
