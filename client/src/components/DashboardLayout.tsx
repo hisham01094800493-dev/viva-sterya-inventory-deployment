@@ -279,7 +279,6 @@ export function buildMobileNavigationItems(): NavigationItem[] {
     ["/items", "الأصناف", "المخزون والكميات"],
     ["/additions", "إضافة", "إذن إضافة جديد"],
     ["/disbursements", "صرف", "إذن صرف جديد"],
-    ["/reports", "التقارير", "المتابعة والنتائج"],
     ["/inventory-audit", "الجرد", "أرصدة الأصناف حسب المخزن"],
   ];
   return destinations.map(([path, mobileLabel, mobileHint]) => {
