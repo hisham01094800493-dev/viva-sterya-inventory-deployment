@@ -146,12 +146,12 @@ export function buildNavigationGroups(items: NavigationItem[], governanceItems: 
   const pick = (paths: string[]) => paths.map(path => byPath.get(path)).filter((item): item is NavigationItem => Boolean(item));
   return [
     { id: "home", icon: LayoutDashboard, label: "الرئيسية", description: "ملخص سريع لحالة العمل", items: pick(["/"]) },
-    { id: "inventory", icon: Boxes, label: "المخازن والمخزون", description: "الأصناف والمخازن والأرصدة", items: pick(["/items", "/warehouses", "/inventory-audit"]) },
+    { id: "inventory", icon: Boxes, label: "المخازن والمخزون", description: "الأصناف والمخازن والأرصدة", items: pick(["/items", "/warehouses"]) },
     { id: "suppliers", icon: Truck, label: "الموردون", description: "دليل الموردين وكشوف الحساب", items: pick(["/suppliers"]) },
     { id: "customers", icon: UsersRound, label: "العملاء وجهات الصرف", description: "العملاء والجهات وكشوف الحساب", items: pick(["/customers"]) },
     { id: "movements", icon: ReceiptText, label: "أذونات المخازن العامة", description: "الإضافة والصرف والتحويل والتسويات", items: pick(["/additions", "/disbursements", "/transfers", "/stock-adjustments"]) },
     { id: "alerts", icon: MessagesSquare, label: "التنبيهات المهمة", description: "محادثات الفريق والتنبيهات", items: pick(["/chat", "/alerts"]) },
-    { id: "reports", icon: ChartNoAxesCombined, label: "التقارير", description: "تقارير الحركة والأرصدة والفروقات", items: pick(["/reports"]) },
+    { id: "reports", icon: ChartNoAxesCombined, label: "التقارير", description: "تقارير الحركة والأرصدة والفروقات", items: pick(["/reports", "/inventory-audit"]) },
     { id: "drafts", icon: FilePenLine, label: "المسودات والملاحظات", description: "ملاحظات ومسودات الأذونات قبل الاعتماد", items: pick(["/drafts"]) },
     { id: "settings", icon: SlidersHorizontal, label: "الإعدادات والحماية", description: "الإعدادات والنسخ والصلاحيات", items: [...pick(["/settings"]), ...governanceItems] },
   ].filter(group => group.items.length > 0);
