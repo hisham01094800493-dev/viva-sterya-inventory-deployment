@@ -31,6 +31,16 @@ describe("تصحيح أذونات الصرف بالكميات السالبة", (
     expect(isReturnDisbursement({ eznNum: "20", quantity: "-5.000" })).toBe(false);
   });
 
+  it("يبقي إذن التهامي 5207 صرفًا موجبًا حتى لو احتوت بياناته على وصف مرتجع قديم", () => {
+    const row = { eznNum: "5207", quantity: "2.830", totalValue: "283.00", disburseType: "مرتجع من العميل", notes: "مرتجع" };
+    expect(isReturnDisbursement(row)).toBe(false);
+    expect(normalizeCustomerAccountDisbursement(row)).toMatchObject({
+      quantity: "2.830",
+      totalValue: "283.00",
+    });
+    expect(normalizeCustomerAccountDisbursement(row)).not.toHaveProperty("transferType");
+  });
+
   it("يعرض الكمية والقيمة في كشف الحساب بالسالب ونوع الحركة كمرتجع", () => {
     expect(normalizeCustomerAccountDisbursement({ eznNum: "19", quantity: "5.000", totalValue: "500.00" })).toMatchObject({
       transferType: "مرتجع من عميل",

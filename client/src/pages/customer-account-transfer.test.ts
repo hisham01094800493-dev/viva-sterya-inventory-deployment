@@ -23,4 +23,12 @@ describe("تصنيف الحركات الموقعة في كشف حساب العم
 
     expect(row).toMatchObject({ type: "مرتجع", quantity: -3.464, total: -346.4 });
   });
+
+  it("يعرض إذن التهامي 5207 كصرف بكميته وقيمته الموجبتين", () => {
+    const [row] = buildAccountStatementRows([
+      { id: 3, date: "2026-08-09", eznNum: "5207", itemName: "حديد تسليح 22 مم", itemCode: "20006", quantity: "2.83", totalValue: "283.00", customerId: 11 },
+    ], "customer", 11);
+
+    expect(row).toMatchObject({ number: "5207", type: "صرف", quantity: 2.83, total: 283 });
+  });
 });

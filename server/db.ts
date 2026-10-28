@@ -3028,6 +3028,8 @@ export function isReturnTransfer(type: string | null | undefined) {
 /** Keep historical permits 18 and 19 classified as customer returns in account and item statements. */
 export function isReturnDisbursement(row: { eznNum?: string | number | null; quantity?: unknown; disburseType?: string | null; notes?: string | null } | null | undefined) {
   const permitNumber = String(row?.eznNum ?? "").trim();
+  // Permit 5207 is a normal positive disbursement for Tahami, not a return.
+  if (permitNumber === "5207") return false;
   if (["18", "19"].includes(permitNumber)) return true;
   const text = `${row?.disburseType ?? ""} ${row?.notes ?? ""}`.trim().toLowerCase();
   return /مرتجع|ارتجاع|return/.test(text);
