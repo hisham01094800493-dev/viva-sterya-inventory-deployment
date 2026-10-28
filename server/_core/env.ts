@@ -61,6 +61,8 @@ export const ENV = {
   ownerEmail: process.env.ADMIN_EMAIL?.trim().toLowerCase() ?? "",
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   isProduction: process.env.NODE_ENV === "production",
+  // Deliberately development-only: never allow a mock identity in a hosted build.
+  mockAuth: process.env.NODE_ENV === "development" && clean(process.env.MOCK_AUTH).toLowerCase() === "true",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
 };
