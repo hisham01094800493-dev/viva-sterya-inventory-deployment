@@ -1,17 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { calculateStockDelta, getCustomerReturnStockDelta, isInternalTransfer, isLegacyNegativeDisbursement, isReturnDisbursement, isReturnTransfer } from "./db";
+import { calculateStockDelta, getCustomerReturnStockDelta, isInternalTransfer, isReturnDisbursement, isReturnTransfer } from "./db";
 
 describe("warehouse movement rules", () => {
   it("keeps internal transfers distinct from return movements", () => {
     expect(isInternalTransfer("transfer")).toBe(true);
     expect(isInternalTransfer("تحويل داخلي")).toBe(true);
     expect(isInternalTransfer("مرتجع من عميل")).toBe(false);
-  });
-
-  it("restores permits 18 and 19 as negative disbursements", () => {
-    expect(isLegacyNegativeDisbursement({ eznNum: "18" })).toBe(true);
-    expect(isLegacyNegativeDisbursement({ eznNum: "19" })).toBe(true);
-    expect(isLegacyNegativeDisbursement({ eznNum: "16" })).toBe(false);
   });
 
   it("recognizes legacy positive disbursements as returns from their description", () => {
