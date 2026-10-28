@@ -558,7 +558,8 @@ export async function buildCompanyInventoryAuditPdf(report: CompanyInventoryAudi
     ...(selectedColumns.has("code") ? [{ key: "code", header: "الكود", value: (row: CompanyInventoryAuditPdfData["rows"][number]) => row.code }] : []),
   ];
   const visualHeaders = columns.map(column => column.header);
-  const summary = [`عدد الأصناف: ${report.summary.totalItems.toLocaleString("en-US")}`, `إجمالي رصيد الشركة: ${report.summary.totalCompanyBalance.toLocaleString("en-US", { maximumFractionDigits: 3 })}`];
+  const scopeLabel = visualWarehouses.length === 1 ? `مخزن ${visualWarehouses[0].name}` : "الشركة";
+  const summary = [`${scopeLabel}: ${report.summary.totalItems.toLocaleString("en-US")} ${report.summary.totalItems === 1 ? "صنف" : "أصناف"}`, `إجمالي الرصيد: ${report.summary.totalCompanyBalance.toLocaleString("en-US", { maximumFractionDigits: 3 })}`];
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
   logoAndDate(doc, visualWarehouses.length === 1 ? `تقرير جرد ${visualWarehouses[0].name}` : "تقرير الجرد الشامل حسب المخازن", logo, options.date, summary);
   autoTable(doc, {
