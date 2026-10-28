@@ -1144,8 +1144,16 @@ export async function getItemCard(
       .where(transferWhere)
       .orderBy(desc(transfers.id)),
   ]);
-  const legacyReturnDisbursements = disbursementRows.filter(isReturnDisbursement);
-  const normalDisbursements = disbursementRows.filter(row => !isReturnDisbursement(row));
+  const legacyNegativeDisbursements = disbursementRows.filter(isLegacyNegativeDisbursement);
+  const legacyReturnDisbursements = disbursementRows.filter(row => isReturnDisbursement(row) && !isLegacyNegativeDisbursement(row));
+  const normalDisbursements = disbursementRows
+    .filter(row => !isReturnDisbursement(row) || isLegacyNegativeDisbursement(row))
+    .map(row => isLegacyNegativeDisbursement(row) ? {
+      ...row,
+      quantity: String(-Math.abs(Number(row.quantity ?? 0))),
+      totalValue: String(-Math.abs(Number(row.totalValue ?? 0))),
+      transferType: null,
+    } : row);
   const returns = [
     ...transferRows.filter(row => isReturnTransfer(row.transferType) || isCustomerTransfer(row.transferType)),
     ...legacyReturnDisbursements.map(row => ({
@@ -1786,11 +1794,19 @@ export async function listCustomerAccount(
     : eq(disbursements.customerId, customerId);
   const disbursementRows = await db.select().from(disbursements).where(where);
   const normalizedDisbursementRows = disbursementRows.map(row => {
+    if (isLegacyNegativeDisbursement(row)) {
+      return {
+        ...row,
+        transferType: null,
+        // الإذنان 18 و19 يعودان لصرف سالب، لا لمرتجع أو تحويل.
+        quantity: String(-Math.abs(Number(row.quantity ?? 0))),
+        totalValue: String(-Math.abs(Number(row.totalValue ?? 0))),
+      };
+    }
     if (!isReturnDisbursement(row)) return row;
     return {
       ...row,
       transferType: "مرتجع من عميل",
-      // حتى لو أصبحت القيمة موجبة بعد تعديل الإذن، المرتجع يخصم من حساب العميل.
       quantity: String(-Math.abs(Number(row.quantity ?? 0))),
       totalValue: String(-Math.abs(Number(row.totalValue ?? 0))),
       disburseType: row.disburseType || "مرتجع من العميل",
@@ -3033,6 +3049,12 @@ export function isReturnTransfer(type: string | null | undefined) {
 export function isReturnDisbursement(row: { disburseType?: string | null; notes?: string | null } | null | undefined) {
   const text = `${row?.disburseType ?? ""} ${row?.notes ?? ""}`.trim().toLowerCase();
   return /مرتجع|ارتجاع|return/.test(text);
+}
+
+/** الإذنان التاريخيان 18 و19 مطلوب عرضهما كصرف سالب في كشف العميل. */
+export function isLegacyNegativeDisbursement(row: { eznNum?: string | number | null } | null | undefined) {
+  const permit = String(row?.eznNum ?? "").trim();
+  return permit === "18" || permit === "19";
 }
 
 export function isInternalTransfer(type: string | null | undefined) {
