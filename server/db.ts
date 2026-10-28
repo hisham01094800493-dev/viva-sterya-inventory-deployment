@@ -34,6 +34,7 @@ import {
   suppliers,
   customers,
   warehouses,
+  buildings,
   itemWarehouseBalances,
   items,
   settings,
@@ -323,6 +324,15 @@ export async function listWarehouses() {
   const db = await requireDb();
   const rows = await db.select().from(warehouses).orderBy(warehouses.slot);
   return rows;
+}
+
+export async function listBuildings() {
+  const db = await requireDb();
+  return db
+    .select()
+    .from(buildings)
+    .where(eq(buildings.status, "active"))
+    .orderBy(asc(buildings.id));
 }
 export async function listWarehousesForAccess(
   allowedWarehouseIds: number[] | null
@@ -2110,6 +2120,7 @@ export async function createDisbursement(input: {
   itemCode: string;
   destination?: string | null;
   customerId?: number | null;
+  buildingId?: number;
   quantity: number;
   notes?: string | null;
   store?: string | null;
@@ -2127,6 +2138,8 @@ export async function createDisbursement(input: {
     );
   const quantity = Math.abs(enteredQuantity);
   const clientRequestId = input.clientRequestId?.trim() || null;
+  if (!input.buildingId) throw new InventoryError("BAD_REQUEST", "يجب ربط إذن الصرف بمبنى أو جهة مستلمة");
+  const buildingId = input.buildingId;
 
   return db.transaction(async (tx: any) => {
     if (clientRequestId) {
@@ -2139,6 +2152,14 @@ export async function createDisbursement(input: {
       if (existing[0]) return existing[0];
     }
     const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode));
+    const buildingRows = await tx
+      .select({ id: buildings.id })
+      .from(buildings)
+      .where(and(eq(buildings.id, buildingId), eq(buildings.status, "active")))
+      .limit(1);
+    if (!buildingRows[0]) {
+      throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
+    }
     const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
     const totalValue = calculateTotalValue(unitPrice, quantity);
     const warehouse = await resolveWarehouseId(
@@ -2159,6 +2180,7 @@ export async function createDisbursement(input: {
       itemName: item.name,
       destination: input.destination?.trim() || null,
       customerId: input.customerId ?? null,
+      buildingId,
       quantity: fromScaled(quantity),
       unitPrice: fromMoneyScaled(unitPrice),
       totalValue: fromMoneyScaled(totalValue),
@@ -2185,6 +2207,7 @@ export async function updateDisbursement(input: {
   itemCode?: string;
   destination?: string | null;
   customerId?: number | null;
+  buildingId?: number;
   quantity?: number;
   notes?: string | null;
   store?: string | null;
@@ -2270,6 +2293,15 @@ export async function updateDisbursement(input: {
     }
 
     const nextItem = lockedItems.get(nextCode);
+    const nextBuildingId = input.buildingId ?? old.buildingId ?? null;
+    if (input.buildingId !== undefined) {
+      const buildingRows = await tx
+        .select({ id: buildings.id })
+        .from(buildings)
+        .where(and(eq(buildings.id, input.buildingId), eq(buildings.status, "active")))
+        .limit(1);
+      if (!buildingRows[0]) throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
+    }
     const unitPrice = toMoneyScaled(input.unitPrice ?? old.unitPrice);
     const totalValue = calculateTotalValue(unitPrice, nextQuantity);
     const updates: Partial<InsertDisbursement> = {
@@ -2285,6 +2317,7 @@ export async function updateDisbursement(input: {
         input.customerId === undefined
           ? old.customerId
           : (input.customerId ?? null),
+      buildingId: nextBuildingId,
       quantity: fromScaled(nextQuantity),
       unitPrice: fromMoneyScaled(unitPrice),
       totalValue: fromMoneyScaled(totalValue),

@@ -214,6 +214,20 @@ export const warehouses = mysqlTable("warehouses", {
 export type Warehouse = typeof warehouses.$inferSelect;
 export type InsertWarehouse = typeof warehouses.$inferInsert;
 
+export const buildings = mysqlTable("buildings", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 180 }).notNull().unique(),
+  code: varchar("code", { length: 64 }).notNull().unique(),
+  type: mysqlEnum("type", ["owned_building", "subcontractor"]).notNull().default("owned_building"),
+  budget: decimal("budget", { precision: 14, scale: 2 }).default("0").notNull(),
+  status: mysqlEnum("status", ["active", "inactive"]).notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Building = typeof buildings.$inferSelect;
+export type InsertBuilding = typeof buildings.$inferInsert;
+
 export const suppliers = mysqlTable("suppliers", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 180 }).notNull().unique(),
@@ -322,6 +336,7 @@ export const disbursements = mysqlTable("disbursements", {
   itemName: text("item_name"), // بيان الصنف
   destination: varchar("destination", { length: 128 }), // الجهة / مخزن الصرف
   customerId: int("customer_id"), // العميل أو الجهة المستلمة
+  buildingId: int("building_id"), // المبنى أو الجهة المستفيدة؛ nullable للبيانات القديمة
   quantity: decimal("quantity", { precision: 12, scale: 3 }).notNull(), // الكمية
   unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).default("0").notNull(), // سعر الوحدة وقت الصرف
   totalValue: decimal("total_value", { precision: 14, scale: 2 }).default("0").notNull(), // إجمالي قيمة الصرف
@@ -333,7 +348,7 @@ export const disbursements = mysqlTable("disbursements", {
   documentImageUrl: varchar("document_image_url", { length: 500 }),
   clientRequestId: varchar("client_request_id", { length: 64 }).unique(), // مفتاح idempotency للمزامنة Offline
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-}, table => [index("disbursements_item_code_idx").on(table.itemCode), index("disbursements_ezn_num_idx").on(table.eznNum)]);
+}, table => [index("disbursements_item_code_idx").on(table.itemCode), index("disbursements_ezn_num_idx").on(table.eznNum), index("disbursements_building_id_idx").on(table.buildingId)]);
 
 export type Disbursement = typeof disbursements.$inferSelect;
 export type InsertDisbursement = typeof disbursements.$inferInsert;

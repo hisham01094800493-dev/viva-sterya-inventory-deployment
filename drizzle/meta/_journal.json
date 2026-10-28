@@ -232,6 +232,13 @@
       "when": 1792478017600,
       "tag": "0032_glossy_morg",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1793176452655,
+      "tag": "0033_futuristic_christian_walker",
+      "breakpoints": true
     }
   ]
 }

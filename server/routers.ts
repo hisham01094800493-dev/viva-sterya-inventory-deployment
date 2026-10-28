@@ -56,6 +56,7 @@ import {
   listWarehousesForAccess,
   listWarehousesByUsage,
   listWarehousesByUsageForAccess,
+  listBuildings,
   updateWarehouse,
   listSuppliers,
   createSupplier,
@@ -235,6 +236,7 @@ const disbursementInput = z.object({
   itemCode: z.string().trim().min(1, "كود الصنف مطلوب").max(64),
   destination: z.string().trim().max(128).nullable().optional(),
   customerId: z.number().int().positive().nullable().optional(),
+  buildingId: z.number().int().positive("اختر المبنى أو الجهة المستلمة"),
   quantity: z.coerce.number().refine(value => value !== 0, "الكمية لا يمكن أن تساوي صفراً"),
   notes: z.string().trim().max(1000).nullable().optional(),
   store: z.string().trim().max(128).nullable().optional(),
@@ -301,6 +303,9 @@ export const appRouter = router({
     list: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); return safe(() => listWarehousesForAccess(permissions.allowedWarehouseIds)); }),
     listByUsage: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); return safe(() => listWarehousesByUsageForAccess(permissions.allowedWarehouseIds)); }),
     update: adminProcedure.input(warehouseUpdateInput).mutation(({ input }) => safe(() => updateWarehouse(input))),
+  }),
+  buildings: router({
+    list: protectedProcedure.query(() => safe(() => listBuildings())),
   }),
   suppliers: router({
     list: protectedProcedure.query(() => safe(() => listSuppliers())),
