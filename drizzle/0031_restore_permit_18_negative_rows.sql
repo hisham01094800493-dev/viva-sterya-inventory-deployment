@@ -31,6 +31,8 @@ WHERE i.code IN ('20006', '20005', '20004', '20002')
     WHERE d.client_request_id = CONCAT('manual-permit-18-negative-', i.code)
   );
 
+--> statement-breakpoint
+
 UPDATE items i
 JOIN (
   SELECT item_code, SUM(ABS(quantity)) AS quantity
@@ -41,6 +43,8 @@ JOIN (
 SET
   i.current_stock = i.current_stock - d.quantity,
   i.outgoing_stock = i.outgoing_stock + d.quantity;
+
+--> statement-breakpoint
 
 UPDATE item_warehouse_balances b
 JOIN (
