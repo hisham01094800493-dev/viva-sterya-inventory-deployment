@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isReturnDisbursement, normalizeCustomerAccountDisbursement } from "./db";
 import { calculateStockDelta } from "./db/scale";
 
 describe("تصحيح أذونات الصرف بالكميات السالبة", () => {
@@ -22,5 +23,20 @@ describe("تصحيح أذونات الصرف بالكميات السالبة", (
       { incoming: 0, outgoing: -1000, current: 1000 },
       { allowNegativeCurrent: true },
     )).toEqual({ incomingStock: "10.000", outgoingStock: "7.000", currentStock: "-1.000" });
+  });
+
+  it("يحافظ على تصنيف إذني 18 و19 التاريخيين كمرتجع حتى لو كانت الكمية المخزنة موجبة", () => {
+    expect(isReturnDisbursement({ eznNum: "19", quantity: "5.000" })).toBe(true);
+    expect(isReturnDisbursement({ eznNum: 18, quantity: "2.830" })).toBe(true);
+    expect(isReturnDisbursement({ eznNum: "20", quantity: "-5.000" })).toBe(false);
+  });
+
+  it("يعرض الكمية والقيمة في كشف الحساب بالسالب ونوع الحركة كمرتجع", () => {
+    expect(normalizeCustomerAccountDisbursement({ eznNum: "19", quantity: "5.000", totalValue: "500.00" })).toMatchObject({
+      transferType: "مرتجع من عميل",
+      quantity: "-5",
+      totalValue: "-500",
+      disburseType: "مرتجع من العميل",
+    });
   });
 });

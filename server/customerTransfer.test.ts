@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCustomerTransferAccountRows } from "./db";
+import { buildCustomerTransferAccountRows, isCustomerTransfer, isReturnTransfer } from "./db";
 
 describe("كشف حساب تحويلات جهات الصرف", () => {
   it("يخصم التحويل من الجهة الأولى ويضيفه للجهة الثانية", () => {
@@ -13,6 +13,18 @@ describe("كشف حساب تحويلات جهات الصرف", () => {
   it("يسجل ارتجاع العميل كخصم من كشفه وليس كتوريد جديد", () => {
     const movement = { id: 78, itemCode: "10001", quantity: "5.000", totalValue: "500.00", fromCustomerId: 11, toCustomerId: null, transferType: "مرتجع من عميل" };
     const row = buildCustomerTransferAccountRows([movement], 11)[0];
+    expect(isReturnTransfer(movement.transferType)).toBe(true);
     expect(row).toMatchObject({ customerId: 11, quantity: "-5", totalValue: "-500", destination: "مرتجع إلى المخزن", disburseType: "مرتجع من العميل" });
+  });
+
+  it("يعامل التسمية التاريخية للتحويل بين عميلين كتحويل حساب محايد للمخزون", () => {
+    const movement = { id: 79, itemCode: "10001", quantity: "3.464", totalValue: "346.40", fromCustomerId: 11, toCustomerId: 22, transferType: "مرتجع من عميل إلى عميل" };
+    const source = buildCustomerTransferAccountRows([movement], 11)[0];
+    const destination = buildCustomerTransferAccountRows([movement], 22)[0];
+
+    expect(isCustomerTransfer(movement.transferType)).toBe(true);
+    expect(isReturnTransfer(movement.transferType)).toBe(false);
+    expect(source).toMatchObject({ customerId: 11, quantity: "-3.464", totalValue: "-346.4", transferType: "customer_transfer", disburseType: "تحويل من عميل إلى عميل" });
+    expect(destination).toMatchObject({ customerId: 22, quantity: "3.464", totalValue: "346.40", transferType: "customer_transfer", disburseType: "تحويل من عميل إلى عميل" });
   });
 });

@@ -1147,7 +1147,7 @@ export async function getItemCard(
   const legacyReturnDisbursements = disbursementRows.filter(isReturnDisbursement);
   const normalDisbursements = disbursementRows.filter(row => !isReturnDisbursement(row));
   const returns = [
-    ...transferRows.filter(row => isReturnTransfer(row.transferType) || isCustomerTransfer(row.transferType)),
+    ...transferRows.filter(row => isReturnTransfer(row.transferType)),
     ...legacyReturnDisbursements.map(row => ({
       ...row,
       transferType: "مرتجع من عميل",
@@ -1758,7 +1758,7 @@ export function buildCustomerTransferAccountRows(transferRows: Array<any>, custo
     return {
       ...row,
       customerId,
-      transferType: row.transferType,
+      transferType: isCustomerToCustomer ? "customer_transfer" : row.transferType,
       destination: isCustomerToCustomer
         ? (isSource ? `تحويل إلى جهة ${row.toCustomerId}` : `تحويل من جهة ${row.fromCustomerId}`)
         : isReturn
@@ -1773,6 +1773,16 @@ export function buildCustomerTransferAccountRows(transferRows: Array<any>, custo
     };
   });
 }
+export function normalizeCustomerAccountDisbursement<T extends { eznNum?: string | number | null; quantity?: unknown; totalValue?: unknown; disburseType?: string | null; notes?: string | null }>(row: T) {
+  if (!isReturnDisbursement(row)) return row;
+  return {
+    ...row,
+    transferType: "مرتجع من عميل",
+    quantity: String(-Math.abs(Number(row.quantity ?? 0))),
+    totalValue: String(-Math.abs(Number(row.totalValue ?? 0))),
+    disburseType: row.disburseType || "مرتجع من العميل",
+  };
+}
 export async function listCustomerAccount(
   customerId: number,
   allowedWarehouseIds: number[] = []
@@ -1785,17 +1795,7 @@ export async function listCustomerAccount(
       )
     : eq(disbursements.customerId, customerId);
   const disbursementRows = await db.select().from(disbursements).where(where);
-  const normalizedDisbursementRows = disbursementRows.map(row => {
-    if (!isReturnDisbursement(row)) return row;
-    return {
-      ...row,
-      transferType: "مرتجع من عميل",
-      // حتى لو أصبحت القيمة موجبة بعد تعديل الإذن، المرتجع يخصم من حساب العميل.
-      quantity: String(-Math.abs(Number(row.quantity ?? 0))),
-      totalValue: String(-Math.abs(Number(row.totalValue ?? 0))),
-      disburseType: row.disburseType || "مرتجع من العميل",
-    };
-  });
+  const normalizedDisbursementRows = disbursementRows.map(normalizeCustomerAccountDisbursement);
   const transferRows = await db.select().from(transfers).where(or(eq(transfers.fromCustomerId, customerId), eq(transfers.toCustomerId, customerId)));
   const syntheticRows = buildCustomerTransferAccountRows(transferRows, customerId);
   return [...normalizedDisbursementRows, ...syntheticRows].sort((a, b) => Number(b.id) - Number(a.id));
@@ -3022,15 +3022,13 @@ export function isReturnTransfer(type: string | null | undefined) {
     "استلام مرتجع",
     "مرتجع من عميل",
     "مرتجع للمخزن",
-    "مرتجع من عميل إلى عميل",
   ].includes(normalized);
 }
 
-/**
- * بعض أذونات الصرف القديمة (مثل 18 و19) كانت مرتجعاً بسالب ثم عُدلت إلى موجب.
- * نحتفظ بتصنيفها من وصف الحركة حتى لا تظهر كصرف عادي أو كتوريد جديد.
- */
-export function isReturnDisbursement(row: { disburseType?: string | null; notes?: string | null } | null | undefined) {
+/** Keep historical permits 18 and 19 classified as customer returns in account and item statements. */
+export function isReturnDisbursement(row: { eznNum?: string | number | null; quantity?: unknown; disburseType?: string | null; notes?: string | null } | null | undefined) {
+  const permitNumber = String(row?.eznNum ?? "").trim();
+  if (["18", "19"].includes(permitNumber)) return true;
   const text = `${row?.disburseType ?? ""} ${row?.notes ?? ""}`.trim().toLowerCase();
   return /مرتجع|ارتجاع|return/.test(text);
 }
@@ -3041,7 +3039,7 @@ export function isInternalTransfer(type: string | null | undefined) {
   );
 }
 export function isCustomerTransfer(type: string | null | undefined) {
-  return ["customer_transfer", "تحويل بين جهات الصرف", "تحويل من جهة صرف لجهة صرف"].includes((type ?? "").trim().toLowerCase());
+  return ["customer_transfer", "تحويل بين جهات الصرف", "تحويل من جهة صرف لجهة صرف", "مرتجع من عميل إلى عميل"].includes((type ?? "").trim().toLowerCase());
 }
 
 /** Returns replenish available stock but are not new procurement/incoming supply. */
