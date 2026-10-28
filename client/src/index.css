@@ -3193,7 +3193,7 @@ body {
   .inventory-audit-page .report-warehouse-accent { position: absolute; top: 0; right: 0; bottom: 0; width: 5px; border-radius: 0 1rem 1rem 0; opacity: 0.9; }
   .dark .inventory-audit-page .report-warehouse-card { box-shadow: 0 16px 38px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
   .dark .inventory-audit-page .report-warehouse-card::before { background: radial-gradient(circle at 100% 0%, rgba(255, 255, 255, 0.1), transparent 44%); }
-  .dark .inventory-audit-page .report-warehouse-card .text-[#102a43] { color: #f1faf7 !important; }
+  .dark .inventory-audit-page .report-warehouse-card .report-warehouse-primary-text { color: #f1faf7 !important; }
   .dark .inventory-audit-page .report-warehouse-card .text-slate-500 { color: #b9d2d0 !important; }
   .dark .inventory-audit-page .report-warehouse-card .text-slate-400 { color: #9eb8b6 !important; }
   @media (max-width: 640px) { .inventory-audit-page .report-warehouse-card { min-height: 240px; } .inventory-audit-page .report-warehouse-header { min-height: 198px; } }
