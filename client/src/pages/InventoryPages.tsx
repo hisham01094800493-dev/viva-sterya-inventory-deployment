@@ -277,7 +277,7 @@ function ItemMovementHistoryDialog({ itemId, open, onOpenChange }: { itemId?: nu
     const raw = [
       ...(data.additions ?? []).map((row: any) => ({ ...row, movement: "إضافة", party: row.supplier || row.store || "—", detail: row.purpose || "—", signedQuantity: Number(row.quantity ?? 0) })),
       ...(data.disbursements ?? []).map((row: any) => ({ ...row, movement: "صرف", party: row.destination || row.store || "—", detail: row.notes || row.disburseType || "—", signedQuantity: -Number(row.quantity ?? 0) })),
-      ...(data.returns ?? []).map((row: any) => ({ ...row, movement: "مرتجع", party: row.fromStore || row.toStore || "—", detail: row.notes || "—", signedQuantity: Number(row.quantity ?? 0) })),
+      ...(data.returns ?? []).map((row: any) => { const customerToCustomer = String(row.transferType ?? "").toLowerCase() === "customer_transfer" || String(row.transferType ?? "").includes("عميل إلى عميل"); return { ...row, movement: customerToCustomer ? "تحويل" : "مرتجع", party: customerToCustomer ? "تحويل من عميل إلى عميل" : row.fromStore || row.toStore || "—", detail: row.notes || (customerToCustomer ? "تحويل محايد للمخزون" : "مرتجع"), signedQuantity: customerToCustomer ? 0 : Number(row.quantity ?? 0) }; }),
       ...(data.transfers ?? []).filter((row: any) => !(data.returns ?? []).some((returned: any) => returned.id === row.id)).map((row: any) => ({ ...row, movement: "تحويل", party: [row.fromStore, row.toStore].filter(Boolean).join(" ← ") || "—", detail: row.notes || "—", signedQuantity: 0 })),
     ].sort((left, right) => String(left.date).localeCompare(String(right.date)) || Number(left.id ?? 0) - Number(right.id ?? 0));
     let running = Number(data.item.initialStock ?? 0);

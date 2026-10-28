@@ -1144,13 +1144,24 @@ export async function getItemCard(
       .where(transferWhere)
       .orderBy(desc(transfers.id)),
   ]);
-  const returns = transferRows.filter(row =>
-    isReturnTransfer(row.transferType)
-  );
+  const legacyReturnDisbursements = disbursementRows.filter(isReturnDisbursement);
+  const normalDisbursements = disbursementRows.filter(row => !isReturnDisbursement(row));
+  const returns = [
+    ...transferRows.filter(row => isReturnTransfer(row.transferType) || isCustomerTransfer(row.transferType)),
+    ...legacyReturnDisbursements.map(row => ({
+      ...row,
+      transferType: "مرتجع من عميل",
+      quantity: String(Math.abs(Number(row.quantity ?? 0))),
+      totalValue: String(Math.abs(Number(row.totalValue ?? 0))),
+      fromStore: row.destination || row.store || null,
+      toStore: "المخزن",
+    })),
+  ];
   return {
     item,
     additions: additionRows,
-    disbursements: disbursementRows,
+    // لا نعرض إذن المرتجع القديم مرة ثانية كصرف.
+    disbursements: normalDisbursements,
     returns,
     transfers: transferRows,
   };
@@ -1742,19 +1753,23 @@ export async function listSupplierAccount(
 export function buildCustomerTransferAccountRows(transferRows: Array<any>, customerId: number) {
   return transferRows.map(row => {
     const isSource = row.fromCustomerId === customerId;
-    const isReturn = isReturnTransfer(row.transferType);
+    const isCustomerToCustomer = isCustomerTransfer(row.transferType);
+    const isReturn = isReturnTransfer(row.transferType) || isCustomerToCustomer;
     return {
       ...row,
       customerId,
-      destination: isReturn
-        ? "مرتجع إلى المخزن"
-        : isSource
-          ? `تحويل إلى جهة ${row.toCustomerId}`
-          : `تحويل من جهة ${row.fromCustomerId}`,
+      transferType: isCustomerToCustomer ? "مرتجع من عميل إلى عميل" : row.transferType,
+      destination: isCustomerToCustomer
+        ? (isSource ? `مرتجع إلى جهة ${row.toCustomerId}` : `مرتجع من جهة ${row.fromCustomerId}`)
+        : isReturn
+          ? "مرتجع إلى المخزن"
+          : isSource
+            ? `تحويل إلى جهة ${row.toCustomerId}`
+            : `تحويل من جهة ${row.fromCustomerId}`,
       quantity: isSource ? String(-Number(row.quantity)) : String(row.quantity),
       totalValue: isSource ? String(-Number(row.totalValue ?? 0)) : String(row.totalValue ?? 0),
       warehouseId: null,
-      disburseType: isReturn ? "مرتجع من العميل" : "تحويل بين جهات الصرف",
+      disburseType: isCustomerToCustomer ? "مرتجع من عميل إلى عميل" : isReturn ? "مرتجع من العميل" : "تحويل بين جهات الصرف",
     };
   });
 }
@@ -1770,9 +1785,20 @@ export async function listCustomerAccount(
       )
     : eq(disbursements.customerId, customerId);
   const disbursementRows = await db.select().from(disbursements).where(where);
+  const normalizedDisbursementRows = disbursementRows.map(row => {
+    if (!isReturnDisbursement(row)) return row;
+    return {
+      ...row,
+      transferType: "مرتجع من عميل",
+      // حتى لو أصبحت القيمة موجبة بعد تعديل الإذن، المرتجع يخصم من حساب العميل.
+      quantity: String(-Math.abs(Number(row.quantity ?? 0))),
+      totalValue: String(-Math.abs(Number(row.totalValue ?? 0))),
+      disburseType: row.disburseType || "مرتجع من العميل",
+    };
+  });
   const transferRows = await db.select().from(transfers).where(or(eq(transfers.fromCustomerId, customerId), eq(transfers.toCustomerId, customerId)));
   const syntheticRows = buildCustomerTransferAccountRows(transferRows, customerId);
-  return [...disbursementRows, ...syntheticRows].sort((a, b) => Number(b.id) - Number(a.id));
+  return [...normalizedDisbursementRows, ...syntheticRows].sort((a, b) => Number(b.id) - Number(a.id));
 }
 
 export async function getPermitDetails(
@@ -2989,13 +3015,24 @@ export async function getReportDataset(
 }
 
 export function isReturnTransfer(type: string | null | undefined) {
+  const normalized = (type ?? "").trim().toLowerCase();
   return [
     "return",
     "مرتجع",
     "استلام مرتجع",
     "مرتجع من عميل",
     "مرتجع للمخزن",
-  ].includes((type ?? "").trim().toLowerCase());
+    "مرتجع من عميل إلى عميل",
+  ].includes(normalized);
+}
+
+/**
+ * بعض أذونات الصرف القديمة (مثل 18 و19) كانت مرتجعاً بسالب ثم عُدلت إلى موجب.
+ * نحتفظ بتصنيفها من وصف الحركة حتى لا تظهر كصرف عادي أو كتوريد جديد.
+ */
+export function isReturnDisbursement(row: { disburseType?: string | null; notes?: string | null } | null | undefined) {
+  const text = `${row?.disburseType ?? ""} ${row?.notes ?? ""}`.trim().toLowerCase();
+  return /مرتجع|ارتجاع|return/.test(text);
 }
 
 export function isInternalTransfer(type: string | null | undefined) {

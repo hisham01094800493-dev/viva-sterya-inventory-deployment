@@ -467,6 +467,7 @@ export type ItemCardMovementPdfRow = {
   totalValue: number;
   permitNumber: string;
   rawDate?: unknown;
+  stockNeutral?: boolean;
 };
 
 export function formatItemCardMovementDetail(movement: ItemCardMovementKind, row: Record<string, any>) {
@@ -488,13 +489,13 @@ export function buildItemCardMovementRows(card: ItemCardPdfData): ItemCardMoveme
   const initialStock = Number(card.item.initialStock ?? 0);
   const movements = [
     ...card.additions.map(row => ({ movement: "إضافة" as const, date: row.date, eznNum: row.eznNum, quantity: Number(row.quantity ?? 0), unitPrice: Number(row.unitPrice ?? card.item.unitPrice ?? 0), detail: formatItemCardMovementDetail("إضافة", row) })),
-    ...card.returns.map(row => { const movement: ItemCardMovementKind = String(row.transferType ?? "").includes("تحويل") ? "تحويل" : "مرتجع"; return { movement, date: row.date, eznNum: row.eznNum, quantity: Number(row.quantity ?? 0), unitPrice: Number(row.unitPrice ?? card.item.unitPrice ?? 0), detail: formatItemCardMovementDetail(movement, row) }; }),
+    ...card.returns.map(row => { const customerToCustomer = String(row.transferType ?? "").toLowerCase() === "customer_transfer" || String(row.transferType ?? "").includes("عميل إلى عميل"); const movement: ItemCardMovementKind = customerToCustomer || String(row.transferType ?? "").includes("تحويل") ? "تحويل" : "مرتجع"; return { movement, stockNeutral: customerToCustomer, date: row.date, eznNum: row.eznNum, quantity: Number(row.quantity ?? 0), unitPrice: Number(row.unitPrice ?? card.item.unitPrice ?? 0), detail: customerToCustomer ? `مرتجع من عميل إلى عميل${row.eznNum ? ` — رقم الإذن: ${row.eznNum}` : ""}` : formatItemCardMovementDetail(movement, row) }; }),
     ...card.disbursements.map(row => ({ movement: "صرف" as const, date: row.date, eznNum: row.eznNum, quantity: Number(row.quantity ?? 0), unitPrice: Number(row.unitPrice ?? card.item.unitPrice ?? 0), detail: formatItemCardMovementDetail("صرف", row) })),
   ].sort((a, b) => inventoryDateKey(a.date ?? "").localeCompare(inventoryDateKey(b.date ?? "")));
   let runningStock = initialStock;
   return movements.map((row, index) => {
     const addition = row.movement === "إضافة" ? row.quantity : 0;
-    const returned = row.movement === "مرتجع" || row.movement === "تحويل" ? row.quantity : 0;
+    const returned = (row as any).stockNeutral ? 0 : row.movement === "مرتجع" || row.movement === "تحويل" ? row.quantity : 0;
     // يحافظ كارت الصنف على الإشارة المدخلة: الصرف الموجب يخصم، والصرف السالب يعكس الخصم.
     const disbursement = row.movement === "صرف" ? row.quantity : 0;
     runningStock = Number((runningStock + addition + returned - disbursement).toFixed(3));
