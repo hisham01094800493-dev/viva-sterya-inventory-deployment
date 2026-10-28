@@ -1758,9 +1758,9 @@ export function buildCustomerTransferAccountRows(transferRows: Array<any>, custo
     return {
       ...row,
       customerId,
-      transferType: isCustomerToCustomer ? "مرتجع من عميل إلى عميل" : row.transferType,
+      transferType: row.transferType,
       destination: isCustomerToCustomer
-        ? (isSource ? `مرتجع إلى جهة ${row.toCustomerId}` : `مرتجع من جهة ${row.fromCustomerId}`)
+        ? (isSource ? `تحويل إلى جهة ${row.toCustomerId}` : `تحويل من جهة ${row.fromCustomerId}`)
         : isReturn
           ? "مرتجع إلى المخزن"
           : isSource
@@ -1769,7 +1769,7 @@ export function buildCustomerTransferAccountRows(transferRows: Array<any>, custo
       quantity: isSource ? String(-Number(row.quantity)) : String(row.quantity),
       totalValue: isSource ? String(-Number(row.totalValue ?? 0)) : String(row.totalValue ?? 0),
       warehouseId: null,
-      disburseType: isCustomerToCustomer ? "مرتجع من عميل إلى عميل" : isReturn ? "مرتجع من العميل" : "تحويل بين جهات الصرف",
+      disburseType: isCustomerToCustomer ? "تحويل من عميل إلى عميل" : isReturn ? "مرتجع من العميل" : "تحويل بين جهات الصرف",
     };
   });
 }
