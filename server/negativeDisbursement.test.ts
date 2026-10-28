@@ -1,8 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { isReturnDisbursement, normalizeCustomerAccountDisbursement } from "./db";
+import { dedupeItemCardReturns, isReturnDisbursement, normalizeCustomerAccountDisbursement } from "./db";
 import { calculateStockDelta } from "./db/scale";
 
 describe("تصحيح أذونات الصرف بالكميات السالبة", () => {
+  it("يعرض إذن المرتجع مرة واحدة في كارت الصنف إذا تكرر بين التحويلات وأذونات الصرف", () => {
+    const transferReturn = {
+      id: 1,
+      itemCode: "20004",
+      eznNum: "18",
+      date: "2026-08-08",
+      quantity: "2.736",
+      fromCustomerId: 7,
+    };
+    const duplicateDisbursement = {
+      id: 2,
+      itemCode: "20004",
+      eznNum: "18",
+      date: "2026-08-08",
+      quantity: "-2.736",
+      customerId: 7,
+    };
+    const differentCustomer = {
+      ...duplicateDisbursement,
+      id: 3,
+      customerId: 8,
+    };
+
+    expect(dedupeItemCardReturns([transferReturn, duplicateDisbursement, differentCustomer])).toEqual([
+      transferReturn,
+      differentCustomer,
+    ]);
+  });
+
   it("يزيد الرصيد الحالي ويخفض صافي المنصرف عند إدخال صرف سالب", () => {
     expect(calculateStockDelta(
       { code: "10001", incomingStock: "10.000", outgoingStock: "8.000", currentStock: "2.000" },

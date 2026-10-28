@@ -1095,6 +1095,48 @@ export async function getItemById(id: number) {
   return rows[0];
 }
 
+type ItemCardReturnRow = {
+  itemCode?: string | null;
+  eznNum?: string | number | null;
+  date?: string | null;
+  quantity?: string | number | null;
+  customerId?: number | null;
+  fromCustomerId?: number | null;
+};
+
+function isSameItemCardReturn(left: ItemCardReturnRow, right: ItemCardReturnRow) {
+  const leftPermit = String(left.eznNum ?? "").trim();
+  const rightPermit = String(right.eznNum ?? "").trim();
+  const leftItemCode = String(left.itemCode ?? "").trim().toUpperCase();
+  const rightItemCode = String(right.itemCode ?? "").trim().toUpperCase();
+  const leftDate = String(left.date ?? "").trim().slice(0, 10);
+  const rightDate = String(right.date ?? "").trim().slice(0, 10);
+  const leftQuantity = Math.round(Math.abs(Number(left.quantity ?? 0)) * 1000);
+  const rightQuantity = Math.round(Math.abs(Number(right.quantity ?? 0)) * 1000);
+  const leftCustomer = left.customerId ?? left.fromCustomerId ?? null;
+  const rightCustomer = right.customerId ?? right.fromCustomerId ?? null;
+
+  return Boolean(
+    leftPermit &&
+      leftItemCode &&
+      leftDate &&
+      leftPermit === rightPermit &&
+      leftItemCode === rightItemCode &&
+      leftDate === rightDate &&
+      Number.isFinite(leftQuantity) &&
+      leftQuantity > 0 &&
+      leftQuantity === rightQuantity &&
+      (leftCustomer === null || rightCustomer === null || leftCustomer === rightCustomer)
+  );
+}
+
+/** Keep a return shown once when the same permit was stored in both legacy disbursements and transfers. */
+export function dedupeItemCardReturns<T extends ItemCardReturnRow>(rows: T[]): T[] {
+  return rows.filter((row, index) =>
+    rows.findIndex(candidate => isSameItemCardReturn(candidate, row)) === index
+  );
+}
+
 export async function getItemCard(
   itemId: number,
   allowedWarehouseIds: number[] = []
@@ -1146,8 +1188,9 @@ export async function getItemCard(
   ]);
   const legacyReturnDisbursements = disbursementRows.filter(isReturnDisbursement);
   const normalDisbursements = disbursementRows.filter(row => !isReturnDisbursement(row));
+  const returnTransfers = transferRows.filter(row => isReturnTransfer(row.transferType));
   const returns = [
-    ...transferRows.filter(row => isReturnTransfer(row.transferType)),
+    ...returnTransfers,
     ...legacyReturnDisbursements.map(row => ({
       ...row,
       transferType: "مرتجع من عميل",
@@ -1162,7 +1205,7 @@ export async function getItemCard(
     additions: additionRows,
     // لا نعرض إذن المرتجع القديم مرة ثانية كصرف.
     disbursements: normalDisbursements,
-    returns,
+    returns: dedupeItemCardReturns(returns),
     transfers: transferRows,
   };
 }
