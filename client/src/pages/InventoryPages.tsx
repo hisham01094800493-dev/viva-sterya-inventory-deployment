@@ -129,7 +129,7 @@ function sharePdfByEmail(title: string, fileName: string) {
 }
 
 function PageHeader({ eyebrow, title, description, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {
-  return <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="mb-2 text-[10px] font-black uppercase tracking-[0.27em] text-[#d08a3b]">{eyebrow}</p><h2 className="text-3xl font-black tracking-tight text-[#102a43]">{title}</h2><p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500">{description}</p></div>{action}</div>;
+  return <div className="page-header-shell flex flex-col justify-between gap-5 md:flex-row md:items-end"><div className="page-header-copy"><p className="page-header-eyebrow mb-2 text-[10px] font-black uppercase tracking-[0.27em] text-[#d08a3b]">{eyebrow}</p><h2 className="page-header-title text-3xl font-black tracking-tight text-[#102a43]">{title}</h2><p className="page-header-description mt-2 max-w-2xl text-sm leading-7 text-slate-500">{description}</p></div>{action ? <div className="page-header-actions">{action}</div> : null}</div>;
 }
 
 function LoadingRows({ columns = 5 }: { columns?: number }) {

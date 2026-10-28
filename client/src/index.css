@@ -382,6 +382,22 @@
   .modern-button:active {
     transform: scale(0.98);
   }
+  .page-header-shell {
+    position: relative;
+    isolation: isolate;
+    padding: 0.35rem 0 0.25rem;
+  }
+  .page-header-copy { min-width: 0; }
+  .page-header-eyebrow { line-height: 1.4; }
+  .page-header-title { font-size: clamp(1.7rem, 2.5vw, 2.35rem); line-height: 1.12; text-wrap: balance; }
+  .page-header-description { max-width: 48rem; line-height: 1.8; }
+  .page-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 0.6rem; }
+  .page-header-actions > * { flex-shrink: 0; }
+  .page-header-actions button { min-height: 2.65rem; }
+  .section-heading { text-wrap: balance; line-height: 1.25; }
+  .section-subtitle { line-height: 1.7; }
+  .button-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+  .button-cluster > button, .button-cluster > a { flex-shrink: 0; }
   /**
    * Custom container utility that centers content and adds responsive padding.
    *
@@ -594,6 +610,14 @@
 }
 
 @media (max-width: 640px) {
+  .page-header-shell { gap: 0.9rem !important; padding-top: 0; }
+  .page-header-title { font-size: 1.55rem; }
+  .page-header-description { margin-top: 0.45rem !important; font-size: 0.78rem; line-height: 1.7; }
+  .page-header-actions { width: 100%; gap: 0.5rem; }
+  .page-header-actions > * { min-width: 0; flex: 1 1 auto; }
+  .page-header-actions button { min-height: 2.45rem; padding-inline: 0.75rem; font-size: 0.75rem; }
+  .button-cluster { gap: 0.5rem; }
+  .button-cluster > button, .button-cluster > a { min-height: 2.45rem; }
   .overflow-x-auto > table { font-size: 0.75rem; }
   .overflow-x-auto > table th, .overflow-x-auto > table td { padding: 0.7rem 0.75rem; }
   .movement-table-scroller > table th:first-child, .movement-table-scroller > table td:first-child { min-width: 132px; }

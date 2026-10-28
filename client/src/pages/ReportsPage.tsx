@@ -282,13 +282,13 @@ function printReport(title: string, subtitle: string, headers: string[], rows: u
 }
 
 function PageHeader({ from, to, onRefresh, refreshing }: { from: string; to: string; onRefresh: () => void; refreshing: boolean }) {
-  return <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-    <div>
-      <p className="mb-2 text-[10px] font-black uppercase tracking-[0.27em] text-[#d08a3b]">REPORTING / ANALYTICS</p>
-      <h2 className="text-3xl font-black tracking-tight text-[#102a43]">تقارير المخزون</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500">حوّل بيانات المخزون والحركات إلى قراءة عملية قابلة للطباعة أو التصدير، مع الحفاظ على نفس منطق حد الطلب والتنبيهات.</p>
+  return <div className="page-header-shell flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+    <div className="page-header-copy">
+      <p className="page-header-eyebrow mb-2 text-[10px] font-black uppercase tracking-[0.27em] text-[#d08a3b]">REPORTING / ANALYTICS</p>
+      <h2 className="page-header-title text-3xl font-black tracking-tight text-[#102a43]">تقارير المخزون</h2>
+      <p className="page-header-description mt-2 max-w-2xl text-sm leading-7 text-slate-500">حوّل بيانات المخزون والحركات إلى قراءة عملية قابلة للطباعة أو التصدير، مع الحفاظ على نفس منطق حد الطلب والتنبيهات.</p>
     </div>
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="page-header-actions flex flex-wrap items-center gap-2">
       <Badge variant="outline" className="rounded-full border-[#cfe1e5] bg-white px-3 py-2 text-xs font-bold text-[#0d4f62]">من {from || "البداية"} إلى {to || "اليوم"}</Badge>
       <Button variant="outline" onClick={onRefresh} disabled={refreshing} className="rounded-xl border-[#dce7ee] bg-white font-bold text-[#0d4f62] hover:bg-[#e8f1f2]">{refreshing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="ml-2 h-4 w-4" />}تحديث</Button>
     </div>
