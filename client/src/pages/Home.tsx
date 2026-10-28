@@ -14,6 +14,7 @@ import {
   ArrowLeftRight,
   ArrowUpFromLine,
   Boxes,
+  ClipboardList,
   Calculator,
   CalendarDays,
   CalendarCheck,
@@ -222,7 +223,7 @@ export function getCurrentBalanceCardDetails(items: CurrentBalanceItem[]) {
   return { value: unit ? `${formatNumber(total)} ${unit}` : formatNumber(total), detail: unit ? `${unit} متاحة` : inStock.length ? "رصيد بوحدات متعددة" : "لا رصيد متاح", itemsWithBalance, extraItemsCount: Math.max(0, inStock.length - itemsWithBalance.length) };
 }
 
-function StatCard({ label, value, detail, icon: Icon, tone }: { label: string; value: string; detail: string; icon: typeof Boxes; tone: "teal" | "gold" | "rose" | "blue" }) {
+function StatCard({ label, value, detail, icon: Icon, tone, onClick }: { label: string; value: string; detail: string; icon: typeof Boxes; tone: "teal" | "gold" | "rose" | "blue"; onClick?: () => void }) {
   const tones = {
     teal: "bg-[#e7f3f1] text-[#0d4f62]",
     gold: "bg-[#fff4df] text-[#a96821]",
@@ -230,7 +231,7 @@ function StatCard({ label, value, detail, icon: Icon, tone }: { label: string; v
     blue: "bg-[#eaf1fb] text-[#3c6395]",
   };
   return (
-    <Card className="home-stat-card home-surface h-full border border-[#dce7ee] bg-white shadow-[0_8px_22px_rgba(18,44,84,0.045)]">
+    <Card onClick={onClick} onKeyDown={event => { if (onClick && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }} tabIndex={onClick ? 0 : undefined} role={onClick ? "button" : undefined} className={`home-stat-card home-surface h-full border border-[#dce7ee] bg-white shadow-[0_8px_22px_rgba(18,44,84,0.045)] ${onClick ? "cursor-pointer transition-all hover:-translate-y-0.5 hover:border-[#9fcbd0] hover:shadow-[0_12px_28px_rgba(18,44,84,0.1)] focus:outline-none focus:ring-2 focus:ring-[#0d7180] focus:ring-offset-2" : ""}`}>
       <CardContent className="p-3 sm:p-4">
         <div className="flex items-start justify-between gap-3">
           <div className={`home-stat-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}><Icon className="h-4.5 w-4.5" strokeWidth={2.4} /></div>
@@ -330,10 +331,11 @@ export default function Home() {
   }, [visibleInventory, warehouseBalances]);
   const lowStockByWarehouse = useMemo(() => new Map((warehouseLowStock.data ?? []).map(entry => [entry.warehouseId, entry.lowItems])), [warehouseLowStock.data]);
   const cardDefinitions = useMemo(() => [
-    { key: "items", label: "إجمالي الأصناف", value: formatNumber(summary.data?.stats.totalItems), detail: "صنف مسجل", icon: Boxes, tone: "teal" as const },
-    { key: "attention", label: "أصناف تحتاج متابعة", value: formatNumber(summary.data?.stats.lowStockCount), detail: `تحت ${summary.data?.thresholdPercentage ?? 20}%`, icon: AlertTriangle, tone: "rose" as const },
-    { key: "health", label: "استقرار المخزون", value: `${healthPercent}%`, detail: lowStockCount ? "يتطلب متابعة" : "مستقر", icon: Warehouse, tone: "blue" as const },
-  ], [summary.data]);
+    { key: "items", label: "إجمالي الأصناف", value: formatNumber(summary.data?.stats.totalItems), detail: "صنف مسجل · اضغط لفتح المخزون", icon: Boxes, tone: "teal" as const, onClick: () => setLocation("/items") },
+    { key: "attention", label: "أصناف تحتاج متابعة", value: formatNumber(summary.data?.stats.lowStockCount), detail: `تحت ${summary.data?.thresholdPercentage ?? 20}% · اضغط للتفاصيل`, icon: AlertTriangle, tone: "rose" as const, onClick: () => setLocation("/alerts") },
+    { key: "health", label: "استقرار المخزون", value: `${healthPercent}%`, detail: lowStockCount ? "يتطلب متابعة · اضغط للمخازن" : "مستقر · اضغط للمخازن", icon: Warehouse, tone: "blue" as const, onClick: () => setLocation("/warehouses") },
+    { key: "audit", label: "الجرد الشامل", value: "عرض الجرد", detail: "أرصدة الأصناف حسب المخزن · اضغط للفتح", icon: ClipboardList, tone: "gold" as const, onClick: () => setLocation("/inventory-audit") },
+  ], [healthPercent, lowStockCount, setLocation, summary.data]);
 
   return (
     <DashboardLayout>
@@ -404,7 +406,7 @@ export default function Home() {
           <Card className="border-red-100 bg-red-50"><CardContent className="flex items-center gap-3 p-5 text-sm font-bold text-red-700"><AlertTriangle className="h-5 w-5" />تعذر تحميل ملخص المخزون حالياً. اتصل بالإنترنت مرة واحدة لحفظ بيانات لوحة التحكم محلياً.</CardContent></Card>
         ) : (
           <>
-            <section className="grid grid-cols-3 gap-2.5 sm:gap-3">
+            <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
               {cardDefinitions.map(({ key, ...card }) => <StatCard key={key} {...card} />)}
             </section>
 
