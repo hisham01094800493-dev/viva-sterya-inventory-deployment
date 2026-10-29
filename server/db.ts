@@ -852,6 +852,28 @@ export async function listItems(search?: string, warehouseId?: number) {
     .orderBy(desc(items.updatedAt));
 }
 
+export async function renameWarehouseItemCategory(input: {
+  warehouseId: number;
+  fromCategory: string;
+  toCategory: string;
+}) {
+  const db = await requireDb();
+  const fromCategory = input.fromCategory.trim();
+  const toCategory = input.toCategory.trim();
+  if (!fromCategory || !toCategory) throw new InventoryError("BAD_REQUEST", "اسم التصنيف مطلوب");
+  if (fromCategory === toCategory) return { updatedCount: 0, category: toCategory };
+
+  const sourceCondition = fromCategory === "بدون تصنيف"
+    ? or(isNull(items.category), eq(items.category, ""))
+    : eq(items.category, fromCategory);
+  const result = await db
+    .update(items)
+    .set({ category: toCategory })
+    .where(and(eq(items.warehouseId, input.warehouseId), sourceCondition));
+  const updatedCount = Number((Array.isArray(result) ? result[0] : result as any)?.affectedRows ?? 0);
+  return { updatedCount, category: toCategory };
+}
+
 export async function listWarehouseStockRows(warehouseId: number) {
   const db = await requireDb();
   const rows = await db

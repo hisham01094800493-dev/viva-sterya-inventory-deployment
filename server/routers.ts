@@ -71,6 +71,7 @@ import {
   updateAddition,
   updateDisbursement,
   updateItem,
+  renameWarehouseItemCategory,
   updateItemImage,
   updateAdditionDocumentImage,
   updateDisbursementDocumentImage,
@@ -397,6 +398,9 @@ export const appRouter = router({
     update: writePermissionProcedure("inventory")
       .input(itemInput.partial().extend({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const existing = await safe(() => getItemById(input.id)); if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "الصنف غير موجود" }); assertWarehouseAccess(ctx.permissions, [existing.warehouseId, input.warehouseId]); const result = await safe(() => updateItem(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "item", entityId: input.id, details: input }); return result; }),
+    renameCategory: writePermissionProcedure("inventory")
+      .input(z.object({ warehouseId: z.number().int().positive(), fromCategory: z.string().trim().min(1).max(120), toCategory: z.string().trim().min(1).max(120) }))
+      .mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => renameWarehouseItemCategory(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "item_category", entityId: input.warehouseId, details: { ...input, updatedCount: result.updatedCount } }); return result; }),
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteItem(input.id)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "item", entityId: input.id }); return result; }),
