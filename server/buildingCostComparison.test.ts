@@ -7,7 +7,7 @@ describe("buildBuildingCostComparison", () => {
       { id: 1, name: "مبنى أ", code: "A", budget: "1000", type: "owned_building" },
       { id: 2, name: "مبنى ب", code: "B", budget: "500", type: "subcontractor" },
     ], [
-      { buildingId: 1, quantity: "10", totalValue: "250", date: "2026-10-01" },
+      { buildingId: 1, itemCode: "20001", itemName: "حديد تسليح 16 مم", category: "حديد التسليح", unit: "طن", quantity: "10", totalValue: "250", date: "2026-10-01" },
       { buildingId: 1, quantity: "2", totalValue: "50", date: "2026-09-30" },
       { buildingId: 2, quantity: "4", totalValue: "600", date: "2026-10-02" },
       { buildingId: null, quantity: "1", totalValue: "20", date: "2026-10-02" },
@@ -17,6 +17,8 @@ describe("buildBuildingCostComparison", () => {
     expect(result.rows[0].remainingBudget).toBe(-100);
     expect(result.totals.quantity).toBe(15);
     expect(result.totals.cost).toBe(870);
+    expect(result.itemRows[0]).toMatchObject({ itemCode: "20001", category: "حديد التسليح", unit: "طن", quantity: 10, cost: 250 });
+    expect(result.itemRows.find(row => row.itemCode === "غير محدد")).toMatchObject({ category: "غير مصنف", unit: "غير محدد" });
   });
 
   it("keeps active buildings with zero activity visible", () => {

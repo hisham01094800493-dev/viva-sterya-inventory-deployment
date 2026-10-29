@@ -372,7 +372,7 @@ export async function getBuildingCostComparison(input: { fromDate?: string; toDa
   const db = await requireDb();
   const [buildingRows, movementRows] = await Promise.all([
     db.select().from(buildings).where(eq(buildings.status, "active")).orderBy(asc(buildings.id)),
-    db.select({ buildingId: disbursements.buildingId, quantity: disbursements.quantity, totalValue: disbursements.totalValue, date: disbursements.date, itemCode: disbursements.itemCode, itemName: disbursements.itemName, warehouseId: disbursements.warehouseId }).from(disbursements),
+    db.select({ buildingId: disbursements.buildingId, quantity: disbursements.quantity, totalValue: disbursements.totalValue, date: disbursements.date, itemCode: disbursements.itemCode, itemName: disbursements.itemName, category: items.category, unit: items.unit, warehouseId: disbursements.warehouseId }).from(disbursements).leftJoin(items, eq(disbursements.itemCode, items.code)),
   ]);
   const visibleMovements = allowedWarehouseIds.length
     ? movementRows.filter(row => row.warehouseId == null || allowedWarehouseIds.includes(row.warehouseId))

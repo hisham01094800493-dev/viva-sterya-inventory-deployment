@@ -14,6 +14,8 @@ export type BuildingDisbursementInput = {
   date?: string | null;
   itemCode?: string | null;
   itemName?: string | null;
+  category?: string | null;
+  unit?: string | null;
 };
 
 export type BuildingCostComparisonRow = {
@@ -35,6 +37,8 @@ export type BuildingItemConsumptionRow = {
   buildingName: string;
   itemCode: string;
   itemName: string;
+  category: string;
+  unit: string;
   quantity: number;
   cost: number;
   movements: number;
@@ -74,8 +78,10 @@ export function buildBuildingCostComparison(
     grouped.set(key, current);
     const itemCode = String(row.itemCode ?? "غير محدد").trim() || "غير محدد";
     const itemName = String(row.itemName ?? itemCode).trim() || itemCode;
+    const category = String(row.category ?? "").trim() || "غير مصنف";
+    const unit = String(row.unit ?? "").trim() || "غير محدد";
     const itemKey = `${key ?? "unassigned"}::${itemCode}`;
-    const itemCurrent = itemGrouped.get(itemKey) ?? { buildingId: key, buildingName: "صرف غير مرتبط بمبنى", itemCode, itemName, quantity: 0, cost: 0, movements: 0 };
+    const itemCurrent = itemGrouped.get(itemKey) ?? { buildingId: key, buildingName: "صرف غير مرتبط بمبنى", itemCode, itemName, category, unit, quantity: 0, cost: 0, movements: 0 };
     itemCurrent.quantity += Math.abs(Number(row.quantity ?? 0));
     itemCurrent.cost += Math.abs(Number(row.totalValue ?? 0));
     itemCurrent.movements += 1;

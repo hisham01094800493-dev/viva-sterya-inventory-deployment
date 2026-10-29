@@ -51,6 +51,9 @@ type ChartRow = {
   quantity: number;
   cost: number;
   budget?: number;
+  category?: string;
+  unit?: string;
+  itemCode?: string;
 };
 
 function downloadCsv(rows: Array<Record<string, unknown>>, from: string, to: string) {
@@ -97,17 +100,43 @@ export default function BuildingCostComparisonPage() {
     if (!selectedBuildingId || !buildingOptions.some(row => String(row.buildingId) === selectedBuildingId)) setSelectedBuildingId(buildingOptions[0] ? String(buildingOptions[0].buildingId) : "");
   }, [buildingOptions, selectedBuildingId]);
   const selectedBuilding = buildingOptions.find(row => String(row.buildingId) === selectedBuildingId) ?? null;
-  const selectedItemRows = useMemo<ChartRow[]>(() => itemRows.filter(row => String(row.buildingId) === selectedBuildingId).slice(0, 20).map(row => ({
+  const selectedItemRows = useMemo<ChartRow[]>(() => itemRows.filter(row => String(row.buildingId) === selectedBuildingId).map(row => ({
     name: row.itemName,
-    shortName: row.itemName.length > 22 ? `${row.itemName.slice(0, 22)}…` : row.itemName,
+    shortName: `${row.itemName.slice(0, 14)}${row.itemName.length > 14 ? "…" : ""} · ${row.unit || "؟"}`,
     quantity: Number(row.quantity),
     cost: Number(row.cost),
+    category: row.category || "غير مصنف",
+    unit: row.unit || "غير محدد",
+    itemCode: row.itemCode,
   })), [itemRows, selectedBuildingId]);
+  const selectedItemChartRows = useMemo(() => selectedItemRows.slice().sort((left, right) => right[itemMetric] - left[itemMetric]).slice(0, 20), [selectedItemRows, itemMetric]);
+  const selectedItemGroups = useMemo(() => {
+    const grouped = new Map<string, ChartRow[]>();
+    selectedItemRows.forEach(row => {
+      const category = row.category || "غير مصنف";
+      grouped.set(category, [...(grouped.get(category) ?? []), row]);
+    });
+    return Array.from(grouped.entries()).map(([category, categoryRows]) => {
+      const items = categoryRows.slice().sort((left, right) => right[itemMetric] - left[itemMetric] || left.name.localeCompare(right.name, "ar"));
+      return {
+        category,
+        items,
+        cost: items.reduce((sum, row) => sum + row.cost, 0),
+      };
+    }).sort((left, right) => right.cost - left.cost || left.category.localeCompare(right.category, "ar"));
+  }, [selectedItemRows, itemMetric]);
   const selectedItemTotals = useMemo(() => selectedItemRows.reduce((result, row) => ({
-    quantity: result.quantity + row.quantity,
     cost: result.cost + row.cost,
     count: result.count + 1,
-  }), { quantity: 0, cost: 0, count: 0 }), [selectedItemRows]);
+  }), { cost: 0, count: 0 }), [selectedItemRows]);
+  const selectedItemUnitTotals = useMemo(() => {
+    const totalsByUnit = new Map<string, number>();
+    selectedItemRows.forEach(row => {
+      const unit = row.unit || "غير محدد";
+      totalsByUnit.set(unit, (totalsByUnit.get(unit) ?? 0) + row.quantity);
+    });
+    return Array.from(totalsByUnit, ([unit, total]) => ({ unit, total })).sort((left, right) => left.unit.localeCompare(right.unit, "ar"));
+  }, [selectedItemRows]);
 
   function resetBuildingForm() {
     setEditingBuildingId(null);
@@ -210,14 +239,18 @@ export default function BuildingCostComparisonPage() {
           </CardHeader>
           <CardContent className="space-y-4 p-4 sm:p-5">
             {selectedBuilding && selectedItemRows.length > 0 && <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <MiniMetric label="المواد المعروضة" value={selectedItemTotals.count} tone="teal" />
-              <MiniMetric label="إجمالي الكمية" value={quantity(selectedItemTotals.quantity)} tone="green" />
+              <MiniMetric label="عدد الأصناف" value={selectedItemTotals.count} tone="teal" />
+              <MiniMetric label="عدد الفئات" value={selectedItemGroups.length} tone="green" />
               <MiniMetric label="تكلفة المواد" value={money(selectedItemTotals.cost)} tone="amber" />
             </div>}
-            {selectedItemRows.length ? <div className="grid min-w-0 gap-4 xl:grid-cols-[1.35fr_0.85fr] xl:gap-5">
-              <MetricChartCard title={`استهلاك الأصناف${selectedBuilding ? ` · ${selectedBuilding.name}` : ""}`} description="بدّل بين الكمية المصروفة وتكلفتها لمقارنة المواد." rows={selectedItemRows} metric={itemMetric} onMetricChange={setItemMetric} label="الصنف" loading={report.isLoading} emptyText="لا توجد بيانات أصناف لهذا المبنى." />
-              <DistributionChartCard title="نصيب كل صنف من التكلفة" description="توزيع قيمة المواد الظاهرة في القائمة." rows={selectedItemRows} loading={report.isLoading} emptyText="لا توجد تكاليف أصناف لعرضها." centerLabel="تكلفة المواد" footnote="التوزيع من أعلى 20 صنفًا للمبنى المحدد." />
-            </div> : <EmptyState icon={<Package className="h-6 w-6" />} title="لا توجد تفاصيل لعرضها" text={buildingOptions.length ? "اختر مبنى لديه حركات صرف، وستظهر المواد والكميات والتكلفة هنا." : "لا توجد أذونات صرف مرتبطة بمبانٍ في الفترة الحالية."} />}
+            {selectedBuilding && selectedItemUnitTotals.length > 0 && <div className="rounded-2xl border border-[#e2ecee] bg-[#f8fbfc] p-3 sm:p-4"><div className="mb-2 flex items-center gap-2"><Package className="h-4 w-4 text-[#0d7180]" /><p className="text-[11px] font-black text-[#102a43]">إجمالي الكمية مفصّل حسب الوحدة</p></div><div className="flex flex-wrap gap-2">{selectedItemUnitTotals.map(row => <span key={row.unit} className="inline-flex items-center gap-2 rounded-xl border border-[#d8e8e9] bg-white px-3 py-2 text-[11px]"><strong className="font-black text-[#0d4f62]" dir="ltr">{quantity(row.total)}</strong><span className="font-bold text-[#0d806c]">{row.unit}</span></span>)}</div></div>}
+            {selectedItemRows.length ? <>
+              <div className="grid min-w-0 gap-4 xl:grid-cols-[1.35fr_0.85fr] xl:gap-5">
+                <MetricChartCard title={`استهلاك الأصناف${selectedBuilding ? ` · ${selectedBuilding.name}` : ""}`} description="بدّل بين الكمية والتكلفة؛ ترتيب الرسم يتبع المقياس المختار." rows={selectedItemChartRows} metric={itemMetric} onMetricChange={setItemMetric} label="الصنف" loading={report.isLoading} emptyText="لا توجد بيانات أصناف لهذا المبنى." />
+                <DistributionChartCard title="نصيب كل صنف من التكلفة" description="توزيع قيمة جميع المواد المصروفة داخل المبنى." rows={selectedItemRows} loading={report.isLoading} emptyText="لا توجد تكاليف أصناف لعرضها." centerLabel="تكلفة المواد" footnote="يعرض الرسم جميع الأصناف، ويجمع ما بعد أعلى خمسة أصناف في شريحة واحدة." />
+              </div>
+              <ItemCategorySection groups={selectedItemGroups} metric={itemMetric} />
+            </> : <EmptyState icon={<Package className="h-6 w-6" />} title="لا توجد تفاصيل لعرضها" text={buildingOptions.length ? "اختر مبنى لديه حركات صرف، وستظهر المواد والكميات والتكلفة هنا." : "لا توجد أذونات صرف مرتبطة بمبانٍ في الفترة الحالية."} />}
           </CardContent>
         </Card>
       </section>}
@@ -270,7 +303,7 @@ function MetricChartCard({
           <BarChart data={rankedRows} layout="vertical" margin={{ top: 8, right: 8, left: 2, bottom: 8 }} barCategoryGap="24%">
             <CartesianGrid strokeDasharray="3 5" stroke="#e8eff1" horizontal={false} />
             <XAxis type="number" domain={[0, "dataMax"]} tickFormatter={value => metric === "cost" ? moneyFormat.format(Number(value)) : quantity(value)} tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
-            <YAxis type="category" dataKey="shortName" width={92} tick={{ fontSize: 10, fill: "#334155" }} tickLine={false} axisLine={false} interval={0} />
+            <YAxis type="category" dataKey="shortName" width={118} tick={{ fontSize: 10, fill: "#334155" }} tickLine={false} axisLine={false} interval={0} />
             <Tooltip formatter={(value: unknown) => [metric === "cost" ? money(value) : quantity(value), metricTitle]} labelFormatter={value => `${label}: ${value}`} contentStyle={{ direction: "rtl", borderRadius: 14, borderColor: "#dce7ee", boxShadow: "0 12px 30px rgba(18,44,84,.12)", fontSize: 12 }} cursor={{ fill: "#f3f8f8" }} />
             <Bar dataKey={metric} name={metricTitle} radius={[0, 8, 8, 0]} maxBarSize={24}>
               {rankedRows.map((row, index) => <Cell key={`${row.name}-${index}`} fill={metric === "cost" && row.budget && row.cost > row.budget ? "#c75048" : chartColors[index % chartColors.length]} />)}
@@ -438,6 +471,29 @@ function StatusBadge({ over, budget }: { over: boolean; budget: number }) {
 function MobileValue({ label, value, tone }: { label: string; value: string; tone: "teal" | "red" | "blue" | "green" }) {
   const tones = { teal: "text-[#0d7180]", red: "text-[#bd5147]", blue: "text-[#426b9e]", green: "text-[#0d806c]" };
   return <div className="min-w-0 rounded-xl bg-[#f7fafb] px-2.5 py-2"><p className="truncate text-[9px] font-bold text-slate-400 sm:text-[10px]">{label}</p><p className={`mt-1 truncate text-xs font-black sm:text-sm ${tones[tone]}`} title={value}>{value}</p></div>;
+}
+
+function ItemCategorySection({ groups, metric }: { groups: Array<{ category: string; items: ChartRow[]; cost: number }>; metric: ChartMetric }) {
+  const metricLabel = metric === "cost" ? "التكلفة" : "الكمية";
+  return <Card className="overflow-hidden rounded-[1.5rem] border-[#dce7ee] shadow-[0_12px_32px_rgba(18,44,84,0.045)] sm:rounded-[1.75rem]">
+    <CardHeader className="border-b border-[#edf2f5] bg-gradient-to-l from-[#f4faf9] to-white p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3"><div className="flex items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#0d7180] shadow-sm"><Boxes className="h-5 w-5" /></span><div><CardTitle className="text-base font-black text-[#102a43] sm:text-lg">الأصناف مجمعة حسب التصنيف</CardTitle><p className="mt-1 text-[11px] leading-5 text-slate-500 sm:text-xs">الفئات مرتبة حسب تكلفة الصرف، والأصناف داخل كل فئة مرتبة تنازليًا حسب {metricLabel}. الكمية ظاهرة بوحدتها لتجنب خلط الأطنان بالأمتار والعدد.</p></div></div><Badge variant="outline" className="shrink-0 rounded-full border-[#cfe1e4] bg-white text-[10px] font-black text-[#0d4f62]">{groups.length} فئة</Badge></div>
+    </CardHeader>
+    <CardContent className="space-y-3 p-3 sm:space-y-4 sm:p-5">
+      {groups.map(group => <section key={group.category} className="overflow-hidden rounded-2xl border border-[#e2ecee] bg-white">
+        <div className="flex flex-col gap-3 bg-[#f8fbfc] p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+          <div className="flex min-w-0 items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#0d7180] shadow-sm"><Package className="h-4 w-4" /></span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-black text-[#102a43]">{group.category}</h3><Badge variant="outline" className="rounded-full border-[#dce7ee] bg-white text-[9px] font-bold text-slate-500">{group.items.length} صنف</Badge></div>{group.category === "غير مصنف" ? <p className="mt-1 text-[10px] leading-5 text-amber-700">أصناف بلا تصنيف محفوظ في بياناتها؛ يمكنك تحديد الفئة من سجل الصنف.</p> : <p className="mt-1 text-[10px] text-slate-400">مرتبة حسب {metricLabel} داخل هذه المجموعة</p>}</div></div>
+          <MiniMetric label="تكلفة الفئة" value={money(group.cost)} tone="amber" />
+        </div>
+        <div className="divide-y divide-[#edf2f5]">
+          {group.items.map((item, index) => <article key={`${item.itemCode || item.name}-${index}`} className="flex min-w-0 flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-3">
+            <div className="flex min-w-0 items-start gap-3"><span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#f3f8f9] text-[10px] font-black text-[#0d7180]">{index + 1}</span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="text-xs font-black leading-5 text-[#102a43] sm:text-sm">{item.name}</h4><Badge className={`rounded-full border px-2 py-0.5 text-[9px] font-black ${item.unit && item.unit !== "غير محدد" ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-amber-100 bg-amber-50 text-amber-700"}`}>{item.unit && item.unit !== "غير محدد" ? item.unit : "وحدة غير محددة"}</Badge></div><p className="mt-1 text-[10px] text-slate-400">كود الصنف: {item.itemCode || "—"}</p></div></div>
+            <div className="grid grid-cols-2 gap-2 sm:w-[300px] sm:shrink-0"><MiniMetric label={`الكمية · ${item.unit || "وحدة غير محددة"}`} value={quantity(item.quantity)} tone="teal" /><MiniMetric label="التكلفة" value={money(item.cost)} tone="amber" /></div>
+          </article>)}
+        </div>
+      </section>)}
+    </CardContent>
+  </Card>;
 }
 
 function BuildingManagementSection({
