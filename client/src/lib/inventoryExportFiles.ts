@@ -220,42 +220,91 @@ function drawPdfWatermark(doc: jsPDF, logo?: string | null, opacity = 0.08, scal
     }
   }
 }
-export async function buildInventoryPdf(rows: InventoryExportItem[] | null | undefined, options: { columns?: ExportColumnKey[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; includeCategoryValueChart?: boolean; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean } = {}) {
+export type ExecutiveForecastPdfRow = {
+  code: string;
+  name: string;
+  daysOfCover?: number | null;
+  suggestedOrderQty?: number | null;
+  abcClass?: string | null;
+  severity?: string | null;
+};
+
+async function cropPdfImageToSquare(dataUrl: string, size = 96) {
+  try {
+    const image = new Image();
+    image.src = dataUrl;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = size; canvas.height = size;
+    const context = canvas.getContext("2d");
+    if (!context || !image.naturalWidth || !image.naturalHeight) return dataUrl;
+    const scale = Math.max(size / image.naturalWidth, size / image.naturalHeight);
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    context.fillStyle = "#f1f6f7";
+    context.fillRect(0, 0, size, size);
+    context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+    return canvas.toDataURL("image/jpeg", 0.82);
+  } catch { return dataUrl; }
+}
+
+export async function buildInventoryPdf(rows: InventoryExportItem[] | null | undefined, options: { columns?: ExportColumnKey[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; includeCategoryValueChart?: boolean; executiveForecasts?: ExecutiveForecastPdfRow[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean } = {}) {
   const { jsPDF, autoTable } = await loadPdfTools();
-  const safeRows = Array.isArray(rows) ? rows.filter((row): row is InventoryExportItem => Boolean(row && typeof row === 'object')) : [];
+  const rawRows = Array.isArray(rows) ? rows : [];
+  const safeRows = rawRows.filter((row): row is InventoryExportItem => Boolean(row && typeof row === "object" && Object.values(row).some(value => value !== null && value !== undefined && String(value).trim() !== "")));
+  const isExecutive = Boolean(options.executiveForecasts);
+  const forecastByCode = new Map((options.executiveForecasts ?? []).map(row => [String(row.code), row]));
   const keys = selected(inventoryExportColumns, options.columns);
-  const includeImages = keys.includes('image');
+  const executiveKeys = ["code", "name", "category", "currentStock", "coverageDays", "suggestedOrderQty", "abcClass", "image"];
+  const tableKeys = (isExecutive ? executiveKeys : keys) as string[];
+  const pdfLabels: Record<string, string> = { ...labels, coverageDays: "أيام التغطية", suggestedOrderQty: "الكمية المقترحة", abcClass: "ABC" };
+  const includeImages = tableKeys.includes("image");
   const enriched = await Promise.all(safeRows.map(async row => {
     let imageDataUrl: string | undefined;
-    if (includeImages && row.imageUrl) { try { imageDataUrl = (await fetchImageAsset(row.imageUrl))?.dataUrl ?? undefined; } catch { imageDataUrl = undefined; } }
+    if (includeImages && row.imageUrl) { try { const asset = await fetchImageAsset(row.imageUrl); imageDataUrl = asset?.dataUrl ? await cropPdfImageToSquare(asset.dataUrl) : undefined; } catch { imageDataUrl = undefined; } }
     const currentStock = Number.isFinite(Number(row.currentStock)) ? Number(row.currentStock) : 0;
     const unitPrice = Number.isFinite(Number(row.unitPrice)) ? Number(row.unitPrice) : 0;
-    return { ...row, currentStock, unitPrice, totalValue: Number((currentStock * unitPrice).toFixed(2)), imageDataUrl };
+    const forecast = forecastByCode.get(String(row.code));
+    return { ...row, currentStock, unitPrice, totalValue: Number((currentStock * unitPrice).toFixed(2)), imageDataUrl, coverageDays: forecast?.daysOfCover ?? null, suggestedOrderQty: forecast?.suggestedOrderQty ?? null, abcClass: forecast?.abcClass ?? "—", severity: forecast?.severity ?? null };
   }));
-  const doc = await configureArabicPdf(new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' }));
+  const severityRank: Record<string, number> = { critical: 0, warning: 1, watch: 2, ok: 3 };
+  if (isExecutive) enriched.sort((left, right) => (severityRank[left.severity ?? "ok"] ?? 4) - (severityRank[right.severity ?? "ok"] ?? 4) || (Number(left.coverageDays ?? 999999) - Number(right.coverageDays ?? 999999)) || String(left.name).localeCompare(String(right.name), "ar"));
+  const doc = await configureArabicPdf(new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" }));
   const resolvedLogo = await resolveLogo(options.logo);
   const watermarkLogo = options.watermarkEnabled === false ? null : resolvedLogo;
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
-  logoAndDate(doc, options.title ?? 'تقرير المخزون - Smart Inventory', resolvedLogo, options.date, options.summary);
-  let tableStartY = getReportHeaderHeight(options.summary);
+  logoAndDate(doc, options.title ?? "تقرير المخزون - Smart Inventory", resolvedLogo, options.date, options.summary);
+  let contentY = getReportHeaderHeight(options.summary);
+  if (isExecutive && options.executiveForecasts?.length) {
+    const forecastRows = options.executiveForecasts.slice(0, 8);
+    doc.setFont(getArabicPdfFont(doc), "bold"); doc.setFontSize(11); doc.setTextColor(16, 42, 67);
+    doc.text(shapeArabic(doc, "الأصناف الحرجة المتوقعة — أعلى 8"), doc.internal.pageSize.getWidth() - 36, contentY + 8, { align: "right" });
+    autoTable(doc, { startY: contentY + 16, margin: { left: 36, right: 36 }, tableWidth: doc.internal.pageSize.getWidth() - 72, head: [["ABC", "الكمية المقترحة", "أيام التغطية", "الصنف", "الكود"].map(value => shapeArabic(doc, value))], body: forecastRows.map(row => [row.abcClass || "—", row.suggestedOrderQty == null ? "—" : Number(row.suggestedOrderQty).toFixed(2), row.daysOfCover == null ? "غير محدد" : Number(row.daysOfCover).toFixed(1), shapeArabic(doc, row.name), String(row.code)]), styles: { font: getArabicPdfFont(doc), fontSize: 8.2, fontStyle: "bold", cellPadding: 4, halign: "right", overflow: "linebreak", lineColor: [197, 216, 222], lineWidth: 0.45 }, headStyles: { fillColor: [13, 79, 98], textColor: [255, 255, 255], font: getArabicPdfFont(doc), fontStyle: "bold", halign: "center" }, columnStyles: { 0: { cellWidth: 48, halign: "center" }, 1: { cellWidth: 86, halign: "center" }, 2: { cellWidth: 76, halign: "center" }, 3: { cellWidth: 230, halign: "right" }, 4: { cellWidth: 70, halign: "center" } }, alternateRowStyles: { fillColor: [246, 250, 251] }, didParseCell: data => { if (data.section === "body" && data.column.index === 0) data.cell.styles.textColor = [13, 113, 128]; }, willDrawPage: data => { if (data.pageNumber > 1) drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat); } });
+    contentY = ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? contentY + 80) + 12;
+  }
   if (options.includeCategoryValueChart && enriched.length) {
     const totals = new Map<string, number>();
-    enriched.forEach(row => { const category = String(row.category || "بدون تصنيف"); totals.set(category, (totals.get(category) ?? 0) + Number(row.currentStock)); });
-    const sorted = Array.from(totals.entries()).sort((left, right) => Math.abs(right[1]) - Math.abs(left[1]));
-    const chartRows = sorted.length > 8 ? [...sorted.slice(0, 7), ["أخرى", sorted.slice(7).reduce((sum, [, value]) => sum + value, 0)] as [string, number]] : sorted;
+    enriched.forEach(row => { const category = String(row.category || "بدون تصنيف"); totals.set(category, (totals.get(category) ?? 0) + Number(row.totalValue)); });
+    const sorted = Array.from(totals.entries()).sort((left, right) => right[1] - left[1]);
+    const chartRows = sorted.length > 7 ? [...sorted.slice(0, 6), ["أخرى", sorted.slice(6).reduce((sum, [, value]) => sum + value, 0)] as [string, number]] : sorted;
     const chartMax = Math.max(...chartRows.map(([, value]) => Math.abs(value)), 1);
-    const chartLeft = 36; const chartRight = doc.internal.pageSize.getWidth() - 36; const chartTop = tableStartY + 8; const chartHeight = 34 + chartRows.length * 17;
+    const chartLeft = 36; const chartRight = doc.internal.pageSize.getWidth() - 36; const chartTop = contentY + 4; const chartHeight = 32 + chartRows.length * 15;
     doc.setFillColor(248, 252, 253); doc.setDrawColor(220, 231, 238); doc.roundedRect(chartLeft, chartTop, chartRight - chartLeft, chartHeight, 7, 7, "FD");
-    doc.setTextColor(16, 42, 67); doc.setFont(getArabicPdfFont(doc), "bold"); doc.setFontSize(10); doc.text(shapeArabic(doc, "توزيع كميات المخزون حسب التصنيف"), chartRight - 12, chartTop + 17, { align: "right" });
-    const barRight = chartRight - 150; const barMaxWidth = Math.max(90, barRight - chartLeft - 20);
-    chartRows.forEach(([category, value], index) => { const y = chartTop + 28 + index * 17; const width = Math.max(2, (Math.abs(value) / chartMax) * barMaxWidth); doc.setFillColor(13, 113, 128); doc.roundedRect(barRight - width, y, width, 9, 3, 3, "F"); doc.setTextColor(71, 91, 105); doc.setFontSize(7.5); doc.text(shapeArabic(doc, category), chartRight - 12, y + 7, { align: "right" }); doc.setTextColor(16, 42, 67); doc.text(shapeArabic(doc, value.toFixed(3)), chartLeft + 10, y + 7, { align: "left" }); });
-    tableStartY = chartTop + chartHeight + 12;
+    doc.setTextColor(16, 42, 67); doc.setFont(getArabicPdfFont(doc), "bold"); doc.setFontSize(10); doc.text(shapeArabic(doc, "توزيع القيمة المالية حسب التصنيف"), chartRight - 12, chartTop + 15, { align: "right" });
+    const labelRight = chartRight - 12; const valueX = chartLeft + 12; const barLeft = chartLeft + 116; const barRight = chartRight - 150; const barMaxWidth = Math.max(70, barRight - barLeft);
+    chartRows.forEach(([category, value], index) => { const y = chartTop + 25 + index * 15; const width = Math.max(2, (Math.abs(value) / chartMax) * barMaxWidth); doc.setFillColor(13, 113, 128); doc.roundedRect(barRight - width, y, width, 8, 3, 3, "F"); doc.setTextColor(71, 91, 105); doc.setFontSize(7.2); doc.text(shapeArabic(doc, category), labelRight, y + 6, { align: "right" }); doc.setTextColor(16, 42, 67); doc.setFont("helvetica", "bold"); doc.text(Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 }) + " ج.م", valueX, y + 6, { align: "left" }); doc.setFont(getArabicPdfFont(doc), "bold"); });
+    contentY = chartTop + chartHeight + 10;
   }
-  const inventoryColumnStyles = Object.fromEntries(keys.map(key => { const longest = Math.max(labels[key].length, ...enriched.map(row => { const value = key === 'totalValue' ? row.totalValue : key === 'image' ? 'مضمنة' : row[key as keyof InventoryExportItem] ?? '—'; return String(value).length; }), 1); const cap = key === 'name' ? 210 : key === 'category' ? 105 : 86; const cellWidth = key === 'name' ? Math.max(156, Math.min(cap, longest * 5.2 + 18)) : Math.max(42, Math.min(cap, longest * 5.2 + 18)); return [keys.indexOf(key), { cellWidth, halign: 'right' as const, overflow: key === 'name' ? 'linebreak' as const : undefined }]; }));
-  autoTable(doc, { startY: tableStartY, head: [keys.map(key => shapeArabic(doc, labels[key]))], body: enriched.map(row => keys.map(key => key === 'image' ? (row.imageDataUrl ? '' : '—') : shapeArabic(doc, String(key === 'totalValue' ? row.totalValue : row[key as keyof InventoryExportItem] ?? '—')))), columnStyles: inventoryColumnStyles, styles: { font: getArabicPdfFont(doc), fontStyle: 'bold', fontSize: 8.5, cellPadding: 6, halign: 'right', overflow: 'linebreak' , lineColor: [137, 162, 172], lineWidth: 0.55}, headStyles: { fillColor: [255,255,255], textColor: [0,0,0], lineColor: [0,0,0], lineWidth: 0.6, font: getArabicPdfFont(doc), fontStyle: 'bold', fontSize: 9, halign: 'center' }, didParseCell: data => { if (data.section === 'body' && keys[data.column.index] === 'image') { data.cell.styles.minCellHeight = 64; data.cell.styles.cellPadding = 4; } }, willDrawPage: data => { if (data.pageNumber > 1) drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat); }, didDrawCell: data => { if (data.section !== 'body' || keys[data.column.index] !== 'image') return; const image = enriched[data.row.index]?.imageDataUrl; if (!image) return; try { const p = doc.getImageProperties(image); const sw = Number(p.width), sh = Number(p.height); if (!Number.isFinite(sw)||!Number.isFinite(sh)||sw<=0||sh<=0) return; const mw = Math.max(1,data.cell.width-8), mh = Math.max(1,data.cell.height-8), scale = Math.min(mw/sw,mh/sh); if (!Number.isFinite(scale)||scale<=0) return; const w=sw*scale,h=sh*scale; doc.addImage(image,getPdfImageFormat(image),data.cell.x+(data.cell.width-w)/2,data.cell.y+(data.cell.height-h)/2,w,h); } catch {} } });
+  const valueFor = (row: typeof enriched[number], key: string) => key === "totalValue" ? row.totalValue : key === "image" ? (row.imageDataUrl ? "" : "—") : key === "coverageDays" ? (row.coverageDays == null ? "—" : Number(row.coverageDays).toFixed(1)) : key === "suggestedOrderQty" ? (row.suggestedOrderQty == null ? "—" : Number(row.suggestedOrderQty).toFixed(2)) : key === "abcClass" ? row.abcClass : row[key as keyof typeof row] ?? "—";
+  const body = enriched.map(row => tableKeys.map(key => key === "image" ? (row.imageDataUrl ? "" : "—") : shapeArabic(doc, String(valueFor(row, key)))));
+  const pageWidth = doc.internal.pageSize.getWidth(); const tableWidth = pageWidth - 72;
+  const widths: Record<string, number> = isExecutive ? { code: 62, name: 178, category: 92, currentStock: 72, coverageDays: 72, suggestedOrderQty: 82, abcClass: 42, image: 38 } : {};
+  const defaultWidth = (key: string) => widths[key] ?? Math.max(46, Math.min(key === "name" ? 190 : 92, 48 + Math.max(0, String(pdfLabels[key] ?? key).length - 5) * 4));
+  const baseTotal = tableKeys.reduce((sum, key) => sum + defaultWidth(key), 0); const scale = baseTotal > tableWidth ? tableWidth / baseTotal : 1;
+  const columnStyles = Object.fromEntries(tableKeys.map((key, index) => [index, { cellWidth: defaultWidth(key) * scale, halign: key === "name" ? ("right" as const) : ("center" as const), overflow: "linebreak" as const }]));
+  autoTable(doc, { startY: contentY, margin: { left: 36, right: 36 }, tableWidth, head: [tableKeys.map(key => shapeArabic(doc, pdfLabels[key] ?? key))], body, columnStyles, styles: { font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: isExecutive ? 7.7 : 8.5, cellPadding: isExecutive ? 3.5 : 5, halign: "right", overflow: "linebreak", minCellHeight: includeImages ? 31 : 21, lineColor: [137, 162, 172], lineWidth: 0.45 }, headStyles: { fillColor: [13, 79, 98], textColor: [255, 255, 255], font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: 8, halign: "center", cellPadding: 4 }, alternateRowStyles: { fillColor: [246, 250, 251] }, didParseCell: data => { if (data.section === "body" && tableKeys[data.column.index] === "image") { data.cell.styles.minCellHeight = 31; data.cell.styles.cellPadding = 2; } }, willDrawPage: data => { if (data.pageNumber > 1) drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat); }, didDrawCell: data => { if (data.section !== "body" || tableKeys[data.column.index] !== "image") return; const image = enriched[data.row.index]?.imageDataUrl; const size = Math.min(26, Math.max(18, data.cell.height - 5), Math.max(18, data.cell.width - 5)); const x = data.cell.x + (data.cell.width - size) / 2; const y = data.cell.y + (data.cell.height - size) / 2; if (image) { try { doc.addImage(image, getPdfImageFormat(image), x, y, size, size); return; } catch {} } doc.setFillColor(232, 241, 242); doc.roundedRect(x, y, size, size, 3, 3, "F"); doc.setTextColor(13, 79, 98); doc.setFont(getArabicPdfFont(doc), "bold"); doc.setFontSize(7); doc.text("صورة", x + size / 2, y + size / 2 + 2, { align: "center" }); } });
   return doc;
 }
-
 export async function downloadInventoryPdf(rows: InventoryExportItem[], options: { columns?: ExportColumnKey[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkEnabled?: boolean } = {}) { const doc = await buildInventoryPdf(rows, options); savePdfFile(doc, "smart-inventory-stock.pdf"); }
 async function downloadMovementPdfLegacy(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; logo?: string | null } = {}) { const keys = selected(movementPdfExportColumns, options.columns); const enriched = await Promise.all(rows.map(async row => ({ ...row, imageDataUrl: (await fetchImageAsset(row.imageUrl))?.dataUrl, documentImageDataUrl: (await fetchImageAsset(row.documentImageUrl))?.dataUrl }))); await pdfTable(enriched, keys, "smart-inventory-disbursements-returns.pdf", "تقرير حركات المخزون - Smart Inventory", await resolveLogo(options.logo)); }
 

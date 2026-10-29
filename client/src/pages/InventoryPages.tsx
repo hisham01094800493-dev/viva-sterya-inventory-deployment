@@ -1154,7 +1154,11 @@ export function SettingsPage() {
     try {
       let summary: Record<string, any> = {};
       try { summary = JSON.parse(lastRun.resultSummary || "{}"); } catch { summary = {}; }
-      const items = await inventoryUtils.items.list.fetch();
+      const [items, forecastData] = await Promise.all([
+        inventoryUtils.items.list.fetch(),
+        inventoryUtils.alerts.smartForecast.fetch({ severity: "critical", page: 1, pageSize: 50 }),
+      ]);
+      const executiveForecasts = (forecastData.rows ?? []).map((row: any) => ({ code: String(row.code), name: String(row.name), daysOfCover: row.daysOfCover, suggestedOrderQty: row.suggestedOrderQty, abcClass: row.abcClass, severity: row.severity }));
       const rows = items.map((item: any) => ({
         code: String(item.code ?? "—"),
         name: String(item.name ?? "—"),
@@ -1172,6 +1176,7 @@ export function SettingsPage() {
         title: "التقرير التنفيذي اليومي - Smart Inventory",
         date: new Date(lastRun.completedAt ?? lastRun.startedAt),
         includeCategoryValueChart: true,
+        executiveForecasts,
         summary: [
           `تاريخ التقرير: ${reportDate}`,
           `منخفض المخزون: ${Number(summary.lowStockCount ?? 0)} · أصناف حرجة: ${Number(summary.criticalCount ?? 0)}`,
