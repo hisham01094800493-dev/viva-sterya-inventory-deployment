@@ -45,15 +45,15 @@ export function filterAndSortDirectory<T extends { name: string; phone?: string 
   return rows.filter(row => !normalized || [row.name, row.phone, row.email].some(value => String(value ?? "").toLocaleLowerCase().includes(normalized))).sort((a, b) => { const left = String(a[sortKey] ?? a.name); const right = String(b[sortKey] ?? b.name); return direction === "asc" ? left.localeCompare(right, "ar") : right.localeCompare(left, "ar"); });
 }
 
-export type AccountStatementRow = { id: number; date: string; number: string; item: string | null; itemCode: string; quantity: number; unitPrice: number; total: number; type: "إضافة" | "صرف" | "مرتجع" | "تحويل"; documentImageUrl: string | null };
+export type AccountStatementRow = { id: number; date: string; number: string; item: string | null; itemCode: string; quantity: number; unitPrice: number; total: number; type: "إضافة" | "صرف" | "مرتجع" | "تحويل"; documentImageUrl: string | null; buildingId: number | null; buildingName?: string | null };
 function isReturnMovement(value: unknown) { return /مرتجع|ارتجاع|return/i.test(String(value ?? "")); }
 
-export function buildAccountStatementRows(rows: Array<{ id: number; date: string; eznNum: string; itemName?: string | null; itemCode?: string | null; quantity: unknown; unitPrice?: unknown; totalValue?: unknown; documentImageUrl?: string | null; supplierId?: number | null; customerId?: number | null; transferType?: string | null }>, kind: "supplier" | "customer", entityId: number): AccountStatementRow[] {
+export function buildAccountStatementRows(rows: Array<{ id: number; date: string; eznNum: string; itemName?: string | null; itemCode?: string | null; quantity: unknown; unitPrice?: unknown; totalValue?: unknown; documentImageUrl?: string | null; supplierId?: number | null; customerId?: number | null; buildingId?: number | null; transferType?: string | null }>, kind: "supplier" | "customer", entityId: number): AccountStatementRow[] {
   return rows.filter(row => (kind === "supplier" ? row.supplierId === entityId : row.customerId === entityId)).map(row => {
     const quantity = Number(row.quantity ?? 0);
     const totalValue = Number(row.totalValue ?? 0);
     const type = kind === "supplier" ? "إضافة" : row.transferType ? (isReturnMovement(row.transferType) ? "مرتجع" : "تحويل") : "صرف";
-    return { id: row.id, date: row.date, number: row.eznNum, item: row.itemName ?? null, itemCode: row.itemCode ?? "", quantity, unitPrice: Number(row.unitPrice ?? 0), total: totalValue, type, documentImageUrl: row.documentImageUrl ?? null };
+    return { id: row.id, date: row.date, number: row.eznNum, item: row.itemName ?? null, itemCode: row.itemCode ?? "", quantity, unitPrice: Number(row.unitPrice ?? 0), total: totalValue, type, documentImageUrl: row.documentImageUrl ?? null, buildingId: row.buildingId ?? null };
   });
 }
 
@@ -280,6 +280,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const additions = trpc.additions.account.useQuery({ supplierId: id }, { enabled: kind === "supplier" && id > 0 });
   const disbursements = trpc.disbursements.account.useQuery({ customerId: id }, { enabled: kind === "customer" && id > 0 });
   const inventoryItems = trpc.items.list.useQuery(undefined, { enabled: id > 0 });
+  const buildings = trpc.buildings.list.useQuery(undefined, { enabled: kind === "customer" && id > 0 });
   const permissions = trpc.permissions.mine.useQuery();
   const settings = trpc.settings.list.useQuery();
   const preferences = trpc.preferences.get.useQuery();
@@ -302,6 +303,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const [appliedPermitFilter, setAppliedPermitFilter] = useState("");
   const [itemSearch, setItemSearch] = useState("");
   const [appliedItemSearch, setAppliedItemSearch] = useState("");
+  const [buildingFilter, setBuildingFilter] = useState("all");
   const [permitImage, setPermitImage] = useState<{ url: string; name: string } | null>(null);
   const pdfIframeRef = useRef<HTMLIFrameElement>(null);
   const accountColumnLabels: Record<string, string> = {
@@ -313,7 +315,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     unitPrice: "سعر الوحدة",
     totalValue: "الإجمالي",
   };
-  const accountLoading = kind === "supplier" ? additions.isLoading || suppliers.isLoading || inventoryItems.isLoading : disbursements.isLoading || customers.isLoading || inventoryItems.isLoading;
+  const accountLoading = kind === "supplier" ? additions.isLoading || suppliers.isLoading || inventoryItems.isLoading : disbursements.isLoading || customers.isLoading || inventoryItems.isLoading || buildings.isLoading;
   const accountDataAvailable = kind === "supplier" ? additions.data !== undefined && suppliers.data !== undefined : disbursements.data !== undefined && customers.data !== undefined;
   const accountError = !accountDataAvailable && (kind === "supplier" ? additions.error || suppliers.error : disbursements.error || customers.error);
   const canViewAccountFinancialDetails = permissions.data?.allowedReports.includes(WAREHOUSE_FINANCIAL_PERMISSION) ?? false;
@@ -322,10 +324,12 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
   const baseAccountColumns: ExportColumnKey[] = ["name", "date", "eznNum", "type", "quantity"];
   const accountColumns = useMemo<ExportColumnKey[]>(() => canViewAccountFinancialDetails ? [...baseAccountColumns, "unitPrice", "totalValue"] : baseAccountColumns, [canViewAccountFinancialDetails]);
   const showAccountFinancialDetails = canViewAccountFinancialDetails && financialPreferenceVisible;
-  const allRows = kind === "supplier"
-    ? buildAccountStatementRows(additions.data ?? [], "supplier", id)
-    : buildAccountStatementRows(disbursements.data ?? [], "customer", id);
-  const rows = useMemo(() => filterAccountStatementRows(allRows, { permit: appliedPermitFilter, item: appliedItemSearch }), [allRows, appliedPermitFilter, appliedItemSearch]);
+  const buildingNames = useMemo(() => new Map((buildings.data ?? []).map(building => [Number(building.id), building.name])), [buildings.data]);
+  const allRows = useMemo(() => {
+    const sourceRows = kind === "supplier" ? buildAccountStatementRows(additions.data ?? [], "supplier", id) : buildAccountStatementRows(disbursements.data ?? [], "customer", id);
+    return sourceRows.map(row => ({ ...row, buildingName: row.buildingId ? (buildingNames.get(row.buildingId) ?? `مبنى رقم ${row.buildingId}`) : null }));
+  }, [additions.data, buildings.data, buildingNames, disbursements.data, id, kind]);
+  const rows = useMemo(() => filterAccountStatementRows(allRows, { permit: appliedPermitFilter, item: appliedItemSearch }).filter(row => buildingFilter === "all" || String(row.buildingId ?? "") === buildingFilter), [allRows, appliedPermitFilter, appliedItemSearch, buildingFilter]);
   const permitDetails = trpc.reports.permitDetails.useQuery({ permitNumber: appliedPermitFilter || "__none__" }, { enabled: Boolean(appliedPermitFilter) });
   const permitDetailRows = useMemo(() => {
     const data = permitDetails.data;
@@ -567,7 +571,8 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 p-5">
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-3">
+            {kind === "customer" ? <label className="space-y-2 text-xs font-black text-slate-500"><span>المبنى</span><select value={buildingFilter} onChange={event => setBuildingFilter(event.target.value)} className="flex h-11 w-full rounded-xl border border-input bg-[#fbfdff] px-3 py-2 text-sm font-bold"><option value="all">كل المباني</option>{(buildings.data ?? []).map(building => <option key={building.id} value={String(building.id)}>{building.name}</option>)}</select></label> : null}
             <label className="space-y-2 text-xs font-black text-slate-500"><span>رقم الإذن</span><Input value={permitFilter} onChange={event => setPermitFilter(event.target.value)} onKeyDown={event => { if (event.key === "Enter") setAppliedPermitFilter(permitFilter.trim()); }} placeholder="مثال: 5207" className="h-11 rounded-xl bg-[#fbfdff] font-bold" /></label>
             <label className="space-y-2 text-xs font-black text-slate-500"><span>اسم الصنف أو الكود</span><Input value={itemSearch} onChange={event => setItemSearch(event.target.value)} onKeyDown={event => { if (event.key === "Enter") setAppliedItemSearch(itemSearch.trim()); }} placeholder="اكتب اسم الصنف أو الكود" className="h-11 rounded-xl bg-[#fbfdff] font-bold" /></label>
           </div>
@@ -594,7 +599,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {rows.length ? <div className="overflow-x-auto account-statement-scroll-region"><table data-account-statement-table="true" dir="rtl" className="table-auto w-max min-w-[780px] text-right text-[13px]"><thead className="bg-[#f7fbfc] text-[11px] font-black text-slate-400"><tr><th className="px-4 py-3">التاريخ</th><th className="px-4 py-3">رقم الإذن</th><th className="px-4 py-3">الحركة</th><th className="px-4 py-3">الصنف</th><th className="px-4 py-3">الكمية</th>{showAccountFinancialDetails ? <><th className="px-4 py-3">سعر الوحدة</th><th className="px-4 py-3">الإجمالي</th></> : null}<th className="px-4 py-3">التفاصيل</th></tr></thead><tbody className="divide-y divide-[#eef3f5]">{rows.map(row => <tr key={row.id}><td className="px-4 py-3 text-slate-500">{row.date}</td><td className="px-4 py-3"><button type="button" onClick={() => showPermitDetails(row.number)} className="rounded-lg px-2 py-1 font-mono text-xs font-black text-[#0d4f62] underline decoration-dotted underline-offset-4 hover:bg-[#e8f7f6]" title="عرض تفاصيل الإذن">{row.number}</button></td><td className="px-4 py-3 font-bold">{row.type}</td><td className="px-4 py-3 font-black text-[#102a43]"><button type="button" onClick={() => showItemMovements(row.item, row.itemCode)} className="rounded-lg px-2 py-1 text-right underline decoration-dotted underline-offset-4 hover:bg-[#e8f7f6]" title="عرض كل حركات هذا الصنف">{row.item || row.itemCode || "—"}</button></td><td className="px-4 py-3">{row.quantity.toLocaleString("en-US")}</td>{showAccountFinancialDetails ? <><td className="px-4 py-3">{row.unitPrice.toLocaleString("en-US")} ج.م</td><td className="px-4 py-3 font-black text-[#0d4f62]">{row.total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م</td></> : null}<td className="px-4 py-3"><Button type="button" variant="outline" onClick={() => showPermitDetails(row.number)} className="h-9 rounded-lg border-[#0d7180] px-3 text-xs font-black text-[#0d4f62] hover:bg-[#e8f7f6]"><Eye className="ml-1 h-4 w-4" />عرض التفاصيل</Button></td></tr>)}</tbody></table></div> : <div className="p-12 text-center text-sm text-slate-400">لا توجد حركات مرتبطة بهذه الجهة حتى الآن.</div>}
+          {rows.length ? <div className="overflow-x-auto account-statement-scroll-region"><table data-account-statement-table="true" dir="rtl" className="table-auto w-max min-w-[780px] text-right text-[13px]"><thead className="bg-[#f7fbfc] text-[11px] font-black text-slate-400"><tr><th className="px-4 py-3">التاريخ</th><th className="px-4 py-3">رقم الإذن</th><th className="px-4 py-3">الحركة</th><th className="px-4 py-3">المبنى</th><th className="px-4 py-3">الصنف</th><th className="px-4 py-3">الكمية</th>{showAccountFinancialDetails ? <><th className="px-4 py-3">سعر الوحدة</th><th className="px-4 py-3">الإجمالي</th></> : null}<th className="px-4 py-3">التفاصيل</th></tr></thead><tbody className="divide-y divide-[#eef3f5]">{rows.map(row => <tr key={row.id}><td className="px-4 py-3 text-slate-500">{row.date}</td><td className="px-4 py-3"><button type="button" onClick={() => showPermitDetails(row.number)} className="rounded-lg px-2 py-1 font-mono text-xs font-black text-[#0d4f62] underline decoration-dotted underline-offset-4 hover:bg-[#e8f7f6]" title="عرض تفاصيل الإذن">{row.number}</button></td><td className="px-4 py-3 font-bold">{row.type}</td><td className="px-4 py-3 font-bold text-[#0d4f62]">{row.buildingName || "—"}</td><td className="px-4 py-3 font-black text-[#102a43]"><button type="button" onClick={() => showItemMovements(row.item, row.itemCode)} className="rounded-lg px-2 py-1 text-right underline decoration-dotted underline-offset-4 hover:bg-[#e8f7f6]" title="عرض كل حركات هذا الصنف">{row.item || row.itemCode || "—"}</button></td><td className="px-4 py-3">{row.quantity.toLocaleString("en-US")}</td>{showAccountFinancialDetails ? <><td className="px-4 py-3">{row.unitPrice.toLocaleString("en-US")} ج.م</td><td className="px-4 py-3 font-black text-[#0d4f62]">{row.total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م</td></> : null}<td className="px-4 py-3"><Button type="button" variant="outline" onClick={() => showPermitDetails(row.number)} className="h-9 rounded-lg border-[#0d7180] px-3 text-xs font-black text-[#0d4f62] hover:bg-[#e8f7f6]"><Eye className="ml-1 h-4 w-4" />عرض التفاصيل</Button></td></tr>)}</tbody></table></div> : <div className="p-12 text-center text-sm text-slate-400">لا توجد حركات مرتبطة بهذه الجهة حتى الآن.</div>}
           <Dialog open={Boolean(permitImage)} onOpenChange={open => { if (!open) setPermitImage(null); }}><DialogContent className="max-w-4xl rounded-2xl bg-white p-4" dir="rtl"><DialogHeader><DialogTitle className="font-black text-[#102a43]">صورة الإذن رقم {appliedPermitFilter}</DialogTitle><DialogDescription>يمكنك معاينة صورة الإذن ثم تنزيلها.</DialogDescription></DialogHeader>{permitImage ? <div className="flex min-h-[45vh] items-center justify-center rounded-2xl bg-slate-950/5 p-3"><img src={permitImage.url} alt={`صورة إذن ${appliedPermitFilter}`} className="max-h-[65vh] max-w-full rounded-xl object-contain" /></div> : null}<DialogFooter><Button type="button" variant="outline" onClick={() => setPermitImage(null)} className="rounded-xl">إغلاق</Button>{permitImage ? <a href={permitImage.url} download={permitImage.name} className="inline-flex h-10 items-center justify-center rounded-xl bg-[#0d4f62] px-4 text-sm font-bold text-white"><Download className="ml-2 h-4 w-4" />تنزيل الصورة</a> : null}</DialogFooter></DialogContent></Dialog>
           <Dialog open={pdfColumnsOpen} onOpenChange={setPdfColumnsOpen}>
             <DialogContent className="max-w-2xl rounded-2xl bg-white" dir="rtl">
