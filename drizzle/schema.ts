@@ -396,6 +396,19 @@ export const settings = mysqlTable("settings", {
 export type Setting = typeof settings.$inferSelect;
 export type InsertSetting = typeof settings.$inferInsert;
 
+export const reportSchedulerRuns = mysqlTable("report_scheduler_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  reportDate: varchar("report_date", { length: 10 }).notNull().unique(),
+  status: mysqlEnum("status", ["running", "success", "failed"]).notNull(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  resultSummary: text("result_summary"),
+  errorMessage: text("error_message"),
+}, table => [index("report_scheduler_runs_status_idx").on(table.status), index("report_scheduler_runs_completed_at_idx").on(table.completedAt)]);
+
+export type ReportSchedulerRun = typeof reportSchedulerRuns.$inferSelect;
+export type InsertReportSchedulerRun = typeof reportSchedulerRuns.$inferInsert;
+
 export const userPreferences = mysqlTable("user_preferences", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull().unique(),

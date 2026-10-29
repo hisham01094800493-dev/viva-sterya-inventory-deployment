@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { createBackupRestoreVerificationHandler, createInventoryReportHandler } from "../scheduled";
 import { checkDatabaseReadiness, closeDatabasePool, runDueLocalBackupVerification } from "../db";
 import { registerMigrationImportRoutes } from "../migrationImport";
+import { startReportScheduler } from "../reportScheduler";
 
 export async function createApp(options: { withStaticFiles?: boolean } = {}) {
   const app = express();
@@ -96,12 +97,14 @@ async function startServer() {
     requestBuckets.forEach((bucket, key) => { if (bucket.windowStartedAt < cutoff) requestBuckets.delete(key); });
   }, 60_000);
   let scheduleTimer: NodeJS.Timeout | undefined;
+  let reportSchedulerStop: (() => void) | undefined;
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`[Shutdown] received ${signal}`);
     if (scheduleTimer) clearInterval(scheduleTimer);
+    reportSchedulerStop?.();
     clearInterval(rateLimitTimer);
     await new Promise<void>(resolve => server.close(() => resolve()));
     await closeDatabasePool();
@@ -119,6 +122,7 @@ async function startServer() {
     };
     void checkLocalBackupSchedule();
     scheduleTimer = setInterval(() => { void checkLocalBackupSchedule(); }, 60_000);
+    reportSchedulerStop = startReportScheduler();
   });
 }
 
