@@ -70,6 +70,8 @@ import {
   updateCustomer,
   updateAddition,
   updateDisbursement,
+  previewDisbursementDestinationBackfill,
+  backfillDisbursementDestinations,
   updateItem,
   renameWarehouseItemCategory,
   updateItemImage,
@@ -466,6 +468,8 @@ export const appRouter = router({
     delete: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteDisbursement(input.id)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "disbursement", entityId: input.id, details: { deletedSnapshot: result.snapshot } }); return { id: result.id, undoAuditLogId }; }),
+    destinationBackfillPreview: adminProcedure.query(() => safe(() => previewDisbursementDestinationBackfill())),
+    destinationBackfillApply: adminProcedure.mutation(async ({ ctx }) => { const result = await safe(() => backfillDisbursementDestinations()); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "admin_backfill", entity: "disbursement_destination", details: result }); return result; }),
   }),
 
   transfers: router({

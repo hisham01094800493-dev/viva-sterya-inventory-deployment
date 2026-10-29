@@ -2513,6 +2513,25 @@ export async function updateDisbursement(input: {
   });
 }
 
+export async function previewDisbursementDestinationBackfill() {
+  const db = await requireDb();
+  const rows = await db
+    .select({ id: disbursements.id, date: disbursements.date, eznNum: disbursements.eznNum, itemCode: disbursements.itemCode, itemName: disbursements.itemName, disburseType: disbursements.disburseType, destination: disbursements.destination })
+    .from(disbursements)
+    .where(and(or(isNull(disbursements.destination), eq(disbursements.destination, "")), sql`TRIM(COALESCE(${disbursements.disburseType}, '')) <> ''`))
+    .orderBy(asc(disbursements.date), asc(disbursements.id));
+  return { count: rows.length, rows: rows.slice(0, 200) };
+}
+
+export async function backfillDisbursementDestinations() {
+  const db = await requireDb();
+  const result = await db
+    .update(disbursements)
+    .set({ destination: sql`TRIM(${disbursements.disburseType})` })
+    .where(and(or(isNull(disbursements.destination), eq(disbursements.destination, "")), sql`TRIM(COALESCE(${disbursements.disburseType}, '')) <> ''`));
+  return { updated: Number((result as any).affectedRows ?? 0) };
+}
+
 export async function deleteDisbursement(id: number) {
   const db = await requireDb();
   return db.transaction(async (tx: any) => {
