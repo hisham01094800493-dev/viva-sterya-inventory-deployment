@@ -5817,6 +5817,24 @@ export async function getInventoryRows(allowedWarehouseIds: number[] = []) {
     .orderBy(desc(items.updatedAt));
 }
 
+export async function getDailyDisbursementRows(reportDate: string) {
+  const db = await requireDb();
+  return db
+    .select({
+      date: disbursements.date,
+      eznNum: disbursements.eznNum,
+      itemCode: disbursements.itemCode,
+      itemName: disbursements.itemName,
+      quantity: disbursements.quantity,
+      totalValue: disbursements.totalValue,
+      unit: items.unit,
+    })
+    .from(disbursements)
+    .leftJoin(items, eq(disbursements.itemCode, items.code))
+    .where(eq(disbursements.date, reportDate))
+    .orderBy(asc(disbursements.eznNum), asc(disbursements.itemCode));
+}
+
 export async function getRecentMovements(
   limit = 10,
   allowedWarehouseIds: number[] = []
