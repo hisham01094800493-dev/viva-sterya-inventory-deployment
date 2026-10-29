@@ -58,6 +58,16 @@ export async function getDb() {
         PRIMARY KEY (id), KEY drafts_user_updated_idx (user_id, updated_at)
       )`)
       );
+      await _db.execute(
+        sql.raw(`CREATE TABLE IF NOT EXISTS report_scheduler_runs (
+        id int AUTO_INCREMENT NOT NULL, report_date varchar(10) NOT NULL,
+        status enum('running','success','failed') NOT NULL,
+        started_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, completed_at timestamp NULL,
+        result_summary text NULL, error_message text NULL,
+        PRIMARY KEY (id), UNIQUE KEY report_scheduler_runs_report_date_unique (report_date),
+        KEY report_scheduler_runs_status_idx (status), KEY report_scheduler_runs_completed_at_idx (completed_at)
+      )`)
+      );
       try {
         await _db.execute(
           sql.raw(
