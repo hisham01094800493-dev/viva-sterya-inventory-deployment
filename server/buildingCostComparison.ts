@@ -12,6 +12,8 @@ export type BuildingDisbursementInput = {
   quantity?: unknown;
   totalValue?: unknown;
   date?: string | null;
+  itemCode?: string | null;
+  itemName?: string | null;
 };
 
 export type BuildingCostComparisonRow = {
@@ -28,8 +30,19 @@ export type BuildingCostComparisonRow = {
   isUnassigned?: boolean;
 };
 
+export type BuildingItemConsumptionRow = {
+  buildingId: number | null;
+  buildingName: string;
+  itemCode: string;
+  itemName: string;
+  quantity: number;
+  cost: number;
+  movements: number;
+};
+
 export type BuildingCostComparison = {
   rows: BuildingCostComparisonRow[];
+  itemRows: BuildingItemConsumptionRow[];
   totals: {
     movements: number;
     quantity: number;
@@ -50,6 +63,7 @@ export function buildBuildingCostComparison(
   options: { fromDate?: string; toDate?: string } = {},
 ): BuildingCostComparison {
   const grouped = new Map<number | null, { movements: number; quantity: number; cost: number }>();
+  const itemGrouped = new Map<string, BuildingItemConsumptionRow>();
   for (const row of disbursementRows) {
     if (!inDateRange(row.date, options.fromDate, options.toDate)) continue;
     const key = row.buildingId == null ? null : Number(row.buildingId);
@@ -58,6 +72,14 @@ export function buildBuildingCostComparison(
     current.quantity += Math.abs(Number(row.quantity ?? 0));
     current.cost += Math.abs(Number(row.totalValue ?? 0));
     grouped.set(key, current);
+    const itemCode = String(row.itemCode ?? "غير محدد").trim() || "غير محدد";
+    const itemName = String(row.itemName ?? itemCode).trim() || itemCode;
+    const itemKey = `${key ?? "unassigned"}::${itemCode}`;
+    const itemCurrent = itemGrouped.get(itemKey) ?? { buildingId: key, buildingName: "صرف غير مرتبط بمبنى", itemCode, itemName, quantity: 0, cost: 0, movements: 0 };
+    itemCurrent.quantity += Math.abs(Number(row.quantity ?? 0));
+    itemCurrent.cost += Math.abs(Number(row.totalValue ?? 0));
+    itemCurrent.movements += 1;
+    itemGrouped.set(itemKey, itemCurrent);
   }
 
   const rows: BuildingCostComparisonRow[] = buildingRows.map(building => {
@@ -91,6 +113,8 @@ export function buildBuildingCostComparison(
   }
 
   rows.sort((left, right) => right.cost - left.cost || left.name.localeCompare(right.name, "ar"));
+  const buildingNameById = new Map(buildingRows.map(building => [building.id, building.name]));
+  const itemRows = Array.from(itemGrouped.values()).map(row => ({ ...row, buildingName: row.buildingId == null ? row.buildingName : (buildingNameById.get(row.buildingId) ?? row.buildingName) })).sort((left, right) => right.quantity - left.quantity || left.itemName.localeCompare(right.itemName, "ar"));
   const totals = rows.reduce((summary, row) => ({
     movements: summary.movements + row.movements,
     quantity: summary.quantity + row.quantity,
@@ -98,5 +122,5 @@ export function buildBuildingCostComparison(
     budget: summary.budget + row.budget,
     remainingBudget: summary.remainingBudget + row.remainingBudget,
   }), { movements: 0, quantity: 0, cost: 0, budget: 0, remainingBudget: 0 });
-  return { rows, totals };
+  return { rows, itemRows, totals };
 }
