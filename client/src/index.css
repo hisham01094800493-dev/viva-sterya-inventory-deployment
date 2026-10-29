@@ -3223,3 +3223,11 @@ body {
   @media (max-width: 640px) { .inventory-audit-page .report-warehouse-card { min-height: 240px; } .inventory-audit-page .report-warehouse-header { min-height: 198px; } }
 }
 @media (prefers-reduced-motion: reduce) { .inventory-audit-page .report-warehouse-card { transition: none !important; } }
+
+.directory-mobile-list { display: none; }
+@media (max-width: 767px) {
+  .directory-table-desktop { display: none; }
+  .directory-mobile-list { display: grid; }
+  .directory-contact-actions > a,
+  .directory-contact-actions > button { flex: 1 1 auto; }
+}
