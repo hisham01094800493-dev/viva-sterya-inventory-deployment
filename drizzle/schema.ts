@@ -348,7 +348,7 @@ export const disbursements = mysqlTable("disbursements", {
   documentImageUrl: varchar("document_image_url", { length: 500 }),
   clientRequestId: varchar("client_request_id", { length: 64 }).unique(), // مفتاح idempotency للمزامنة Offline
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-}, table => [index("disbursements_item_code_idx").on(table.itemCode), index("disbursements_ezn_num_idx").on(table.eznNum), index("disbursements_building_id_idx").on(table.buildingId)]);
+}, table => [index("disbursements_item_code_idx").on(table.itemCode), index("disbursements_item_date_idx").on(table.itemCode, table.date), index("disbursements_ezn_num_idx").on(table.eznNum), index("disbursements_building_id_idx").on(table.buildingId)]);
 
 export type Disbursement = typeof disbursements.$inferSelect;
 export type InsertDisbursement = typeof disbursements.$inferInsert;

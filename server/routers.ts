@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { parse as parseCookie } from "cookie";
 import { z } from "zod";
+import { getForecastRows, invalidateForecastCache } from "./stockForecast";
 import { buildActivityCleanupAuditDetails } from "./activityCleanup";
 import {
   createAddition,
@@ -411,7 +412,7 @@ export const appRouter = router({
       const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
       return canViewFinancialDetails ? rows : rows.map(({ unitPrice: _unitPrice, totalValue: _totalValue, ...row }) => row);
     }),
-    create: writePermissionProcedure("additions").input(additionInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createAddition(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "addition", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
+    create: writePermissionProcedure("additions").input(additionInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createAddition(input)); invalidateForecastCache(); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "addition", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
     update: writePermissionProcedure("additions")
       .input(additionInput.partial().extend({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("addition", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const previousSnapshot = await safe(() => getMovementSnapshot("addition", input.id)); const result = await safe(() => updateAddition(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "addition", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
@@ -446,7 +447,7 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createDisbursement(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "disbursement", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
     update: writePermissionProcedure("disbursements")
       .input(disbursementInput.partial().extend({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("disbursement", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const previousSnapshot = await safe(() => getMovementSnapshot("disbursement", input.id)); const result = await safe(() => updateDisbursement(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "disbursement", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
+      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("disbursement", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const previousSnapshot = await safe(() => getMovementSnapshot("disbursement", input.id)); const result = await safe(() => updateDisbursement(input)); invalidateForecastCache(); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "disbursement", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
     uploadDocumentImage: writePermissionProcedure("disbursements")
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
       .mutation(async ({ input, ctx }) => { await assertExistingMovementAccess("disbursement", input.movementId, ctx.permissions); return safe(() => uploadDocumentImage({ ...input, movementType: "disbursement" })); }),
@@ -556,6 +557,25 @@ export const appRouter = router({
         };
       }),
     ),
+  }),
+
+  alerts: router({
+    smartForecast: permissionProcedure("alerts")
+      .input(z.object({ warehouseId: z.number().int().positive().nullable().optional(), severity: z.enum(["critical", "warning", "watch", "ok"]).nullable().optional(), abcClass: z.enum(["A", "B", "C"]).nullable().optional(), search: z.string().trim().max(200).optional(), page: z.number().int().positive().default(1), pageSize: z.number().int().min(5).max(100).default(25) }))
+      .query(({ input, ctx }) => safe(async () => {
+        if (input.warehouseId && ctx.permissions.allowedWarehouseIds.length && !ctx.permissions.allowedWarehouseIds.includes(input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" });
+        const [leadTime, safetyStock] = await Promise.all([getSettingValue("forecast_lead_time_days", "7"), getSettingValue("forecast_safety_stock_days", "3")]);
+        const rows = await getForecastRows(ctx.permissions.allowedWarehouseIds, { leadTimeDays: Math.max(0, Number(leadTime) || 7), safetyStockDays: Math.max(0, Number(safetyStock) || 3) });
+        const search = input.search?.toLowerCase();
+        const filtered = rows.filter(row => (!input.warehouseId || row.warehouseId === input.warehouseId) && (!input.severity || row.severity === input.severity) && (!input.abcClass || row.abcClass === input.abcClass) && (!search || row.name.toLowerCase().includes(search) || row.code.toLowerCase().includes(search)));
+        const start = (input.page - 1) * input.pageSize;
+        return { rows: filtered.slice(start, start + input.pageSize), total: filtered.length, page: input.page, pageSize: input.pageSize, pageCount: Math.max(1, Math.ceil(filtered.length / input.pageSize)) };
+      })),
+    forecastSummary: permissionProcedure("alerts").query(({ ctx }) => safe(async () => {
+      const [leadTime, safetyStock] = await Promise.all([getSettingValue("forecast_lead_time_days", "7"), getSettingValue("forecast_safety_stock_days", "3")]);
+      const rows = await getForecastRows(ctx.permissions.allowedWarehouseIds, { leadTimeDays: Math.max(0, Number(leadTime) || 7), safetyStockDays: Math.max(0, Number(safetyStock) || 3) });
+      return { critical: rows.filter(row => row.severity === "critical").length, warning: rows.filter(row => row.severity === "warning").length, watch: rows.filter(row => row.severity === "watch").length, ok: rows.filter(row => row.severity === "ok").length, stagnant: rows.filter(row => row.stagnant).length, suggestedValue: rows.reduce((sum, row) => sum + row.suggestedOrderQty * row.consumptionValue90 / Math.max(1, row.dailyRate90 * 90), 0) };
+    })),
   }),
 
   notifications: router({
