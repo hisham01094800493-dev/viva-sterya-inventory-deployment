@@ -58,6 +58,8 @@ import {
   listWarehousesByUsageForAccess,
   listBuildings,
   getBuildingCostComparison,
+  createBuilding,
+  updateBuilding,
   updateWarehouse,
   listSuppliers,
   createSupplier,
@@ -212,6 +214,8 @@ const importItemInput = z.object({
 });
 
 const warehouseUpdateInput = z.object({ id: z.number().int().positive(), name: z.string().trim().min(1).max(128) });
+const buildingInput = z.object({ name: z.string().trim().min(1).max(180), code: z.string().trim().min(1).max(64), type: z.enum(["owned_building", "subcontractor"]).default("owned_building"), budget: z.coerce.number().min(0).default(0) });
+const buildingUpdateInput = buildingInput.partial().extend({ id: z.number().int().positive() });
 const supplierInput = z.object({ name: z.string().trim().min(1).max(180), phone: z.string().trim().max(64).nullable().optional(), email: z.string().trim().email().max(320).nullable().optional(), address: z.string().trim().max(1000).nullable().optional(), notes: z.string().trim().max(2000).nullable().optional() });
 const supplierUpdateInput = supplierInput.partial().extend({ id: z.number().int().positive() });
 const customerInput = z.object({ name: z.string().trim().min(1).max(180), phone: z.string().trim().max(64).nullable().optional(), email: z.string().trim().email().max(320).nullable().optional(), address: z.string().trim().max(1000).nullable().optional(), notes: z.string().trim().max(2000).nullable().optional() });
@@ -307,6 +311,8 @@ export const appRouter = router({
   }),
   buildings: router({
     list: protectedProcedure.query(() => safe(() => listBuildings())),
+    create: protectedProcedure.input(buildingInput).mutation(({ input }) => safe(() => createBuilding(input))),
+    update: protectedProcedure.input(buildingUpdateInput).mutation(({ input }) => safe(() => updateBuilding(input))),
   }),
   suppliers: router({
     list: protectedProcedure.query(() => safe(() => listSuppliers())),

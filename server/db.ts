@@ -335,6 +335,39 @@ export async function listBuildings() {
     .where(eq(buildings.status, "active"))
     .orderBy(asc(buildings.id));
 }
+export async function createBuilding(input: { name: string; code: string; type?: "owned_building" | "subcontractor"; budget?: number }) {
+  const db = await requireDb();
+  const name = input.name.trim();
+  const code = input.code.trim();
+  if (!name) throw new InventoryError("BAD_REQUEST", "اسم المبنى مطلوب");
+  if (!code) throw new InventoryError("BAD_REQUEST", "كود المبنى مطلوب");
+  try {
+    const result = await db.insert(buildings).values({ name, code, type: input.type ?? "owned_building", budget: String(Math.max(0, Number(input.budget ?? 0))) });
+    const id = resultInsertId(result);
+    return (await db.select().from(buildings).where(eq(buildings.id, id)).limit(1))[0];
+  } catch (error: any) {
+    if (error?.code === "ER_DUP_ENTRY") throw new InventoryError("CONFLICT", "اسم أو كود المبنى مستخدم بالفعل");
+    throw error;
+  }
+}
+
+export async function updateBuilding(input: { id: number; name?: string; code?: string; type?: "owned_building" | "subcontractor"; budget?: number }) {
+  const db = await requireDb();
+  const updates: Record<string, unknown> = {};
+  if (input.name !== undefined) { const name = input.name.trim(); if (!name) throw new InventoryError("BAD_REQUEST", "اسم المبنى مطلوب"); updates.name = name; }
+  if (input.code !== undefined) { const code = input.code.trim(); if (!code) throw new InventoryError("BAD_REQUEST", "كود المبنى مطلوب"); updates.code = code; }
+  if (input.type !== undefined) updates.type = input.type;
+  if (input.budget !== undefined) updates.budget = String(Math.max(0, Number(input.budget)));
+  try {
+    await db.update(buildings).set(updates as any).where(eq(buildings.id, input.id));
+  } catch (error: any) {
+    if (error?.code === "ER_DUP_ENTRY") throw new InventoryError("CONFLICT", "اسم أو كود المبنى مستخدم بالفعل");
+    throw error;
+  }
+  const row = (await db.select().from(buildings).where(eq(buildings.id, input.id)).limit(1))[0];
+  if (!row) throw new InventoryError("NOT_FOUND", "المبنى غير موجود");
+  return row;
+}
 export async function getBuildingCostComparison(input: { fromDate?: string; toDate?: string }, allowedWarehouseIds: number[] = []) {
   const db = await requireDb();
   const [buildingRows, movementRows] = await Promise.all([

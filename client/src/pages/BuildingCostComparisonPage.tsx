@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, Loader2, RefreshCcw, TrendingDown, WalletCards } from "lucide-react";
+import { Download, Loader2, Pencil, Plus, RefreshCcw, Save, TrendingDown, WalletCards, X } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const numberFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 });
@@ -31,8 +32,19 @@ export default function BuildingCostComparisonPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState(today());
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>("");
+  const [editingBuildingId, setEditingBuildingId] = useState<number | null>(null);
+  const [buildingForm, setBuildingForm] = useState({ name: "", code: "", type: "owned_building" as "owned_building" | "subcontractor", budget: "0" });
+  const buildingsQuery = trpc.buildings.list.useQuery();
+  const createBuilding = trpc.buildings.create.useMutation({ onSuccess: () => { toast.success("تمت إضافة المبنى"); void buildingsQuery.refetch(); void report.refetch(); resetBuildingForm(); }, onError: error => toast.error(error.message || "تعذر إضافة المبنى") });
+  const updateBuilding = trpc.buildings.update.useMutation({ onSuccess: () => { toast.success("تم تعديل بيانات المبنى"); void buildingsQuery.refetch(); void report.refetch(); resetBuildingForm(); }, onError: error => toast.error(error.message || "تعذر تعديل المبنى") });
   const report = trpc.reports.buildingCostComparison.useQuery({ fromDate: fromDate || undefined, toDate: toDate || undefined });
   const rows = report.data?.rows ?? [];
+  function resetBuildingForm() { setEditingBuildingId(null); setBuildingForm({ name: "", code: "", type: "owned_building", budget: "0" }); }
+  function submitBuildingForm() {
+    const payload = { name: buildingForm.name, code: buildingForm.code, type: buildingForm.type, budget: Number(buildingForm.budget || 0) };
+    if (editingBuildingId) updateBuilding.mutate({ id: editingBuildingId, ...payload }); else createBuilding.mutate(payload);
+  }
+  function editBuilding(building: { id: number; name: string; code: string; type: "owned_building" | "subcontractor"; budget: unknown }) { setEditingBuildingId(building.id); setBuildingForm({ name: building.name, code: building.code, type: building.type, budget: String(Number(building.budget ?? 0)) }); }
   const totals = report.data?.totals ?? { movements: 0, quantity: 0, cost: 0, budget: 0, remainingBudget: 0 };
   const highestCost = useMemo(() => Math.max(1, ...rows.map(row => Number(row.cost))), [rows]);
   const overBudgetCount = rows.filter(row => !row.isUnassigned && row.budget > 0 && row.cost > row.budget).length;
@@ -53,6 +65,11 @@ export default function BuildingCostComparisonPage() {
           <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void report.refetch()} disabled={report.isFetching} className="rounded-xl border-[#dce7ee] bg-white font-bold text-[#0d4f62]">{report.isFetching ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="ml-2 h-4 w-4" />}تحديث</Button><Button onClick={() => downloadCsv(rows as unknown as Array<Record<string, unknown>>, fromDate, toDate)} disabled={!rows.length} className="rounded-xl bg-[#0d4f62] font-bold text-white hover:bg-[#0a4150]"><Download className="ml-2 h-4 w-4" />تصدير CSV</Button></div>
         </div>
       </section>
+
+      <Card className="rounded-[1.5rem] border-[#dce7ee] shadow-sm">
+        <CardHeader className="border-b border-[#edf2f5]"><CardTitle className="flex items-center gap-2 text-lg font-black text-[#102a43]"><Plus className="h-5 w-5 text-[#0d7180]" />إدارة المباني</CardTitle><p className="text-xs text-slate-400">أضف المباني أو عدّل أسماءها وأكوادها وميزانياتها، وستظهر مباشرة في أذونات الصرف والتقارير.</p></CardHeader>
+        <CardContent className="space-y-4 p-5"><div className="grid gap-3 md:grid-cols-5"><label className="text-xs font-bold text-slate-500 md:col-span-2">اسم المبنى<Input value={buildingForm.name} onChange={event => setBuildingForm(current => ({ ...current, name: event.target.value }))} placeholder="مثال: مبنى الإدارة" className="mt-1 rounded-xl" /></label><label className="text-xs font-bold text-slate-500">كود المبنى<Input value={buildingForm.code} onChange={event => setBuildingForm(current => ({ ...current, code: event.target.value }))} placeholder="BLD-01" className="mt-1 rounded-xl" /></label><label className="text-xs font-bold text-slate-500">نوع المبنى<select value={buildingForm.type} onChange={event => setBuildingForm(current => ({ ...current, type: event.target.value as "owned_building" | "subcontractor" }))} className="mt-1 h-10 w-full rounded-xl border border-[#dce7ee] bg-white px-3 font-bold text-[#102a43]"><option value="owned_building">مبنى مملوك</option><option value="subcontractor">مقاول</option></select></label><label className="text-xs font-bold text-slate-500">الميزانية<Input type="number" min="0" value={buildingForm.budget} onChange={event => setBuildingForm(current => ({ ...current, budget: event.target.value }))} className="mt-1 rounded-xl" /></label></div><div className="flex flex-wrap gap-2"><Button type="button" onClick={submitBuildingForm} disabled={!buildingForm.name.trim() || !buildingForm.code.trim() || createBuilding.isPending || updateBuilding.isPending} className="rounded-xl bg-[#0d7180] font-black text-white hover:bg-[#0a5d69]">{editingBuildingId ? <Save className="ml-2 h-4 w-4" /> : <Plus className="ml-2 h-4 w-4" />}{editingBuildingId ? "حفظ التعديل" : "إضافة المبنى"}</Button>{editingBuildingId ? <Button type="button" variant="outline" onClick={resetBuildingForm} className="rounded-xl"><X className="ml-2 h-4 w-4" />إلغاء التعديل</Button> : null}</div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{(buildingsQuery.data ?? []).map(building => <div key={building.id} className="flex items-center justify-between gap-3 rounded-xl border border-[#dce7ee] bg-[#f8fcfc] px-3 py-2"><div className="min-w-0"><p className="truncate text-sm font-black text-[#102a43]">{building.name}</p><p className="text-[11px] text-slate-400">{building.code} · {Number(building.budget ?? 0).toLocaleString("en-US")} ج.م</p></div><Button type="button" variant="outline" size="icon" onClick={() => editBuilding(building)} className="h-8 w-8 shrink-0 rounded-lg border-[#b9d4d9] text-[#0d4f62]" title={`تعديل ${building.name}`}><Pencil className="h-3.5 w-3.5" /></Button></div>)}</div></CardContent>
+      </Card>
 
       <Card className="rounded-[1.5rem] border-[#dce7ee] shadow-sm"><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm font-black text-[#102a43]">نطاق المقارنة</p><p className="mt-1 text-xs text-slate-400">يتم احتساب أذونات الصرف داخل الفترة فقط.</p></div><div className="grid w-full gap-3 sm:w-auto sm:grid-cols-2"><label className="text-xs font-bold text-slate-500">من تاريخ<Input type="date" value={fromDate} onChange={event => setFromDate(event.target.value)} className="mt-1 rounded-xl" /></label><label className="text-xs font-bold text-slate-500">إلى تاريخ<Input type="date" value={toDate} onChange={event => setToDate(event.target.value)} className="mt-1 rounded-xl" /></label></div></CardContent></Card>
 

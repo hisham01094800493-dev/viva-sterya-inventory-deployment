@@ -632,7 +632,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   // The permission model calls the items screen "inventory", while the
   // browser route is /items. Keep both names aligned so the sidebar does not
   // hide the inventory entry for users who already have inventory access.
-  const screenForPath = (path: string) => path === "/items" || path.startsWith("/warehouses") ? "inventory" : path === "/inventory-audit" ? "reports" : path.replace(/^\//, "").split("?")[0] || "dashboard";
+  const screenForPath = (path: string) => path === "/items" || path.startsWith("/warehouses") ? "inventory" : path === "/inventory-audit" || path === "/building-costs" ? "reports" : path.replace(/^\//, "").split("?")[0] || "dashboard";
   const hasScreenPermission = (path: string) => path.startsWith("/governance") || path.startsWith("/drafts") || !effectivePermissions || effectivePermissions.allowedScreens.includes(screenForPath(path));
   const navigationItems = allNavigationItems.filter(item => hasScreenPermission(item.path) && (!readOnlyRole || !["/additions", "/disbursements", "/transfers", "/suppliers", "/customers"].includes(item.path)));
   const chatEnabled = hasScreenPermission("/chat");
