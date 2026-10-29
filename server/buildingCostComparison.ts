@@ -32,6 +32,8 @@ export type BuildingCostComparisonRow = {
   isUnassigned?: boolean;
 };
 
+import { calculateConsumptionBaseline, isConsumptionAnomaly } from "./consumptionAnalytics";
+
 export type BuildingItemConsumptionRow = {
   buildingId: number | null;
   buildingName: string;
@@ -42,6 +44,11 @@ export type BuildingItemConsumptionRow = {
   quantity: number;
   cost: number;
   movements: number;
+  baselineDaily: number;
+  baselineWeekly: number;
+  baselineDays: number;
+  anomaly: boolean;
+  anomalyRatio: number | null;
 };
 
 export type BuildingCostComparison = {
@@ -81,7 +88,7 @@ export function buildBuildingCostComparison(
     const category = String(row.category ?? "").trim() || "غير مصنف";
     const unit = String(row.unit ?? "").trim() || "غير محدد";
     const itemKey = `${key ?? "unassigned"}::${itemCode}`;
-    const itemCurrent = itemGrouped.get(itemKey) ?? { buildingId: key, buildingName: "صرف غير مرتبط بمبنى", itemCode, itemName, category, unit, quantity: 0, cost: 0, movements: 0 };
+    const itemCurrent = itemGrouped.get(itemKey) ?? { buildingId: key, buildingName: "صرف غير مرتبط بمبنى", itemCode, itemName, category, unit, quantity: 0, cost: 0, movements: 0, baselineDaily: 0, baselineWeekly: 0, baselineDays: 0, anomaly: false, anomalyRatio: null };
     itemCurrent.quantity += Math.abs(Number(row.quantity ?? 0));
     itemCurrent.cost += Math.abs(Number(row.totalValue ?? 0));
     itemCurrent.movements += 1;
@@ -120,7 +127,27 @@ export function buildBuildingCostComparison(
 
   rows.sort((left, right) => right.cost - left.cost || left.name.localeCompare(right.name, "ar"));
   const buildingNameById = new Map(buildingRows.map(building => [building.id, building.name]));
-  const itemRows = Array.from(itemGrouped.values()).map(row => ({ ...row, buildingName: row.buildingId == null ? row.buildingName : (buildingNameById.get(row.buildingId) ?? row.buildingName) })).sort((left, right) => right.quantity - left.quantity || left.itemName.localeCompare(right.itemName, "ar"));
+  const analysisStart = options.fromDate ?? options.toDate;
+  const itemRows = Array.from(itemGrouped.values()).map(row => {
+    const baseline = calculateConsumptionBaseline(disbursementRows, row.buildingId, row.itemCode, analysisStart);
+    const analysisRows = disbursementRows.filter(movement =>
+      (movement.buildingId ?? null) === row.buildingId &&
+      String(movement.itemCode ?? "").trim() === row.itemCode &&
+      (!analysisStart || String(movement.date ?? "").slice(0, 10) >= analysisStart) &&
+      (!options.toDate || String(movement.date ?? "").slice(0, 10) <= options.toDate),
+    );
+    const anomaly = analysisRows.some(movement => isConsumptionAnomaly(movement.quantity, baseline.dailyAverage));
+    const largestQuantity = Math.max(0, ...analysisRows.map(movement => Math.abs(Number(movement.quantity ?? 0))));
+    return {
+      ...row,
+      buildingName: row.buildingId == null ? row.buildingName : (buildingNameById.get(row.buildingId) ?? row.buildingName),
+      baselineDaily: baseline.dailyAverage,
+      baselineWeekly: baseline.weeklyAverage,
+      baselineDays: baseline.activeDays,
+      anomaly,
+      anomalyRatio: anomaly && baseline.dailyAverage > 0 ? largestQuantity / baseline.dailyAverage : null,
+    };
+  }).sort((left, right) => right.quantity - left.quantity || left.itemName.localeCompare(right.itemName, "ar"));
   const totals = rows.reduce((summary, row) => ({
     movements: summary.movements + row.movements,
     quantity: summary.quantity + row.quantity,

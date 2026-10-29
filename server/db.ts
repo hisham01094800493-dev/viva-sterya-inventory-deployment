@@ -87,6 +87,7 @@ export {
 } from "./db/scale";
 import { InventoryError } from "./db/errors";
 import { buildBuildingCostComparison } from "./buildingCostComparison";
+import { calculateConsumptionBaseline, isConsumptionAnomaly } from "./consumptionAnalytics";
 import { getDb, getPool, requireDb } from "./db/connection";
 import {
   toScaled,
@@ -2298,6 +2299,28 @@ export async function createDisbursement(input: {
     }
     const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
     const totalValue = calculateTotalValue(unitPrice, quantity);
+    const historicalRows = await tx
+      .select({
+        buildingId: disbursements.buildingId,
+        itemCode: disbursements.itemCode,
+        quantity: disbursements.quantity,
+        date: disbursements.date,
+      })
+      .from(disbursements)
+      .where(
+        and(
+          eq(disbursements.buildingId, buildingId),
+          eq(disbursements.itemCode, item.code),
+          lt(disbursements.date, input.date),
+        ),
+      );
+    const baseline = calculateConsumptionBaseline(
+      historicalRows,
+      buildingId,
+      item.code,
+      input.date,
+    );
+    const anomalyWarning = isConsumptionAnomaly(quantity, baseline.dailyAverage);
     const warehouse = await resolveWarehouseId(
       tx,
       input.warehouseId,
@@ -2332,7 +2355,17 @@ export async function createDisbursement(input: {
       .from(disbursements)
       .where(eq(disbursements.id, id))
       .limit(1);
-    return rows[0];
+    return {
+      ...rows[0],
+      warningFlag: anomalyWarning,
+      warningType: anomalyWarning ? "historical_consumption_spike" : null,
+      historicalDailyAverage: baseline.dailyAverage,
+      historicalWeeklyAverage: baseline.weeklyAverage,
+      warningRatio:
+        anomalyWarning && baseline.dailyAverage > 0
+          ? quantity / baseline.dailyAverage
+          : null,
+    };
   });
 }
 

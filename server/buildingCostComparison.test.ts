@@ -27,4 +27,14 @@ describe("buildBuildingCostComparison", () => {
     expect(result.rows[0].movements).toBe(0);
     expect(result.rows[0].budgetUsagePercent).toBe(0);
   });
+
+  it("adds historical baselines and flags a current consumption spike", () => {
+    const result = buildBuildingCostComparison([{ id: 1, name: "مبنى أ", code: "A", budget: 100 }], [
+      { buildingId: 1, itemCode: "A-1", itemName: "صنف", quantity: 2, totalValue: 20, date: "2026-09-28" },
+      { buildingId: 1, itemCode: "A-1", itemName: "صنف", quantity: 4, totalValue: 40, date: "2026-09-29" },
+      { buildingId: 1, itemCode: "A-1", itemName: "صنف", quantity: 7, totalValue: 70, date: "2026-10-01" },
+    ], { fromDate: "2026-10-01", toDate: "2026-10-01" });
+    expect(result.itemRows[0]).toMatchObject({ baselineDaily: 3, baselineWeekly: 21, anomaly: true });
+    expect(result.itemRows[0].anomalyRatio).toBeCloseTo(7 / 3, 5);
+  });
 });

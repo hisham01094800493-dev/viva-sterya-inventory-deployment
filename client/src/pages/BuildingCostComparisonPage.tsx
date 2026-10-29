@@ -54,6 +54,10 @@ type ChartRow = {
   category?: string;
   unit?: string;
   itemCode?: string;
+  baselineDaily?: number;
+  baselineWeekly?: number;
+  anomaly?: boolean;
+  anomalyRatio?: number | null;
 };
 
 function downloadCsv(rows: Array<Record<string, unknown>>, from: string, to: string) {
@@ -108,6 +112,10 @@ export default function BuildingCostComparisonPage() {
     category: row.category || "غير مصنف",
     unit: row.unit || "غير محدد",
     itemCode: row.itemCode,
+    baselineDaily: Number(row.baselineDaily ?? 0),
+    baselineWeekly: Number(row.baselineWeekly ?? 0),
+    anomaly: Boolean(row.anomaly),
+    anomalyRatio: row.anomalyRatio == null ? null : Number(row.anomalyRatio),
   })), [itemRows, selectedBuildingId]);
   const selectedItemChartRows = useMemo(() => selectedItemRows.slice().sort((left, right) => right[itemMetric] - left[itemMetric]).slice(0, 20), [selectedItemRows, itemMetric]);
   const selectedItemGroups = useMemo(() => {
@@ -486,8 +494,8 @@ function ItemCategorySection({ groups, metric }: { groups: Array<{ category: str
           <MiniMetric label="تكلفة الفئة" value={money(group.cost)} tone="amber" />
         </div>
         <div className="divide-y divide-[#edf2f5]">
-          {group.items.map((item, index) => <article key={`${item.itemCode || item.name}-${index}`} className="flex min-w-0 flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-3">
-            <div className="flex min-w-0 items-start gap-3"><span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#f3f8f9] text-[10px] font-black text-[#0d7180]">{index + 1}</span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="text-xs font-black leading-5 text-[#102a43] sm:text-sm">{item.name}</h4><Badge className={`rounded-full border px-2 py-0.5 text-[9px] font-black ${item.unit && item.unit !== "غير محدد" ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-amber-100 bg-amber-50 text-amber-700"}`}>{item.unit && item.unit !== "غير محدد" ? item.unit : "وحدة غير محددة"}</Badge></div><p className="mt-1 text-[10px] text-slate-400">كود الصنف: {item.itemCode || "—"}</p></div></div>
+          {group.items.map((item, index) => <article key={`${item.itemCode || item.name}-${index}`} className={`flex min-w-0 flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-3 ${item.anomaly ? "bg-amber-50/60" : ""}`}>
+            <div className="flex min-w-0 items-start gap-3"><span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#f3f8f9] text-[10px] font-black text-[#0d7180]">{index + 1}</span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="text-xs font-black leading-5 text-[#102a43] sm:text-sm">{item.name}</h4><Badge className={`rounded-full border px-2 py-0.5 text-[9px] font-black ${item.unit && item.unit !== "غير محدد" ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-amber-100 bg-amber-50 text-amber-700"}`}>{item.unit && item.unit !== "غير محدد" ? item.unit : "وحدة غير محددة"}</Badge>{item.anomaly ? <Badge className="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-800"><AlertTriangle className="ml-1 inline h-3 w-3" />قفزة غير معتادة</Badge> : null}</div><p className="mt-1 text-[10px] text-slate-400">كود الصنف: {item.itemCode || "—"}</p><p className="mt-1 text-[10px] font-bold text-[#0d7180]">المتوسط المعتاد: {item.baselineDaily ? `${quantity(item.baselineDaily)} / يوم · ${quantity(item.baselineWeekly)} / أسبوع` : "لا توجد بيانات تاريخية كافية بعد"}</p></div></div>
             <div className="grid grid-cols-2 gap-2 sm:w-[300px] sm:shrink-0"><MiniMetric label={`الكمية · ${item.unit || "وحدة غير محددة"}`} value={quantity(item.quantity)} tone="teal" /><MiniMetric label="التكلفة" value={money(item.cost)} tone="amber" /></div>
           </article>)}
         </div>

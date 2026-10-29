@@ -653,6 +653,10 @@ function MovementDialog({ kind, open, onOpenChange, editing, onSaved }: { kind: 
         if (editing) savedMovement = await updateTransfer.mutateAsync({ id: editing.id, ...payload }) as MovementRow;
         else { savedMovement = await createOrQueue("transfers", payload, input => createTransfer.mutateAsync(input as never)) as MovementRow | undefined; queued = !savedMovement; }
       }
+      if (savedMovement && kind === "disbursements" && (savedMovement as any).warningFlag) {
+        const average = Number((savedMovement as any).historicalDailyAverage ?? 0);
+        toast.warning(`تنبيه: كمية الصرف أعلى من ضعف المتوسط التاريخي للمبنى (${average.toFixed(3)} وحدة/يوم)`);
+      }
       if (savedMovement && !editing && !queued) pendingMovementRef.current = { kind, movement: savedMovement };
       if (clearDocumentRequested && editing && savedMovement) { if (kind === "additions") await clearAdditionDocument.mutateAsync({ movementId: savedMovement.id }); else if (kind === "disbursements") await clearDisbursementDocument.mutateAsync({ movementId: savedMovement.id }); else await clearTransferDocument.mutateAsync({ movementId: savedMovement.id }); }
       if (documentFile && savedMovement && (kind === "additions" || kind === "disbursements" || kind === "transfers")) { const compressed = preparedDocument; if (!compressed) throw new Error("تعذر تجهيز الصورة. أعد اختيارها ثم حاول مرة أخرى."); setUploadStage("uploading"); const uploadInput = { movementId: savedMovement.id, fileName: createDescriptiveImageFileName(form.eznNum, compressed.fileName, `permit-${savedMovement.id}`), contentType: compressed.contentType, dataBase64: compressed.dataBase64 }; if (kind === "additions") await uploadAdditionDocument.mutateAsync(uploadInput); else if (kind === "disbursements") await uploadDisbursementDocument.mutateAsync(uploadInput); else await uploadTransferDocument.mutateAsync(uploadInput); setUploadStage("complete"); }
