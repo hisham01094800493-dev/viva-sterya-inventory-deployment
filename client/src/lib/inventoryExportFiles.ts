@@ -591,24 +591,50 @@ export async function downloadItemCardPdf(card: ItemCardPdfData, options: { logo
 
 export async function buildMainWarehousePdf(cards: ItemCardPdfData[], options: { logo?: string | null; date?: Date; warehouseName?: string; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean } = {}) {
   const { jsPDF, autoTable } = await loadPdfTools();
-  const doc = await configureArabicPdf(new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" }));
+  const doc = await configureArabicPdf(new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" }));
   const logo = await resolveLogo(options.logo);
   const watermarkLogo = options.watermarkEnabled === false ? null : logo;
-  for (let index = 0; index < cards.length; index += 1) {
-    const card = cards[index]; const additions = card.additions.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0); const returns = card.returns.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0); const disbursements = card.disbursements.reduce((sum, row) => sum + Math.abs(Number(row.quantity ?? 0)), 0); const available = Number(card.item.currentStock ?? 0);
-    if (index > 0) doc.addPage();
-    drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
-    logoAndDate(doc, `تقرير ${options.warehouseName ?? "المخزن الرئيسي"} - ${card.item.name}`, logo, options.date);
-    const imageAsset = await fetchImageAsset(card.item.imageUrl);
-    const imageData = imageAsset?.dataUrl ? await cropPdfImageToSquare(imageAsset.dataUrl) : null;
-    const imageX = 650; const imageY = 84; const imageSize = 66;
-    if (imageData) { try { doc.addImage(imageData, "JPEG", imageX, imageY, imageSize, imageSize); } catch { /* keep placeholder */ } }
-    if (!imageData) { doc.setFillColor(232, 241, 242); doc.roundedRect(imageX, imageY, imageSize, imageSize, 5, 5, "F"); doc.setTextColor(13, 79, 98); doc.setFont(getArabicPdfFont(doc), "bold"); doc.setFontSize(9); doc.text(shapeArabic(doc, "صورة"), imageX + imageSize / 2, imageY + imageSize / 2 + 3, { align: "center" }); }
-    autoTable(doc, { startY: 84, margin: { left: 42, right: 176 }, head: [[shapeArabic(doc, "البيان"), shapeArabic(doc, "القيمة")]], body: [[shapeArabic(doc, "اسم الصنف"), shapeArabic(doc, String(card.item.name ?? "—"))], [shapeArabic(doc, "الكود"), String(card.item.code ?? "—")], [shapeArabic(doc, "التصنيف"), shapeArabic(doc, String(card.item.category ?? "—"))], [shapeArabic(doc, "الوحدة"), shapeArabic(doc, String(card.item.unit ?? "—"))], [shapeArabic(doc, "الرصيد الأولي"), String(card.item.initialStock ?? "0")], [shapeArabic(doc, "إجمالي الإضافات"), additions.toFixed(3)], [shapeArabic(doc, "إجمالي المرتجعات"), returns.toFixed(3)], [shapeArabic(doc, "إجمالي الصرف"), disbursements.toFixed(3)], [shapeArabic(doc, "الرصيد المتاح"), available.toFixed(3)]], columnStyles: { 1: { cellWidth: 220, overflow: "linebreak" } }, styles: { font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: 9.5, halign: "right", cellPadding: 4, minCellHeight: 19, overflow: "linebreak" , lineColor: [137, 162, 172], lineWidth: 0.45}, headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.55, font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: 9, halign: "center" }, willDrawPage: data => { if (data.pageNumber > 1) drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat); }, didParseCell: data => { if (data.section === "body" && data.row.index === 0 && data.column.index === 1) data.cell.styles.halign = "center"; } });
-  }
+  const safeCards = (Array.isArray(cards) ? cards : []).filter(card => card?.item && String(card.item.name ?? card.item.code ?? "").trim());
+  const enriched = await Promise.all(safeCards.map(async card => {
+    const additions = card.additions.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0);
+    const returns = card.returns.reduce((sum, row) => sum + Number(row.quantity ?? 0), 0);
+    const disbursements = card.disbursements.reduce((sum, row) => sum + Math.abs(Number(row.quantity ?? 0)), 0);
+    const current = Number(card.item.currentStock ?? 0);
+    const asset = await fetchImageAsset(card.item.imageUrl);
+    return { card, additions, returns, disbursements, current, image: asset?.dataUrl ? await cropPdfImageToSquare(asset.dataUrl) : null };
+  }));
+  const summary = [
+    `${options.warehouseName ?? "المخزن الرئيسي"}: ${enriched.length.toLocaleString("en-US")} صنف`,
+    `إجمالي الرصيد: ${enriched.reduce((sum, row) => sum + row.current, 0).toLocaleString("en-US", { maximumFractionDigits: 3 })}`,
+  ];
+  drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
+  logoAndDate(doc, `جرد ${options.warehouseName ?? "المخزن الرئيسي"} — الأصناف والصور`, logo, options.date, summary);
+  const headers = ["الصورة", "الكود", "اسم الصنف", "التصنيف", "الوحدة", "الرصيد الحالي", "الإضافات", "المرتجعات", "المنصرف"];
+  const body = enriched.map(row => [row.image ? "" : "صورة", String(row.card.item.code ?? "—"), shapeArabic(doc, String(row.card.item.name ?? "—")), shapeArabic(doc, String(row.card.item.category ?? "بدون تصنيف")), shapeArabic(doc, String(row.card.item.unit ?? "—")), row.current.toFixed(3), row.additions.toFixed(3), row.returns.toFixed(3), row.disbursements.toFixed(3)]);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  autoTable(doc, {
+    startY: getReportHeaderHeight(summary),
+    margin: { left: 24, right: 24 },
+    tableWidth: pageWidth - 48,
+    head: [headers.map(header => shapeArabic(doc, header))],
+    body,
+    columnStyles: { 0: { cellWidth: 42, halign: "center" }, 1: { cellWidth: 66, halign: "center" }, 2: { cellWidth: 178, halign: "right", overflow: "linebreak" }, 3: { cellWidth: 92, halign: "right", overflow: "linebreak" }, 4: { cellWidth: 48, halign: "center" }, 5: { cellWidth: 76, halign: "center" }, 6: { cellWidth: 70, halign: "center" }, 7: { cellWidth: 70, halign: "center" }, 8: { cellWidth: 76, halign: "center" } },
+    styles: { font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: 7.8, cellPadding: 3.5, minCellHeight: 32, halign: "right", valign: "middle", overflow: "linebreak", lineColor: [137, 162, 172], lineWidth: 0.45 },
+    headStyles: { fillColor: [13, 79, 98], textColor: [255, 255, 255], font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: 8, halign: "center", cellPadding: 4 },
+    alternateRowStyles: { fillColor: [246, 250, 251] },
+    didParseCell: data => { if (data.section === "body" && data.column.index === 0) { data.cell.styles.minCellHeight = 32; data.cell.styles.cellPadding = 2; } },
+    willDrawPage: data => { if (data.pageNumber > 1) drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat); },
+    didDrawCell: data => {
+      if (data.section !== "body" || data.column.index !== 0) return;
+      const image = enriched[data.row.index]?.image;
+      const size = Math.min(25, Math.max(18, data.cell.height - 6), Math.max(18, data.cell.width - 6));
+      const x = data.cell.x + (data.cell.width - size) / 2; const y = data.cell.y + (data.cell.height - size) / 2;
+      if (image) { try { doc.addImage(image, "JPEG", x, y, size, size); return; } catch { /* draw placeholder below */ } }
+      doc.setFillColor(232, 241, 242); doc.roundedRect(x, y, size, size, 3, 3, "F"); doc.setTextColor(13, 79, 98); doc.setFont(getArabicPdfFont(doc), "bold"); doc.setFontSize(6.5); doc.text(shapeArabic(doc, "صورة"), x + size / 2, y + size / 2 + 2, { align: "center" });
+    },
+  });
   return doc;
 }
-
 export type CompanyInventoryAuditPdfData = { warehouses: Array<{ id: number; slot: number; name: string }>; rows: Array<{ id: number; code: string; name: string; unit: string | null; totalCurrentStock: number; warehouseBalances: Array<{ warehouseId: number; slot: number; name: string; currentStock: number }> }>; summary: { totalItems: number; totalCompanyBalance: number } };
 export async function buildCompanyInventoryAuditPdf(report: CompanyInventoryAuditPdfData, options: { logo?: string | null; date?: Date; columns?: string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean } = {}) {
   const { jsPDF, autoTable } = await loadPdfTools();
