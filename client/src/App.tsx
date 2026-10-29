@@ -13,6 +13,7 @@ const InventoryAuditPage = lazy(() => import("./pages/InventoryAuditPage"));
 const SettingsPage = lazy(() => import("./pages/InventoryPages").then(module => ({ default: module.SettingsPage })));
 const TransfersPage = lazy(() => import("./pages/InventoryPages").then(module => ({ default: module.TransfersPage })));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
+const BuildingCostComparisonPage = lazy(() => import("./pages/BuildingCostComparisonPage"));
 const GovernancePage = lazy(() => import("./pages/GovernancePage"));
 const StockAdjustmentsPage = lazy(() => import("./pages/StockAdjustmentsPage"));
 const WarehousesPage = lazy(() => import("./pages/WarehousesSuppliersPages").then(module => ({ default: module.WarehousesPage })));
@@ -72,6 +73,7 @@ function Router() {
       <Route path="/alerts" component={AlertsPage} />
       <Route path="/chat" component={ChatPage} />
       <Route path="/reports" component={ReportsPage} />
+      <Route path="/building-costs" component={BuildingCostComparisonPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/drafts" component={DraftsPage} />
       <Route path="/migration-import" component={MigrationImportPage} />
