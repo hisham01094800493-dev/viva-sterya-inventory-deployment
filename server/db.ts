@@ -87,6 +87,7 @@ export {
 } from "./db/scale";
 import { InventoryError } from "./db/errors";
 import { buildBuildingCostComparison } from "./buildingCostComparison";
+import { applyCustomerAccountTransferNetting } from "./customerAccountTransferNetting";
 import { calculateConsumptionBaseline, isConsumptionAnomaly } from "./consumptionAnalytics";
 import { getDb, getPool, requireDb } from "./db/connection";
 import {
@@ -2641,6 +2642,12 @@ const reportReturnTypes = [
   "مرتجع من عميل",
   "مرتجع للمخزن",
 ];
+const customerTransferTypes = [
+  "customer_transfer",
+  "تحويل بين جهات الصرف",
+  "تحويل من جهة صرف لجهة صرف",
+  "مرتجع من عميل إلى عميل",
+];
 
 function normalizeReportAggregate(
   row: { count?: unknown; quantity?: unknown; value?: unknown } | undefined
@@ -2776,6 +2783,9 @@ export async function getReportDataset(
   const returnWhere = transfersWhere
     ? and(transfersWhere, inArray(transfers.transferType, reportReturnTypes))
     : inArray(transfers.transferType, reportReturnTypes);
+  const customerTransferWhere = transfersWhere
+    ? and(transfersWhere, inArray(transfers.transferType, customerTransferTypes))
+    : inArray(transfers.transferType, customerTransferTypes);
   const additionRowsPromise = input.includeRows
     ? db
         .select()
@@ -2808,6 +2818,8 @@ export async function getReportDataset(
     supplierGroups,
     customerGroups,
     customerReturnGroups,
+    customerTransfersOutGroups,
+    customerTransfersInGroups,
     supplierRows,
     customerRows,
     allItems,
@@ -2886,6 +2898,24 @@ export async function getReportDataset(
         and(returnWhere, not(isNull(transfers.fromCustomerId)))
       )
       .groupBy(transfers.fromCustomerId),
+    db
+      .select({
+        partyId: transfers.fromCustomerId,
+        quantity: sum(transfers.quantity),
+        value: sum(transfers.totalValue),
+      })
+      .from(transfers)
+      .where(and(customerTransferWhere, not(isNull(transfers.fromCustomerId))))
+      .groupBy(transfers.fromCustomerId),
+    db
+      .select({
+        partyId: transfers.toCustomerId,
+        quantity: sum(transfers.quantity),
+        value: sum(transfers.totalValue),
+      })
+      .from(transfers)
+      .where(and(customerTransferWhere, not(isNull(transfers.toCustomerId))))
+      .groupBy(transfers.toCustomerId),
     db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers),
     db.select({ id: customers.id, name: customers.name }).from(customers),
     allowedWarehouseIds.length
@@ -3027,6 +3057,58 @@ export async function getReportDataset(
   const returnsByCode = new Map(
     allReturnGroups.map(row => [row.itemCode, Number(row.quantity ?? 0)])
   );
+  const customerAccountTotals = Array.from(
+    customerGroups
+      .map(row => toAccountRow(row, customersById))
+      .map(row => ({
+        ...row,
+        returns: row.negativeReturnQuantity,
+        returnMovements: row.negativeReturnMovements,
+      }))
+      .concat(
+        customerReturnGroups.map(row => ({
+          name: customersById.get(row.partyId ?? 0) ?? "—",
+          movements: 0,
+          quantity: 0,
+          value: 0,
+          negativeReturnQuantity: 0,
+          negativeReturnValue: 0,
+          negativeReturnMovements: 0,
+          returns: Number(row.quantity ?? 0),
+          returnMovements: Number(row.count ?? 0),
+        }))
+      )
+      .reduce((groups, row) => {
+        const current = groups.get(row.name) ?? {
+          name: row.name,
+          movements: 0,
+          quantity: 0,
+          value: 0,
+          negativeReturnQuantity: 0,
+          negativeReturnValue: 0,
+          negativeReturnMovements: 0,
+          returns: 0,
+          returnMovements: 0,
+        };
+        current.movements += row.movements;
+        current.quantity += row.quantity;
+        current.value += row.value;
+        current.negativeReturnQuantity += row.negativeReturnQuantity ?? 0;
+        current.negativeReturnValue += row.negativeReturnValue ?? 0;
+        current.negativeReturnMovements += row.negativeReturnMovements ?? 0;
+        current.returns += row.returns;
+        current.returnMovements += row.returnMovements ?? 0;
+        groups.set(row.name, current);
+        return groups;
+      }, new Map<string, { name: string; movements: number; quantity: number; value: number; negativeReturnQuantity: number; negativeReturnValue: number; negativeReturnMovements: number; returns: number; returnMovements: number }>())
+      .values()
+  );
+  const netCustomerAccountTotals = applyCustomerAccountTransferNetting(
+    customerAccountTotals,
+    customerTransfersOutGroups,
+    customerTransfersInGroups,
+    customersById
+  );
   const varianceRows = allItems.map(item => {
     const initialStock = Number(item.initialStock ?? 0);
     const additionsTotal = additionsByCode.get(item.code) ?? 0;
@@ -3091,52 +3173,7 @@ export async function getReportDataset(
       suppliers: supplierGroups
         .map(row => toAccountRow(row, suppliersById))
         .sort((left, right) => right.value - left.value),
-      customers: Array.from(
-        customerGroups
-          .map(row => toAccountRow(row, customersById))
-          .map(row => ({
-            ...row,
-            returns: row.negativeReturnQuantity,
-            returnMovements: row.negativeReturnMovements,
-          }))
-          .concat(
-            customerReturnGroups.map(row => ({
-              name: customersById.get(row.partyId ?? 0) ?? "—",
-              movements: 0,
-              quantity: 0,
-              value: 0,
-              negativeReturnQuantity: 0,
-              negativeReturnValue: 0,
-              negativeReturnMovements: 0,
-              returns: Number(row.quantity ?? 0),
-              returnMovements: Number(row.count ?? 0),
-            }))
-          )
-          .reduce((groups, row) => {
-            const current = groups.get(row.name) ?? {
-              name: row.name,
-              movements: 0,
-              quantity: 0,
-              value: 0,
-              negativeReturnQuantity: 0,
-              negativeReturnValue: 0,
-              negativeReturnMovements: 0,
-              returns: 0,
-              returnMovements: 0,
-            };
-            current.movements += row.movements;
-            current.quantity += row.quantity;
-            current.value += row.value;
-            current.negativeReturnQuantity += row.negativeReturnQuantity ?? 0;
-            current.negativeReturnValue += row.negativeReturnValue ?? 0;
-            current.negativeReturnMovements += row.negativeReturnMovements ?? 0;
-            current.returns += row.returns;
-            current.returnMovements += row.returnMovements ?? 0;
-            groups.set(row.name, current);
-            return groups;
-          }, new Map<string, { name: string; movements: number; quantity: number; value: number; negativeReturnQuantity: number; negativeReturnValue: number; negativeReturnMovements: number; returns: number; returnMovements: number }>())
-          .values()
-      ).sort((left, right) => right.value - left.value),
+      customers: netCustomerAccountTotals,
     },
     purposeOptions: {
       additions: additionPurposeGroups
