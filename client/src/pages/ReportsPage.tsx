@@ -332,7 +332,10 @@ export default function ReportsPage() {
     setAppliedReportFilters(current => ({ ...current, from: nextFrom, to: nextTo, incomingFrom: incomingFrom || "", outgoingTo: outgoingTo || "", movement: nextMovement }));
     setReportType("movements"); setSearchResultView(true);
   }, [location]);
-  const reportRowsRequired = reportType === "movements" || reportType === "returns" || reportType === "unlinked" || Boolean(summaryItemCode) || (reportType === "variance" && Boolean(selectedVarianceCode));
+  // The overview renders the movement table and its count from the same dataset.
+  // Request rows there as well; otherwise the summary can show the real count
+  // while the table receives an empty row set and incorrectly displays zero.
+  const reportRowsRequired = reportType === "overview" || reportType === "movements" || reportType === "returns" || reportType === "unlinked" || Boolean(summaryItemCode) || (reportType === "variance" && Boolean(selectedVarianceCode));
   const reportDatasetInput = useMemo(() => ({ includeRows: reportRowsRequired, fromDate: appliedReportFilters.from || undefined, toDate: appliedReportFilters.to || undefined, permitSearch: appliedReportFilters.permit || undefined, incomingFromSearch: appliedReportFilters.incomingFrom || undefined, outgoingToSearch: appliedReportFilters.outgoingTo || undefined, additionPurposeSearch: appliedReportFilters.additionPurpose || undefined, disbursementPurposeSearch: appliedReportFilters.disbursementPurpose || undefined, returnPurposeSearch: appliedReportFilters.returnPurpose || undefined }), [reportRowsRequired, appliedReportFilters.from, appliedReportFilters.to, appliedReportFilters.permit, appliedReportFilters.incomingFrom, appliedReportFilters.outgoingTo, appliedReportFilters.additionPurpose, appliedReportFilters.disbursementPurpose, appliedReportFilters.returnPurpose]);
   const items = trpc.items.list.useQuery(undefined, inventoryQueryOptions);
   const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
