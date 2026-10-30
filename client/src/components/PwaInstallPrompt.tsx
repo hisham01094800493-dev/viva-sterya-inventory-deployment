@@ -12,8 +12,11 @@ export default function PwaInstallPrompt() {
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
-  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem("smart-inventory-pwa-dismissed") === "1");
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem("smart-inventory-pwa-dismissed") === "1"; } catch { return false; }
+  });
   const [autoHidden, setAutoHidden] = useState(false);
+  const [importantUiOpen, setImportantUiOpen] = useState(false);
   const [iosHint, setIosHint] = useState(false);
   const [manualHelp, setManualHelp] = useState(false);
   const [queueSummary, setQueueSummary] = useState({ total: 0, pending: 0, failed: 0 });
@@ -40,6 +43,7 @@ export default function PwaInstallPrompt() {
     const handleManualHelp = () => {
       setDismissed(false);
       setAutoHidden(false);
+      setImportantUiOpen(false);
       setManualHelp(true);
     };
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -57,7 +61,7 @@ export default function PwaInstallPrompt() {
   }, []);
 
   const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  const canShowInstall = !isInstalled && !dismissed && Boolean(installEvent || isIos || manualHelp);
+  const canShowInstall = !isInstalled && !dismissed && !importantUiOpen && Boolean(installEvent || isIos || manualHelp);
   const installHelp = iosHint || !installEvent ? getPwaInstallInstructions(navigator.userAgent) : "افتح النظام بسرعة من أيقونة مستقلة.";
 
   useEffect(() => {
@@ -65,9 +69,31 @@ export default function PwaInstallPrompt() {
       setAutoHidden(false);
       return;
     }
-    const timeout = window.setTimeout(() => setAutoHidden(true), 8000);
+    const timeout = window.setTimeout(() => setAutoHidden(true), 6000);
     return () => window.clearTimeout(timeout);
   }, [canShowInstall]);
+
+  useEffect(() => {
+    const checkImportantUi = () => {
+      const active = document.activeElement;
+      setImportantUiOpen(Boolean(
+        document.querySelector('[role="dialog"], [data-slot="dialog-content"]') ||
+        (active instanceof HTMLInputElement) ||
+        (active instanceof HTMLTextAreaElement) ||
+        (active instanceof HTMLSelectElement)
+      ));
+    };
+    const observer = new MutationObserver(checkImportantUi);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener("focusin", checkImportantUi);
+    window.addEventListener("focusout", checkImportantUi);
+    checkImportantUi();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("focusin", checkImportantUi);
+      window.removeEventListener("focusout", checkImportantUi);
+    };
+  }, []);
 
   async function install() {
     if (!installEvent) {
@@ -82,7 +108,7 @@ export default function PwaInstallPrompt() {
   }
 
   function dismiss() {
-    sessionStorage.setItem("smart-inventory-pwa-dismissed", "1");
+    try { localStorage.setItem("smart-inventory-pwa-dismissed", "1"); } catch { /* storage is optional */ }
     setDismissed(true);
     setManualHelp(false);
   }

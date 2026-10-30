@@ -10,6 +10,7 @@ interface UpdateDetail {
 
 const APP_VERSION_UPDATE_EVENT = "smart-inventory:app-version-update";
 const INSTALLED_VERSION_KEY = "smart-inventory-installed-version";
+const DISMISSED_VERSION_KEY = "smart-inventory-dismissed-update-version";
 
 type VersionFile = { version?: string };
 
@@ -21,11 +22,20 @@ function setInstalledVersion(version: string) {
   try { window.localStorage.setItem(INSTALLED_VERSION_KEY, version); } catch { /* storage is optional */ }
 }
 
+function getDismissedVersion() {
+  try { return window.localStorage.getItem(DISMISSED_VERSION_KEY); } catch { return null; }
+}
+
+function setDismissedVersion(version: string) {
+  try { window.localStorage.setItem(DISMISSED_VERSION_KEY, version); } catch { /* storage is optional */ }
+}
+
 export default function PwaUpdatePrompt() {
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [autoHidden, setAutoHidden] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -40,9 +50,10 @@ export default function PwaUpdatePrompt() {
             setInstalledVersion(nextVersion);
             return;
           }
-          if (installedVersion !== nextVersion) {
+          if (installedVersion !== nextVersion && getDismissedVersion() !== nextVersion) {
             setLatestVersion(nextVersion);
             setDismissed(false);
+            setAutoHidden(false);
           }
         })
         .catch(() => undefined);
@@ -52,8 +63,11 @@ export default function PwaUpdatePrompt() {
     const onUpdate = (event: Event) => {
       const detail = (event as CustomEvent<UpdateDetail>).detail;
       if (detail?.registration) setRegistration(detail.registration);
-      if (detail?.version) setLatestVersion(detail.version);
-      if (detail?.registration || detail?.version) setDismissed(false);
+      if (detail?.version && getDismissedVersion() !== detail.version) {
+        setLatestVersion(detail.version);
+        setDismissed(false);
+        setAutoHidden(false);
+      }
     };
     window.addEventListener(PWA_UPDATE_EVENT, onUpdate);
     window.addEventListener(APP_VERSION_UPDATE_EVENT, onUpdate);
@@ -64,6 +78,12 @@ export default function PwaUpdatePrompt() {
       window.removeEventListener(APP_VERSION_UPDATE_EVENT, onUpdate);
     };
   }, []);
+
+  useEffect(() => {
+    if (!latestVersion || dismissed) return;
+    const timeout = window.setTimeout(() => setAutoHidden(true), 8000);
+    return () => window.clearTimeout(timeout);
+  }, [latestVersion, dismissed]);
 
   const reloadWithUpdate = async (clearCache: boolean) => {
     if (updating) return;
@@ -87,7 +107,7 @@ export default function PwaUpdatePrompt() {
     window.location.reload();
   };
 
-  if ((!registration && !latestVersion) || dismissed) return null;
+  if (!latestVersion || dismissed || autoHidden) return null;
 
   return (
     <div className="fixed inset-x-3 top-3 z-[100] mx-auto max-w-3xl rounded-2xl border border-cyan-200 bg-white/95 p-3 shadow-2xl backdrop-blur dark:border-cyan-900 dark:bg-slate-950/95" dir="rtl" role="status" aria-live="polite">
@@ -102,7 +122,7 @@ export default function PwaUpdatePrompt() {
         <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
           <Button type="button" size="sm" onClick={() => void reloadWithUpdate(false)} disabled={updating} loading={updating}>تحديث الآن</Button>
           <Button type="button" size="sm" variant="outline" onClick={() => void reloadWithUpdate(true)} disabled={updating}>تحديث الكاش</Button>
-          <Button type="button" size="icon" variant="ghost" onClick={() => setDismissed(true)} disabled={updating} aria-label="تأجيل تحديث التطبيق"><X className="h-4 w-4" aria-hidden="true" /></Button>
+          <Button type="button" size="icon" variant="ghost" onClick={() => { setDismissedVersion(latestVersion); setDismissed(true); }} disabled={updating} aria-label="تأجيل تحديث التطبيق"><X className="h-4 w-4" aria-hidden="true" /></Button>
         </div>
       </div>
     </div>

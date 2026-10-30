@@ -3,7 +3,7 @@ import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
-import Home from "./pages/Home";
+const Home = lazy(() => import("./pages/Home"));
 const AdditionsPage = lazy(() => import("./pages/InventoryPages").then(module => ({ default: module.AdditionsPage })));
 const AlertsPage = lazy(() => import("./pages/InventoryPages").then(module => ({ default: module.AlertsPage })));
 const ChatPage = lazy(() => import("./pages/ChatPage"));
@@ -22,17 +22,17 @@ const CustomersPage = lazy(() => import("./pages/WarehousesSuppliersPages").then
 const AccountStatementPage = lazy(() => import("./pages/WarehousesSuppliersPages").then(module => ({ default: module.AccountStatementPage })));
 const MigrationImportPage = lazy(() => import("./pages/MigrationImportPage"));
 const DraftsPage = lazy(() => import("./pages/DraftsPage"));
-import NotFound from "./pages/NotFound";
+const NotFound = lazy(() => import("./pages/NotFound"));
 import { Route, Switch, useLocation } from "wouter";
 import PwaInstallPrompt from "./components/PwaInstallPrompt";
 import PwaUpdatePrompt from "./components/PwaUpdatePrompt";
-import OfflineSyncManager from "./components/OfflineSyncManager";
-import NetworkStatusIndicator from "./components/NetworkStatusIndicator";
-import IframePdfCanvasOverlays from "./components/IframePdfCanvasOverlays";
-import MobilePdfToolbarCollapser from "./components/MobilePdfToolbarCollapser";
-import TableColumnPinning from "./components/TableColumnPinning";
-import AccountStatementTableZoom from "./components/AccountStatementTableZoom";
-import WarehouseMovementAssistant from "./components/WarehouseMovementAssistant";
+const OfflineSyncManager = lazy(() => import("./components/OfflineSyncManager"));
+const NetworkStatusIndicator = lazy(() => import("./components/NetworkStatusIndicator"));
+const IframePdfCanvasOverlays = lazy(() => import("./components/IframePdfCanvasOverlays"));
+const MobilePdfToolbarCollapser = lazy(() => import("./components/MobilePdfToolbarCollapser"));
+const TableColumnPinning = lazy(() => import("./components/TableColumnPinning"));
+const AccountStatementTableZoom = lazy(() => import("./components/AccountStatementTableZoom"));
+const WarehouseMovementAssistant = lazy(() => import("./components/WarehouseMovementAssistant"));
 
 function NavigationFallback() {
   return (
@@ -96,13 +96,15 @@ export default function App() {
           <Toaster position="top-left" richColors />
           <PwaInstallPrompt />
           <PwaUpdatePrompt />
-          <OfflineSyncManager />
-          <NetworkStatusIndicator />
-          <IframePdfCanvasOverlays />
-          <MobilePdfToolbarCollapser />
-          <TableColumnPinning />
-          <AccountStatementTableZoom />
-          <WarehouseMovementAssistant />
+          <Suspense fallback={null}>
+            <OfflineSyncManager />
+            <NetworkStatusIndicator />
+            <IframePdfCanvasOverlays />
+            <MobilePdfToolbarCollapser />
+            <TableColumnPinning />
+            <AccountStatementTableZoom />
+            <WarehouseMovementAssistant />
+          </Suspense>
           <Router />
         </TooltipProvider>
       </ThemeProvider>
