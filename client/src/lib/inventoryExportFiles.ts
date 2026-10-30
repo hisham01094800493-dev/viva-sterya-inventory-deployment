@@ -78,7 +78,8 @@ export function getReportHeaderLines(summary?: string | string[]) { return !summ
 export function getReportHeaderHeight(summary?: string | string[]) { return getReportHeaderLines(summary).length ? 88 + Math.max(0, getReportHeaderLines(summary).length - 1) * 14 : 72; }
 export function drawReportHeader(doc: jsPDF, title: string, _logo?: string | null, date = new Date(), summary?: string | string[], dateFirst = false) { (doc as jsPDF & { setR2L?: (value: boolean) => void }).setR2L?.(false); if (arabicPdfDocs.has(doc)) doc.setFont(PDF_FONT_NAME, "bold"); (doc as jsPDF & { setTextColor?: (red: number, green: number, blue: number) => void }).setTextColor?.(16, 42, 67); const lines = getReportHeaderLines(summary); const pageWidth = doc.internal?.pageSize?.getWidth?.() ?? 210; const headerRight = pageWidth - 14; doc.setFontSize(16); doc.text(shapeArabic(doc, title), headerRight, 32, { align: "right", baseline: "middle" }); doc.setFontSize(9); if (dateFirst) { doc.text(getReportHeaderDate(date), headerRight, 52, { align: "right", baseline: "middle" }); if (lines.length) { doc.setFontSize(10); lines.forEach((line, index) => doc.text(shapeArabic(doc, line), headerRight, 67 + index * 15, { align: "right", baseline: "middle" })); } } else { if (lines.length) { doc.setFontSize(10); lines.forEach((line, index) => doc.text(shapeArabic(doc, line), headerRight, 52 + index * 15, { align: "right", baseline: "middle" })); } doc.setFontSize(9); doc.text(getReportHeaderDate(date), headerRight, lines.length ? 52 + lines.length * 15 : 52, { align: "right", baseline: "middle" }); } const ruleY = lines.length ? (dateFirst ? 72 + lines.length * 15 : 59 + lines.length * 15) : 63; doc.setDrawColor(177, 203, 211); doc.setLineWidth(0.8); doc.line(36, ruleY, pageWidth - 36, ruleY); doc.setDrawColor(13, 79, 98); doc.setLineWidth(2.2); doc.line(pageWidth - 112, ruleY, pageWidth - 36, ruleY); }
 function logoAndDate(doc: jsPDF, title: string, logo?: string | null, date = new Date(), summary?: string | string[], dateFirst = false) { drawReportHeader(doc, title, logo, date, summary, dateFirst); }
-function drawAccountStatementHeader(doc: jsPDF, logo: string | null, date: Date, summary: string | string[] | undefined, recordCount: number) {
+export type AccountStatementPdfCard = { label: string; value: string | number; tone?: "teal" | "red" | "amber" | "green" | "blue" | "slate" };
+function drawAccountStatementHeader(doc: jsPDF, logo: string | null, date: Date, summary: string | string[] | undefined, recordCount: number, summaryCards?: AccountStatementPdfCard[]) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const left = 36;
   const right = pageWidth - 36;
@@ -101,6 +102,16 @@ function drawAccountStatementHeader(doc: jsPDF, logo: string | null, date: Date,
       return { label, value, color: financial ? [255, 248, 235] as [number, number, number] : [246, 250, 251] as [number, number, number], valueColor: financial ? [169, 104, 33] as [number, number, number] : [16, 42, 67] as [number, number, number] };
     }),
   ];
+  const toneColors: Record<NonNullable<AccountStatementPdfCard["tone"]>, { color: [number, number, number]; valueColor: [number, number, number] }> = {
+    teal: { color: [232, 247, 246], valueColor: [13, 79, 98] },
+    red: { color: [251, 236, 235], valueColor: [189, 81, 71] },
+    amber: { color: [255, 244, 223], valueColor: [169, 104, 33] },
+    green: { color: [232, 247, 239], valueColor: [13, 128, 108] },
+    blue: { color: [232, 242, 250], valueColor: [13, 113, 128] },
+    slate: { color: [246, 250, 251], valueColor: [16, 42, 67] },
+  };
+  const explicitMetrics = summaryCards?.filter(card => String(card.label).trim()).map(card => ({ label: String(card.label), value: String(card.value), ...(toneColors[card.tone ?? "slate"] ?? toneColors.slate) }));
+  const metrics = explicitMetrics?.length ? explicitMetrics : metricEntries;
   doc.setFillColor(13, 79, 98);
   doc.rect(0, 0, pageWidth, 8, "F");
   if (logo) {
@@ -138,11 +149,11 @@ function drawAccountStatementHeader(doc: jsPDF, logo: string | null, date: Date,
   doc.text(shapeArabic(doc, entityName || "—"), right - 14, 105, { align: "right", maxWidth: right - left - 145 });
   const metricY = 128;
   const gap = 10;
-  const columnsPerRow = metricEntries.length > 4 ? 4 : 3;
+  const columnsPerRow = metrics.length > 4 ? 4 : metrics.length > 2 ? 3 : 2;
   const metricWidth = (right - left - gap * (columnsPerRow - 1)) / columnsPerRow;
   const metricHeight = 30;
   const rowGap = 8;
-  metricEntries.forEach((metric, index) => {
+  metrics.forEach((metric, index) => {
     const column = index % columnsPerRow;
     const row = Math.floor(index / columnsPerRow);
     const x = left + column * (metricWidth + gap);
@@ -157,7 +168,7 @@ function drawAccountStatementHeader(doc: jsPDF, logo: string | null, date: Date,
     doc.setFontSize(11);
     doc.text(shapeArabic(doc, metric.value), x + metricWidth - 10, y + 24, { align: "right" });
   });
-  return metricY + Math.ceil(metricEntries.length / columnsPerRow) * metricHeight + (Math.ceil(metricEntries.length / columnsPerRow) - 1) * rowGap;
+  return metricY + Math.ceil(metrics.length / columnsPerRow) * metricHeight + (Math.ceil(metrics.length / columnsPerRow) - 1) * rowGap;
 }
 
 export function selectExportColumns(keys: readonly ExportColumnKey[], requested?: ExportColumnKey[]) { return requested?.length ? requested.filter(key => keys.some(allowed => allowed === key)) : [...keys]; }
@@ -344,7 +355,7 @@ export function getMovementPdfCellValue(row: MovementExportItem | null | undefin
   return String(row[key as keyof MovementExportItem] ?? "—");
 }
 
-export async function buildMovementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; includeDetail?: boolean; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; headerDateFirst?: boolean; accountLayout?: boolean; recordCount?: number; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; monochrome?: boolean; includeHeaderLogo?: boolean } = {}) {
+export async function buildMovementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; includeDetail?: boolean; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; summaryCards?: AccountStatementPdfCard[]; headerDateFirst?: boolean; accountLayout?: boolean; recordCount?: number; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; monochrome?: boolean; includeHeaderLogo?: boolean } = {}) {
   const { jsPDF, autoTable } = await loadPdfTools();
   const columnSource = options.includeDetail === false ? movementPdfExportColumnsWithoutDetail : movementPdfExportColumns;
   const keys = selected(columnSource, options.columns);
@@ -358,7 +369,7 @@ export async function buildMovementPdf(rows: MovementExportItem[], options: { co
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
   let detailsStartY: number;
   if (options.accountLayout) {
-    detailsStartY = drawAccountStatementHeader(doc, options.includeHeaderLogo === false ? null : resolvedLogo, options.date ?? new Date(), options.summary, options.recordCount ?? safeRows.length) + 14;
+    detailsStartY = drawAccountStatementHeader(doc, options.includeHeaderLogo === false ? null : resolvedLogo, options.date ?? new Date(), options.summary, options.recordCount ?? safeRows.length, options.summaryCards) + 14;
   } else {
     logoAndDate(doc, options.title ?? "تقرير حركات المخزون - Smart Inventory", resolvedLogo, options.date, options.summary, options.headerDateFirst);
     detailsStartY = getReportHeaderHeight(options.summary);
@@ -485,11 +496,10 @@ export async function downloadAccountStatementExcel(rows: MovementExportItem[], 
   downloadBlobFile(new Blob([output], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), options.fileName ?? "smart-inventory-account-statement.xlsx");
 }
 
-export async function buildAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; includeHeaderLogo?: boolean; fileName?: string } = {}) {
-  return buildMovementPdf(rows, { ...options, includeDetail: false, columns: options.columns?.filter(column => column !== "detail"), title: "كشف الحساب", summary: options.summary, monochrome: false, accountLayout: true, recordCount: rows.length, headerDateFirst: true });
+export async function buildAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; summaryCards?: AccountStatementPdfCard[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; includeHeaderLogo?: boolean; fileName?: string } = {}) {
+  return buildMovementPdf(rows, { ...options, includeDetail: false, columns: options.columns?.filter(column => column !== "detail"), title: "كشف الحساب", summary: options.summary, summaryCards: options.summaryCards, monochrome: false, accountLayout: true, recordCount: rows.length, headerDateFirst: true });
 }
-
-export async function downloadAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; includeHeaderLogo?: boolean; fileName?: string } = {}) {
+export async function downloadAccountStatementPdf(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; itemSummary?: AccountItemSummary[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; summaryCards?: AccountStatementPdfCard[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; includeHeaderLogo?: boolean; fileName?: string } = {}) {
   const doc = await buildAccountStatementPdf(rows, options);
   savePdfFile(doc, options.fileName ?? "smart-inventory-account-statement.pdf");
 }

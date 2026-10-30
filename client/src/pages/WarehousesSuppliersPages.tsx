@@ -10,7 +10,7 @@ import { trpc } from "@/lib/trpc";
 import { resolveCompanyLogoUrl } from "@/lib/brandAssets";
 import { createReportMailtoUrl, sharePdfFile } from "@/lib/reportSharing";
 import { summarizeAccountStatementItems } from "@/lib/accountStatementGrouping";
-import { buildAccountStatementPdf, buildMainWarehousePdf, downloadAccountStatementExcel, downloadAccountStatementPdf, formatPdfCurrency, type ExportColumnKey } from "@/lib/inventoryExportFiles";
+import { buildAccountStatementPdf, buildMainWarehousePdf, downloadAccountStatementExcel, downloadAccountStatementPdf, formatPdfCurrency, type AccountStatementPdfCard, type ExportColumnKey } from "@/lib/inventoryExportFiles";
 import { ArrowRight, ArrowUpDown, Boxes, BrickWall, Building2, Cable, Check, Copy, Download, Droplets, Edit3, Eye, FileText, GripVertical, Lightbulb, Loader2, Mail, MapPin, Package, Phone, Plus, Printer, Save, Search, Share2, Snowflake, Tag, Truck, UserRound, Warehouse, Wind, Wrench } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useRoute } from "wouter";
@@ -413,6 +413,20 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     ...(kind === "customer" && selectedPdfSummaryLines.includes("net") ? [`الرصيد الصافي: ${accountTotals.net.toLocaleString("en-US")}`] : []),
     ...(selectedPdfSummaryLines.includes("financialValue") && canViewAccountFinancialDetails ? [`إجمالي القيمة المالية: ${formatPdfCurrency(total)}`] : []),
   ];
+  const accountSummaryCards: AccountStatementPdfCard[] = kind === "customer"
+    ? [
+      { label: "الرصيد الصافي", value: accountTotals.net.toLocaleString("en-US"), tone: "teal" },
+      { label: "إجمالي الصرف الكلي", value: accountTotals.disbursed.toLocaleString("en-US"), tone: "red" },
+      { label: "المرتجع والسالب", value: (accountTotals.negative + accountTotals.returns).toLocaleString("en-US"), tone: "amber" },
+      { label: "إجمالي الكميات", value: totalQuantity.toLocaleString("en-US"), tone: "green" },
+      { label: "عدد الحركات", value: rows.length.toLocaleString("en-US"), tone: "slate" },
+      { label: "صافي التحويلات", value: accountTotals.transferNet.toLocaleString("en-US"), tone: "blue" },
+    ]
+    : [
+      { label: "عدد الحركات", value: rows.length.toLocaleString("en-US"), tone: "slate" },
+      { label: "إجمالي الكميات", value: totalQuantity.toLocaleString("en-US"), tone: "green" },
+      ...(showAccountFinancialDetails ? [{ label: "إجمالي القيمة", value: formatPdfCurrency(total), tone: "red" as const }] : []),
+    ];
   useEffect(() => {
     const savedColumns = preferences.data?.reportColumnOrder?.[accountPreferenceKey] ?? [];
     const normalizedColumns = savedColumns.filter(column => accountColumns.includes(column as ExportColumnKey)) as ExportColumnKey[];
@@ -497,6 +511,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
         date: new Date(),
         title: `كشف حساب ${kind === "supplier" ? "المورد" : "العميل/الجهة"} - ${entity?.name ?? ""}`,
         summary: reportSummary,
+        summaryCards: accountSummaryCards,
       });
       if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
       setPdfPreviewUrl(URL.createObjectURL(doc.output("blob")));
@@ -526,6 +541,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
           watermarkRepeat,
           date: new Date(),
           summary: reportSummary,
+          summaryCards: accountSummaryCards,
           title: `كشف حساب ${kind === "supplier" ? "المورد" : "العميل/الجهة"} - ${entity?.name ?? ""}`,
           fileName: `${fileBase}.pdf`,
         });
