@@ -17,7 +17,7 @@ describe("استيراد ملفات الأصناف", () => {
     expect(isSupportedItemsFile("inventory.xlsb")).toBe(true);
     expect(result.sheetName).toBe("الأصناف");
     expect(result.rows).toEqual([
-      { code: "ST-001", name: "كرسي", initialStock: 12, reorderLevel: 3, category: "أثاث", unit: "قطعة" },
+      { code: "ST-001", name: "كرسي", initialStock: 12, reorderLevel: 3, category: "أثاث", unit: "قطعة", unitPrice: 0 },
     ]);
     expect(result.rejected).toBe(1);
     expect(result.issues[0]).toContain("كود الصنف مفقود");

@@ -28,7 +28,9 @@ describe("summarizeAccountStatementItems", () => {
     expect(summary).toEqual([{
       itemCode: "IRON-18",
       itemName: "حديد تسليح 18 مم",
+      unit: null,
       netQuantity: 6,
+      currentStock: undefined,
     }]);
   });
 
@@ -40,8 +42,8 @@ describe("summarizeAccountStatementItems", () => {
     ]);
 
     expect(summary).toEqual([
-      { itemCode: "IRON-18", itemName: "حديد تسليح 18 مم", netQuantity: 2 },
-      { itemCode: "IRON-16", itemName: "حديد تسليح 16 مم", netQuantity: -3 },
+      { itemCode: "IRON-18", itemName: "حديد تسليح 18 مم", unit: null, netQuantity: 2, currentStock: undefined },
+      { itemCode: "IRON-16", itemName: "حديد تسليح 16 مم", unit: null, netQuantity: -3, currentStock: undefined },
     ]);
   });
 });
@@ -52,5 +54,5 @@ it("يحافظ على الرصيد الحالي للصنف داخل الملخص
     { itemCode: "A-1", name: "صنف أ", quantity: 4, currentStock: 12, type: "إضافة", date: "2026-01-01", eznNum: "1", detail: "", unitPrice: 0, totalValue: 0 },
     { itemCode: "A-1", name: "صنف أ", quantity: -1, currentStock: 12, type: "صرف", date: "2026-01-02", eznNum: "2", detail: "", unitPrice: 0, totalValue: 0 },
   ]);
-  expect(summary).toEqual([{ itemCode: "A-1", itemName: "صنف أ", netQuantity: 3, currentStock: 12 }]);
+  expect(summary).toEqual([{ itemCode: "A-1", itemName: "صنف أ", unit: null, netQuantity: 3, currentStock: 12 }]);
 });

@@ -3,11 +3,11 @@ import { dashboardQueryOptions, inventoryQueryOptions, limitRows } from "../clie
 
 describe("إعدادات أداء جلب البيانات", () => {
   it("يمنع إعادة الجلب التلقائي المتكرر ويحتفظ بالبيانات مؤقتاً", () => {
-    expect(inventoryQueryOptions.staleTime).toBe(30_000);
+    expect(inventoryQueryOptions.staleTime).toBe(15_000);
     expect(inventoryQueryOptions.gcTime).toBe(5 * 60_000);
-    expect(inventoryQueryOptions.refetchOnWindowFocus).toBe(false);
-    expect(inventoryQueryOptions.refetchOnReconnect).toBe(false);
-    expect(dashboardQueryOptions.staleTime).toBe(45_000);
+    expect(inventoryQueryOptions.refetchOnWindowFocus).toBe(true);
+    expect(inventoryQueryOptions.refetchOnReconnect).toBe(true);
+    expect(dashboardQueryOptions.staleTime).toBe(10_000);
   });
 
   it("يقص البيانات المعروضة دون تعديل المصدر", () => {
