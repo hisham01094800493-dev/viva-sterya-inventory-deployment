@@ -3231,3 +3231,79 @@ body {
   .directory-contact-actions > a,
   .directory-contact-actions > button { flex: 1 1 auto; }
 }
+
+/* Mobile inventory operation controls: keep the primary action reachable while scrolling. */
+@media (max-width: 767px) {
+  .movement-page-new-button {
+    position: fixed;
+    right: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom));
+    z-index: 45;
+    min-height: 3rem;
+    border-radius: 999px;
+    padding-inline: 1.1rem;
+    box-shadow: 0 12px 28px rgba(13, 79, 98, 0.28);
+  }
+
+  .movement-dialog-content {
+    width: calc(100vw - 1rem);
+    max-width: calc(100vw - 1rem);
+    max-height: calc(100svh - 0.5rem);
+    padding: 1rem;
+    border-radius: 1.25rem;
+  }
+
+  .movement-dialog-content form {
+    padding-bottom: 0.5rem;
+  }
+
+  .movement-data-table {
+    min-width: 900px;
+  }
+
+  .movement-table-pagination {
+    position: sticky;
+    right: 0;
+    left: 0;
+  }
+}
+
+@media (orientation: landscape) and (max-width: 900px) {
+  .movement-dialog-content {
+    max-height: calc(100svh - 0.25rem);
+  }
+
+  .movement-dialog-content form {
+    max-height: calc(100svh - 8rem);
+    overflow-y: auto;
+  }
+}
+
+.mobile-form-step {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  margin-top: .25rem;
+  border-bottom: 1px solid #dcebee;
+  padding: .35rem 0 .55rem;
+  color: #0d4f62;
+}
+.mobile-form-step > span {
+  display: inline-flex;
+  height: 1.55rem;
+  width: 1.55rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #0d4f62;
+  color: white;
+  font-size: .72rem;
+  font-weight: 900;
+}
+.mobile-form-step strong { font-size: .78rem; font-weight: 900; }
+.mobile-form-step small { color: #718795; font-size: .68rem; }
+@media (max-width: 480px) {
+  .mobile-form-step { flex-wrap: wrap; }
+  .mobile-form-step small { flex-basis: 100%; margin-right: 2.15rem; margin-top: -.3rem; }
+  .movement-dialog-content .grid { gap: .65rem; }
+}
