@@ -10,7 +10,7 @@ import { trpc } from "@/lib/trpc";
 import { resolveCompanyLogoUrl } from "@/lib/brandAssets";
 import { createReportMailtoUrl, sharePdfFile } from "@/lib/reportSharing";
 import { summarizeAccountStatementItems } from "@/lib/accountStatementGrouping";
-import { buildAccountStatementPdf, buildMainWarehousePdf, downloadAccountStatementExcel, downloadAccountStatementPdf, type ExportColumnKey } from "@/lib/inventoryExportFiles";
+import { buildAccountStatementPdf, buildMainWarehousePdf, downloadAccountStatementExcel, downloadAccountStatementPdf, formatPdfCurrency, type ExportColumnKey } from "@/lib/inventoryExportFiles";
 import { ArrowRight, ArrowUpDown, Boxes, BrickWall, Building2, Cable, Check, Copy, Download, Droplets, Edit3, Eye, FileText, GripVertical, Lightbulb, Loader2, Mail, MapPin, Package, Phone, Plus, Printer, Save, Search, Share2, Snowflake, Tag, Truck, UserRound, Warehouse, Wind, Wrench } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useRoute } from "wouter";
@@ -411,7 +411,7 @@ export function AccountStatementPage({ kind }: { kind: StatementKind }) {
     ...(kind === "customer" && selectedPdfSummaryLines.includes("negative") ? [`الكميات السالبة: ${accountTotals.negative.toLocaleString("en-US")}`] : []),
     ...(kind === "customer" && selectedPdfSummaryLines.includes("returns") ? [`المرتجعات: ${accountTotals.returns.toLocaleString("en-US")}`] : []),
     ...(kind === "customer" && selectedPdfSummaryLines.includes("net") ? [`الرصيد الصافي: ${accountTotals.net.toLocaleString("en-US")}`] : []),
-    ...(selectedPdfSummaryLines.includes("financialValue") && canViewAccountFinancialDetails ? [`إجمالي القيمة المالية: ${total.toLocaleString("en-US", { minimumFractionDigits: 2 })} ج.م`] : []),
+    ...(selectedPdfSummaryLines.includes("financialValue") && canViewAccountFinancialDetails ? [`إجمالي القيمة المالية: ${formatPdfCurrency(total)}`] : []),
   ];
   useEffect(() => {
     const savedColumns = preferences.data?.reportColumnOrder?.[accountPreferenceKey] ?? [];

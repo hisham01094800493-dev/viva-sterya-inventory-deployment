@@ -71,6 +71,8 @@ export function shapeArabic(doc: jsPDF, value: string) {
 export function getArabicPdfFont(doc: jsPDF) { return arabicPdfDocs.has(doc) ? PDF_FONT_NAME : "helvetica"; }
 export function getPdfImageFormat(dataUrl?: string | null): "PNG" | "JPEG" { return dataUrl?.toLowerCase().startsWith("data:image/png") ? "PNG" : "JPEG"; }
 export function getReportHeaderDate(date: unknown = new Date()) { return formatInventoryDate(date); }
+/** Keep the currency token Latin inside PDF mixed-direction text; `ج.م` can reorder or render incorrectly in jsPDF RTL shaping. */
+export function formatPdfCurrency(value: unknown) { const amount = Number(value ?? 0); return `${(Number.isFinite(amount) ? amount : 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP`; }
 export function formatPdfMovementDate(value: unknown) { const key = inventoryDateKey(value); const match = key.match(/^(\d{4})-(\d{2})-(\d{2})$/); const raw = match ? `${match[3]} / ${match[2]} / ${match[1]}` : (() => { const display = formatInventoryDate(value); const parts = display.split(/[\/.,،؛\-\s]+/).filter(Boolean); return parts.length >= 3 ? `${parts[0].padStart(2, "0")} / ${parts[1].padStart(2, "0")} / ${parts[2]}` : display; })(); return raw; }
 export function getReportHeaderLines(summary?: string | string[]) { return !summary ? [] : Array.isArray(summary) ? summary.filter(Boolean) : summary.split("\n").filter(Boolean); }
 export function getReportHeaderHeight(summary?: string | string[]) { return getReportHeaderLines(summary).length ? 88 + Math.max(0, getReportHeaderLines(summary).length - 1) * 14 : 72; }
