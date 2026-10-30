@@ -22,6 +22,8 @@ import {
   Delete,
   ChevronLeft,
   ChevronDown,
+  Eye,
+  ArrowUpRight,
   Plus,
   RefreshCcw,
   RotateCcw,
@@ -254,6 +256,20 @@ function LowStockItems({ items }: { items: WarehouseLowItem[] }) {
   return <><p className="mb-2 text-[10px] font-black text-[#9d3028]">أصناف تحت الحد الأدنى</p><div className="space-y-1.5">{items.slice(0, 5).map(item => <div key={item.id} className="flex items-center justify-between gap-2 border-b border-[#fff0ed] pb-1.5 last:border-0 last:pb-0"><span className="min-w-0"><span className="block truncate text-[11px] font-bold text-[#102a43]">{item.name}</span><span className="font-mono text-[9px] text-slate-400">{item.code}</span></span><span className="shrink-0 text-left"><strong className="block text-[11px] font-black text-[#bd5147]">{formatNumber(item.currentStock)} {item.unit || ""}</strong><span className="block text-[9px] text-slate-400">حد الطلب: {formatNumber(item.reorderLevel)}</span></span></div>)}</div>{items.length > 5 ? <p className="mt-2 text-[10px] font-bold text-slate-400">و{items.length - 5} أصناف أخرى تحتاج متابعة</p> : null}</>;
 }
 
+function SmartWatchCard({ count, rows, onOpen }: { count: number; rows: Array<{ code: string; name: string; daysOfCover: number | null; unit?: string | null }>; onOpen: () => void }) {
+  return <Card onClick={onOpen} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(); } }} tabIndex={0} role="button" className="group overflow-hidden rounded-[1.5rem] border border-[#b9dfe0] bg-gradient-to-l from-[#e7f7f5] via-white to-[#f7fbfc] shadow-[0_12px_34px_rgba(13,113,128,0.08)] transition-all hover:-translate-y-0.5 hover:border-[#75bec1] hover:shadow-[0_18px_42px_rgba(13,113,128,0.14)] focus:outline-none focus:ring-2 focus:ring-[#0d7180] focus:ring-offset-2 dark:border-[#315f68] dark:bg-gradient-to-l dark:from-[#183c45] dark:via-[#172b35] dark:to-[#14262f] dark:shadow-[0_14px_36px_rgba(0,0,0,0.22)]">
+    <CardContent className="relative p-4 sm:p-5">
+      <div className="pointer-events-none absolute -left-8 -top-12 h-32 w-32 rounded-full border-[18px] border-[#0d7180]/10 dark:border-[#7dd3cf]/10" />
+      <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#0d7180] text-white shadow-lg shadow-[#0d7180]/20 dark:bg-[#2c9c9c]"><Eye className="h-5 w-5" /></span><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#0d7180] dark:text-[#8ed3d1]">SMART WATCH</p><span className="rounded-full bg-[#d8f1ef] px-2 py-0.5 text-[10px] font-black text-[#0d7180] dark:bg-[#214e57] dark:text-[#a8ece5]">مراقبة</span></div><h3 className="mt-1 text-lg font-black text-[#102a43] dark:text-[#f1fbfc]">مراقبة الأصناف بذكاء</h3><p className="mt-1 text-xs leading-6 text-slate-500 dark:text-slate-300">توقع مبكر للأصناف التي تحتاج متابعة قبل أن تتحول إلى نقص.</p></div></div>
+        <div className="flex items-center gap-4 rounded-2xl border border-[#cce6e5] bg-white/75 px-4 py-3 dark:border-[#315f68] dark:bg-[#203d47]/75"><div><p className="text-[11px] font-bold text-slate-500 dark:text-slate-300">أصناف تحت المراقبة</p><p className="mt-0.5 text-2xl font-black text-[#0d7180] dark:text-[#8ed3d1]">{count.toLocaleString("ar-EG")}</p></div><div className="h-10 w-px bg-[#dcebee] dark:bg-[#315f68]" /><div className="text-left"><p className="text-[11px] font-bold text-slate-500 dark:text-slate-300">التركيز</p><p className="mt-0.5 text-sm font-black text-[#102a43] dark:text-[#f1fbfc]">قبل النقص</p></div></div>
+      </div>
+      <div className="relative mt-4 grid gap-2 sm:grid-cols-2">{rows.length ? rows.slice(0, 2).map(row => <div key={row.code} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-[#dcebea] bg-white/80 px-3 py-2.5 dark:border-[#315f68] dark:bg-[#203d47]/70"><div className="min-w-0"><p className="truncate text-sm font-black text-[#102a43] dark:text-[#f1fbfc]">{row.name}</p><p className="mt-0.5 truncate font-mono text-[10px] text-slate-400">{row.code} · {row.unit || "وحدة"}</p></div><div className="shrink-0 text-left"><p className="text-sm font-black text-[#0d7180] dark:text-[#8ed3d1]">{row.daysOfCover == null ? "—" : `${row.daysOfCover.toFixed(1)} يوم`}</p><p className="text-[10px] text-slate-400">تغطية متوقعة</p></div></div>) : <p className="rounded-xl border border-dashed border-[#b9d4d9] px-3 py-3 text-xs font-bold text-slate-500 dark:border-[#315f68] dark:text-slate-300">لا توجد أصناف للمراقبة حالياً — الوضع مستقر.</p>}</div>
+      <div className="relative mt-4 flex items-center justify-between gap-3 border-t border-[#dcebea] pt-3 dark:border-[#315f68]"><span className="text-[11px] font-bold text-slate-500 dark:text-slate-300">التصنيفات الأخرى: حرج · تحذير · راكد داخل التنبيهات</span><Button type="button" variant="ghost" onClick={event => { event.stopPropagation(); onOpen(); }} className="h-8 shrink-0 rounded-lg px-2 text-xs font-black text-[#0d7180] hover:bg-[#d8f1ef] hover:text-[#0d4f62] dark:text-[#a8ece5] dark:hover:bg-[#214e57] dark:hover:text-white">كل التنبيهات<ArrowUpRight className="mr-1 h-3.5 w-3.5" /></Button></div>
+    </CardContent>
+  </Card>;
+}
+
 function WarehouseBranchCard({ warehouse, lowItems, onOpen }: { warehouse: { id: number; slot: number; name: string; itemCount: number; balance: number; incoming?: number }; lowItems: WarehouseLowItem[]; onOpen: () => void }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const damaged = warehouse.name.includes("هالك");
@@ -303,6 +319,8 @@ export default function Home() {
   const analytics = summary.data?.analytics;
   const timelineAnalyticsInput = useMemo(() => ({ warehouseId: timelineWarehouseId === "all" ? null : timelineWarehouseId }), [timelineWarehouseId]);
   const timelineAnalytics = trpc.dashboard.movementAnalytics.useQuery(timelineAnalyticsInput, dashboardQueryOptions);
+  const smartWatchInput = useMemo(() => ({ severity: "watch" as const, page: 1, pageSize: 3 }), []);
+  const smartWatch = trpc.alerts.smartForecast.useQuery(smartWatchInput, dashboardQueryOptions);
   const selectedTimelineWarehouse = timelineWarehouseId === "all" ? null : visibleWarehouses.find(warehouse => warehouse.id === timelineWarehouseId) ?? null;
   const timelineLabel = selectedTimelineWarehouse?.name ?? "كل المخازن";
   const movementSeries = useMemo(
@@ -409,6 +427,8 @@ export default function Home() {
             <section className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
               {cardDefinitions.map(({ key, ...card }) => <StatCard key={key} {...card} />)}
             </section>
+
+            <SmartWatchCard count={smartWatch.data?.total ?? 0} rows={(smartWatch.data?.rows ?? []).map(row => ({ code: row.code, name: row.name, daysOfCover: row.daysOfCover, unit: row.unit }))} onOpen={() => setLocation("/alerts")} />
 
             <section className="home-surface overflow-hidden rounded-2xl border border-[#dce7ee] bg-white shadow-[0_10px_30px_rgba(18,44,84,0.055)]">
               <div className="p-4 sm:p-5">

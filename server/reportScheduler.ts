@@ -20,6 +20,23 @@ const LOCK_NAME = "smart-inventory:daily-report:cairo";
 const DEFAULT_TIME = "17:00";
 const CHECK_INTERVAL_MS = 60_000;
 
+async function ensureReportSchedulerTable() {
+  const pool = await getPool();
+  await pool.query(`CREATE TABLE IF NOT EXISTS report_scheduler_runs (
+    id int AUTO_INCREMENT NOT NULL,
+    report_date varchar(10) NOT NULL,
+    status enum('running','success','failed') NOT NULL,
+    started_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at timestamp NULL,
+    result_summary text NULL,
+    error_message text NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY report_scheduler_runs_report_date_unique (report_date),
+    KEY report_scheduler_runs_status_idx (status),
+    KEY report_scheduler_runs_completed_at_idx (completed_at)
+  )`);
+}
+
 type CairoParts = { date: string; time: string; minutes: number };
 
 type ForecastRow = {
@@ -128,6 +145,7 @@ async function notifyManagers(title: string, content: string) {
 }
 
 export async function getReportSchedulerConfig() {
+  await ensureReportSchedulerTable();
   const [enabledRaw, timeRaw] = await Promise.all([getSettingValue("report_schedule_enabled", "true"), getSettingValue("report_schedule_time", DEFAULT_TIME)]);
   const db = await requireDb();
   const lastRun = (await db.select().from(reportSchedulerRuns).orderBy(desc(reportSchedulerRuns.startedAt)).limit(1))[0] ?? null;
@@ -147,8 +165,10 @@ export async function runDailyExecutiveReport(options: { force?: boolean } = {})
   const lock = await acquireLock();
   if (!lock) return { status: "skipped" as const, reason: "another-run-in-progress", reportDate: today };
   const db = await requireDb();
-  let run = (await db.select().from(reportSchedulerRuns).where(eq(reportSchedulerRuns.reportDate, today)).limit(1))[0];
+  let run: typeof reportSchedulerRuns.$inferSelect | undefined;
   try {
+    await ensureReportSchedulerTable();
+    run = (await db.select().from(reportSchedulerRuns).where(eq(reportSchedulerRuns.reportDate, today)).limit(1))[0];
     if (run?.status === "success" && !options.force) return { status: "skipped" as const, reason: "already-succeeded", reportDate: today, runId: run.id };
     const startedAt = new Date();
     if (run) await db.update(reportSchedulerRuns).set({ status: "running", startedAt, completedAt: null, errorMessage: null }).where(eq(reportSchedulerRuns.id, run.id));
