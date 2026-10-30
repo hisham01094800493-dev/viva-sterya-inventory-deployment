@@ -2,6 +2,7 @@ import { getDailyDisbursementRows, getInventoryRows, getSettingValue } from "./d
 import { notifyOwner } from "./_core/notification";
 import { sendWhatsAppNotification } from "./whatsapp";
 import { sendConfiguredEmail, verifyConfiguredSmtp } from "./email";
+import { getForecastRows, type ForecastRow } from "./stockForecast";
 
 export type InventoryReportRow = {
   code: string;
@@ -120,6 +121,7 @@ export function buildDailyInventoryReportHtml(
   thresholdPercentage: number,
   summary: DailyDisbursementSummary,
   reportDate: string,
+  forecastRows: ForecastRow[] = [],
 ) {
   const minimumStockItems = getItemsAtOrBelowMinimum(rows);
   const severeLowStockCodes = new Set(getLowStockItems(rows, thresholdPercentage).map(row => row.code));
@@ -139,8 +141,12 @@ export function buildDailyInventoryReportHtml(
     ? summary.items.map(row => `<tr><td>${escapeHtml(row.itemCode)}</td><td>${escapeHtml(row.itemName)}</td><td>${formatNumber(row.quantity)} ${escapeHtml(row.unit)}</td><td>${formatNumber(row.totalValue)} ج.م</td></tr>`).join("")
     : `<tr><td colspan="4" style="padding:14px;text-align:center;color:#8291a1">لا توجد تفاصيل صرف لهذا اليوم.</td></tr>`;
   const criticalCount = minimumStockItems.filter(row => severeLowStockCodes.has(row.code)).length;
+  const criticalForecastRows = forecastRows.filter(row => row.severity === "critical").slice(0, 8);
+  const forecastRowsHtml = criticalForecastRows.length
+    ? criticalForecastRows.map(row => `<tr><td>${escapeHtml(row.code)}</td><td>${escapeHtml(row.name)}</td><td>${formatNumber(row.currentStock)} ${escapeHtml(row.unit || "وحدة")}</td><td>${row.daysOfCover == null ? "غير محدد" : `${formatNumber(row.daysOfCover)} يوم`}</td><td>${formatNumber(row.suggestedOrderQty)} ${escapeHtml(row.unit || "وحدة")}</td><td style="color:#b42318;font-weight:700">حرج</td></tr>`).join("")
+    : `<tr><td colspan="6" style="padding:16px;text-align:center;color:#0f766e">لا توجد أصناف متوقع نفادها خلال 3 أيام.</td></tr>`;
 
-  return `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#102a43"><div style="max-width:900px;margin:0 auto;padding:28px"><div style="background:#0d4f62;color:#fff;padding:26px;border-radius:18px"><div style="font-size:11px;letter-spacing:3px;color:#f1c27d">SMART INVENTORY</div><h1 style="margin:12px 0 5px;font-size:24px">ملخص المخزون والصرف اليومي</h1><p style="margin:0;color:#dceff2">تاريخ التقرير: ${escapeHtml(reportDate)} · نسبة تمييز الانخفاض الحاد: ${formatNumber(thresholdPercentage)}%</p></div><div style="display:flex;flex-wrap:wrap;gap:12px;margin:18px 0"><div style="background:#fff7ed;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>عند حد الطلب أو دونه</b><div style="font-size:24px;margin-top:8px;color:#b45309">${minimumStockItems.length}</div></div><div style="background:#fff1f0;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>انخفاض حاد</b><div style="font-size:24px;margin-top:8px;color:#b42318">${criticalCount}</div></div><div style="background:#fff;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>أذونات الصرف</b><div style="font-size:24px;margin-top:8px">${summary.permitCount}</div></div><div style="background:#eef7f7;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>صافي قيمة الصرف</b><div style="font-size:24px;margin-top:8px;color:#0d4f62">${formatNumber(summary.netValue)} ج.م</div></div></div><section style="margin-top:22px"><h2 style="font-size:18px">الأصناف التي وصلت للحد الأدنى أو دونه</h2><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الرصيد الحالي</th><th style="padding:12px">حد الطلب</th><th style="padding:12px">الحالة</th></tr></thead><tbody>${stockRows}</tbody></table></div></section><section style="margin-top:22px"><h2 style="font-size:18px">كميات الصرف حسب الوحدة</h2><p style="font-size:12px;color:#64748b">تُجمع كل وحدة على حدة ولا تُخلط الأطنان بالأمتار أو بالعدد. الكميات والقيم صافية من أي تصحيح سالب مسجل.</p><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الوحدة</th><th style="padding:12px">صافي الكمية</th></tr></thead><tbody>${unitRows}</tbody></table></div></section><section style="margin-top:22px"><h2 style="font-size:18px">تفاصيل الصرف اليومي حسب الصنف</h2><p style="font-size:12px;color:#64748b">عدد بنود الصرف: ${summary.lineCount} · عدد التصحيحات السالبة: ${summary.correctionCount}</p><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الكمية الصافية</th><th style="padding:12px">القيمة الصافية</th></tr></thead><tbody>${disbursementRows}</tbody></table></div></section><p style="color:#8291a1;font-size:12px;margin-top:18px">تم إنشاء هذا التقرير تلقائياً بواسطة نظام Smart Inventory.</p></div></body></html>`;
+  return `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#102a43"><div style="max-width:900px;margin:0 auto;padding:28px"><div style="background:#0d4f62;color:#fff;padding:26px;border-radius:18px"><div style="font-size:11px;letter-spacing:3px;color:#f1c27d">SMART INVENTORY</div><h1 style="margin:12px 0 5px;font-size:24px">ملخص المخزون والصرف اليومي</h1><p style="margin:0;color:#dceff2">تاريخ التقرير: ${escapeHtml(reportDate)} · نسبة تمييز الانخفاض الحاد: ${formatNumber(thresholdPercentage)}%</p></div><div style="display:flex;flex-wrap:wrap;gap:12px;margin:18px 0"><div style="background:#fff7ed;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>عند حد الطلب أو دونه</b><div style="font-size:24px;margin-top:8px;color:#b45309">${minimumStockItems.length}</div></div><div style="background:#fff1f0;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>انخفاض حاد</b><div style="font-size:24px;margin-top:8px;color:#b42318">${criticalCount}</div></div><div style="background:#fff;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>أذونات الصرف</b><div style="font-size:24px;margin-top:8px">${summary.permitCount}</div></div><div style="background:#eef7f7;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>صافي قيمة الصرف</b><div style="font-size:24px;margin-top:8px;color:#0d4f62">${formatNumber(summary.netValue)} ج.م</div></div></div><section style="margin-top:22px"><h2 style="font-size:18px">الأصناف التي وصلت للحد الأدنى أو دونه</h2><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الرصيد الحالي</th><th style="padding:12px">حد الطلب</th><th style="padding:12px">الحالة</th></tr></thead><tbody>${stockRows}</tbody></table></div></section><section style="margin-top:22px"><h2 style="font-size:18px">الأصناف الحرجة المتوقعة</h2><p style="font-size:12px;color:#64748b">توقع مبني على معدل الصرف الفعلي، ويحتاج مراجعة عند وجود بيانات تاريخية قليلة.</p><div style="background:#fff1f0;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#fde8e7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الرصيد</th><th style="padding:12px">يكفي</th><th style="padding:12px">طلب مقترح</th><th style="padding:12px">الخطورة</th></tr></thead><tbody>${forecastRowsHtml}</tbody></table></div></section><section style="margin-top:22px"><h2 style="font-size:18px">كميات الصرف حسب الوحدة</h2><p style="font-size:12px;color:#64748b">تُجمع كل وحدة على حدة ولا تُخلط الأطنان بالأمتار أو بالعدد. الكميات والقيم صافية من أي تصحيح سالب مسجل.</p><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الوحدة</th><th style="padding:12px">صافي الكمية</th></tr></thead><tbody>${unitRows}</tbody></table></div></section><section style="margin-top:22px"><h2 style="font-size:18px">تفاصيل الصرف اليومي حسب الصنف</h2><p style="font-size:12px;color:#64748b">عدد بنود الصرف: ${summary.lineCount} · عدد التصحيحات السالبة: ${summary.correctionCount}</p><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الكمية الصافية</th><th style="padding:12px">القيمة الصافية</th></tr></thead><tbody>${disbursementRows}</tbody></table></div></section><p style="color:#8291a1;font-size:12px;margin-top:18px">تم إنشاء هذا التقرير تلقائياً بواسطة نظام Smart Inventory.</p></div></body></html>`;
 }
 
 export function buildDailyReportWhatsAppMessage(
@@ -148,6 +154,7 @@ export function buildDailyReportWhatsAppMessage(
   minimumStockItems: InventoryReportRow[],
   thresholdPercentage: number,
   summary: DailyDisbursementSummary,
+  forecastRows: ForecastRow[] = [],
 ) {
   const severeLowStockCodes = new Set(getLowStockItems(minimumStockItems, thresholdPercentage).map(row => row.code));
   const unitTotals = summary.quantityByUnit.length
@@ -158,6 +165,7 @@ export function buildDailyReportWhatsAppMessage(
     return `- ${row.name}: ${formatNumber(row.currentStock)} ${row.unit || "وحدة"} (الحد ${formatNumber(row.reorderLevel)}، ${severe})`;
   });
   if (minimumStockItems.length > 8) lowStockDetails.push(`- وأصناف أخرى: ${minimumStockItems.length - 8}`);
+  const criticalForecast = forecastRows.filter(row => row.severity === "critical").slice(0, 8).map(row => `- ${row.name}: يكفي ${row.daysOfCover == null ? "غير محدد" : `${formatNumber(row.daysOfCover)} يوم`} · طلب مقترح ${formatNumber(row.suggestedOrderQty)} ${row.unit || "وحدة"}`);
   return [
     `Smart Inventory — ملخص ${reportDate}`,
     `أصناف عند حد الطلب أو دونه: ${minimumStockItems.length}`,
@@ -165,6 +173,8 @@ export function buildDailyReportWhatsAppMessage(
     `أذونات الصرف: ${summary.permitCount}`,
     `صافي قيمة الصرف: ${formatNumber(summary.netValue)} ج.م`,
     `صافي الكميات حسب الوحدة: ${unitTotals}`,
+    `الأصناف الحرجة المتوقعة: ${forecastRows.filter(row => row.severity === "critical").length}`,
+    ...(criticalForecast.length ? criticalForecast : ["لا توجد أصناف متوقع نفادها خلال 3 أيام."]),
     ...lowStockDetails,
   ].join("\n");
 }
@@ -186,6 +196,7 @@ export async function runInventoryReport(kind: "low_stock" | "daily" | "weekly")
   const thresholdPercentage = Math.min(100, Math.max(0, Number(thresholdRaw) || 20));
   const reportDate = new Date().toISOString().slice(0, 10);
   const dailyDisbursementRows = kind === "daily" ? await getDailyDisbursementRows(reportDate) : [];
+  const forecastRows = kind === "daily" ? await getForecastRows([], { leadTimeDays: 7, safetyStockDays: 3 }) : [];
   const dailySummary = summarizeDailyDisbursements(dailyDisbursementRows);
   const configuredLowStock = getLowStockItems(rows, thresholdPercentage);
   const lowStock = kind === "daily" ? getItemsAtOrBelowMinimum(rows) : configuredLowStock;
@@ -196,7 +207,7 @@ export async function runInventoryReport(kind: "low_stock" | "daily" | "weekly")
   const title = kind === "low_stock" ? "تنبيه أصناف تحتاج متابعة" : kind === "daily" ? "التقرير اليومي للمخزون" : "التقرير الأسبوعي للمخزون";
   const reportRows = kind === "low_stock" ? configuredLowStock : rows;
   const html = kind === "daily"
-    ? buildDailyInventoryReportHtml(rows, thresholdPercentage, dailySummary, reportDate)
+    ? buildDailyInventoryReportHtml(rows, thresholdPercentage, dailySummary, reportDate, forecastRows)
     : buildInventoryReportHtml(reportRows, thresholdPercentage, title);
   const recipients = configuredRecipients(recipientsRaw);
   let sent = false;
@@ -208,13 +219,13 @@ export async function runInventoryReport(kind: "low_stock" | "daily" | "weekly")
   }
   if (!sent) {
     const content = kind === "daily"
-      ? buildDailyReportWhatsAppMessage(reportDate, lowStock, thresholdPercentage, dailySummary)
+      ? buildDailyReportWhatsAppMessage(reportDate, lowStock, thresholdPercentage, dailySummary, forecastRows)
       : `عدد الأصناف في التقرير: ${reportRows.length}. الأصناف التي تحتاج متابعة: ${configuredLowStock.length}. لم يتم إرسال البريد لأن إعدادات SMTP أو المستلمين غير مكتملة.`;
     fallbackNotified = await notifyOwner({ title, content });
   }
 
   const whatsappMessage = kind === "daily"
-    ? buildDailyReportWhatsAppMessage(reportDate, lowStock, thresholdPercentage, dailySummary)
+    ? buildDailyReportWhatsAppMessage(reportDate, lowStock, thresholdPercentage, dailySummary, forecastRows)
     : `📦 *Smart Inventory - ${title}*\n- إجمالي الأصناف: ${reportRows.length}\n- الأصناف التي تحتاج متابعة: ${configuredLowStock.length}\n- نسبة حد الطلب: ${thresholdPercentage}%`;
   await sendWhatsAppNotification(whatsappMessage);
 
