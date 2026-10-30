@@ -151,7 +151,7 @@ import { createHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { buildVoiceStockQueryResult, consumeVoiceRateLimit } from "./voiceStockQuery";
 import { buildVoiceMovementQueryResult } from "./voiceMovementQuery";
-import { getReportSchedulerConfig, runDailyExecutiveReport, saveReportSchedulerConfig } from "./reportScheduler";
+import { configureReportHeartbeat, getReportSchedulerConfig, runDailyExecutiveReport, saveReportSchedulerConfig } from "./reportScheduler";
 
 const DEFAULT_GOOGLE_SEARCH_ENGINE_ID = "01b5a823a6a9140c6";
 const voiceRateLimit = new Map<number, number[]>();
@@ -750,7 +750,7 @@ export const appRouter = router({
       .mutation(({ input }) => safe(() => upsertSetting(input))),
     updateReportConfig: adminProcedure
       .input(z.object({ recipients: z.string().max(2000), enabled: z.boolean(), defaultSupplier: z.string().max(255), defaultCustomer: z.string().max(255), watermarkEnabled: z.boolean(), watermarkOpacity: z.coerce.number().min(0.02).max(0.25), watermarkScale: z.coerce.number().min(0.2).max(0.8), watermarkPosition: z.enum(["center", "top", "bottom"]), watermarkRepeat: z.boolean(), scheduleEnabled: z.boolean().default(true), scheduleTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default("17:00") }))
-      .mutation(({ input }) =>
+      .mutation(({ input, ctx }) =>
         safe(async () => {
           await upsertSetting({ key: "report_recipients", value: input.recipients || "", allowEmpty: true, description: "مستلمو التقارير مفصولون بفاصلة أو سطر جديد" });
           await upsertSetting({ key: "reports_enabled", value: String(input.enabled), description: "تفعيل التقارير والتنبيهات الدورية" });
@@ -761,7 +761,10 @@ export const appRouter = router({
           await upsertSetting({ key: "report_watermark_scale", value: String(input.watermarkScale), description: "حجم العلامة المائية في تقارير PDF" });
           await upsertSetting({ key: "report_watermark_position", value: input.watermarkPosition, description: "موضع العلامة المائية في تقارير PDF" });
           await upsertSetting({ key: "report_watermark_repeat", value: String(input.watermarkRepeat), description: "تكرار العلامة المائية داخل صفحة PDF" });
-          return saveReportSchedulerConfig({ enabled: input.scheduleEnabled, time: input.scheduleTime });
+          const saved = await saveReportSchedulerConfig({ enabled: input.scheduleEnabled, time: input.scheduleTime });
+          const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+          const heartbeat = await configureReportHeartbeat({ enabled: input.scheduleEnabled, userSession: sessionToken });
+          return { ...saved, heartbeat };
         }),
       ),
     reportSchedulerStatus: managementProcedure.query(() => safe(() => getReportSchedulerConfig())),

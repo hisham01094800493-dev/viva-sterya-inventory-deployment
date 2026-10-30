@@ -6,10 +6,9 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { createBackupRestoreVerificationHandler, createInventoryReportHandler } from "../scheduled";
+import { createBackupRestoreVerificationHandler, createDailyReportHeartbeatHandler, createInventoryReportHandler } from "../scheduled";
 import { checkDatabaseReadiness, closeDatabasePool, runDueLocalBackupVerification } from "../db";
 import { registerMigrationImportRoutes } from "../migrationImport";
-import { startReportScheduler } from "../reportScheduler";
 
 export async function createApp(options: { withStaticFiles?: boolean } = {}) {
   const app = express();
@@ -75,6 +74,7 @@ export async function createApp(options: { withStaticFiles?: boolean } = {}) {
   registerMigrationImportRoutes(app);
   app.post("/api/scheduled/low-stock", createInventoryReportHandler("low_stock"));
   app.post("/api/scheduled/daily-report", createInventoryReportHandler("daily"));
+  app.post("/api/scheduled/daily-report-heartbeat", createDailyReportHeartbeatHandler());
   app.post("/api/scheduled/weekly-report", createInventoryReportHandler("weekly"));
   app.post("/api/scheduled/backup-restore-verification", createBackupRestoreVerificationHandler());
   const trpcMiddleware = createExpressMiddleware({ router: appRouter, createContext });
@@ -97,14 +97,12 @@ async function startServer() {
     requestBuckets.forEach((bucket, key) => { if (bucket.windowStartedAt < cutoff) requestBuckets.delete(key); });
   }, 60_000);
   let scheduleTimer: NodeJS.Timeout | undefined;
-  let reportSchedulerStop: (() => void) | undefined;
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`[Shutdown] received ${signal}`);
     if (scheduleTimer) clearInterval(scheduleTimer);
-    reportSchedulerStop?.();
     clearInterval(rateLimitTimer);
     await new Promise<void>(resolve => server.close(() => resolve()));
     await closeDatabasePool();
@@ -122,7 +120,6 @@ async function startServer() {
     };
     void checkLocalBackupSchedule();
     scheduleTimer = setInterval(() => { void checkLocalBackupSchedule(); }, 60_000);
-    reportSchedulerStop = startReportScheduler();
   });
 }
 

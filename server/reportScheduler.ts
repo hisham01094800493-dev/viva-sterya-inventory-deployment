@@ -14,11 +14,15 @@ import { requireDb, getPool } from "./db/connection";
 import { buildInventoryReportHtml, getLowStockItems } from "./inventoryReports";
 import { sendConfiguredEmail } from "./email";
 import { sendWhatsAppNotification } from "./whatsapp";
+import { createHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
 
 const TIME_ZONE = "Africa/Cairo";
 const LOCK_NAME = "smart-inventory:daily-report:cairo";
 const DEFAULT_TIME = "17:00";
-const CHECK_INTERVAL_MS = 60_000;
+const REPORT_HEARTBEAT_NAME = "smart-inventory-daily-report-heartbeat";
+const REPORT_HEARTBEAT_PATH = "/api/scheduled/daily-report-heartbeat";
+const REPORT_HEARTBEAT_CRON = "0 */5 * * * *";
+const REPORT_HEARTBEAT_TASK_SETTING = "report_heartbeat_task_uid";
 
 async function ensureReportSchedulerTable() {
   const pool = await getPool();
@@ -154,9 +158,33 @@ export async function getReportSchedulerConfig() {
 
 export async function saveReportSchedulerConfig(input: { enabled: boolean; time: string }) {
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(input.time)) throw new Error("وقت التقرير يجب أن يكون بصيغة HH:mm");
-  await upsertSetting({ key: "report_schedule_enabled", value: String(input.enabled), description: "تفعيل الجدولة الداخلية للتقرير اليومي" });
+  await upsertSetting({ key: "report_schedule_enabled", value: String(input.enabled), description: "تفعيل جدولة التقرير اليومي عبر Heartbeat الخارجي" });
   await upsertSetting({ key: "report_schedule_time", value: input.time, description: "وقت التقرير اليومي بتوقيت Africa/Cairo" });
   return getReportSchedulerConfig();
+}
+
+export async function configureReportHeartbeat(input: { enabled: boolean; userSession: string }) {
+  const existingTaskUid = await getSettingValue(REPORT_HEARTBEAT_TASK_SETTING, "");
+  if (!existingTaskUid && !input.enabled) return { taskUid: null, nextExecutionAt: null, enabled: false };
+  const job = existingTaskUid
+    ? await updateHeartbeatJob(existingTaskUid, { cron: REPORT_HEARTBEAT_CRON, path: REPORT_HEARTBEAT_PATH, method: "POST", description: "فحص التقرير التنفيذي اليومي كل 5 دقائق بتوقيت القاهرة", enable: input.enabled }, input.userSession)
+    : await createHeartbeatJob({ name: REPORT_HEARTBEAT_NAME, cron: REPORT_HEARTBEAT_CRON, path: REPORT_HEARTBEAT_PATH, method: "POST", description: "فحص التقرير التنفيذي اليومي كل 5 دقائق بتوقيت القاهرة" }, input.userSession);
+  const taskUid = existingTaskUid || (job as { taskUid?: string }).taskUid;
+  if (!taskUid) throw new Error("تعذر الحصول على معرّف Heartbeat للتقرير");
+  await upsertSetting({ key: REPORT_HEARTBEAT_TASK_SETTING, value: taskUid, description: "معرّف Heartbeat الخارجي لجدولة التقرير اليومي" });
+  return { taskUid, nextExecutionAt: job.nextExecutionAt ?? null, enabled: input.enabled };
+}
+
+export async function isReportHeartbeatTask(taskUid: string) {
+  return Boolean(taskUid) && (await getSettingValue(REPORT_HEARTBEAT_TASK_SETTING, "")) === taskUid;
+}
+
+export async function runDailyExecutiveReportIfDue() {
+  const config = await getReportSchedulerConfig();
+  const lastSuccessfulDate = config.lastRun?.status === "success" ? config.lastRun.reportDate : null;
+  if (!config.enabled) return { status: "skipped" as const, reason: "disabled", reportDate: getCairoParts(new Date()).date };
+  if (!isScheduleDue(new Date(), config.time, lastSuccessfulDate)) return { status: "skipped" as const, reason: "not-due", reportDate: getCairoParts(new Date()).date };
+  return runDailyExecutiveReport();
 }
 
 export async function runDailyExecutiveReport(options: { force?: boolean } = {}) {
@@ -179,12 +207,28 @@ export async function runDailyExecutiveReport(options: { force?: boolean } = {})
     const currentHtml = buildInventoryReportHtml(rows as any, threshold, "التقرير اليومي للمخزون");
     const html = buildCombinedHtml(today, currentHtml, analysis.forecasts, analysis.buildingAlerts, analysis.unassigned, analysis.totalTodayMovements);
     const recipients = recipientsRaw.split(/[;,\n]/).map(value => value.trim()).filter(Boolean);
-    const sentEmail = recipients.length ? await sendConfiguredEmail({ subject: `Smart Inventory — التقرير التنفيذي اليومي ${today}`, html, recipients }) : false;
+    let sentEmail = false;
+    let emailError: string | null = null;
+    try {
+      sentEmail = recipients.length ? await sendConfiguredEmail({ subject: `Smart Inventory — التقرير التنفيذي اليومي ${today}`, html, recipients }) : false;
+      if (!sentEmail && recipients.length) emailError = "SMTP غير مفعّل أو فشل الإرسال";
+      if (!recipients.length) emailError = "لا يوجد مستلمون مضبوطون للتقرير";
+    } catch (error: any) {
+      emailError = error?.message || "فشل إرسال البريد";
+      console.error("[ReportScheduler] email failed", error);
+    }
     const message = `التقرير التنفيذي ${today}: صرف اليوم ${analysis.totalTodayMovements} حركة، أصناف حرجة ${analysis.forecasts.length}، بدون مبنى ${analysis.unassigned}، منخفض المخزون ${lowStockCount}.`;
-    const notifiedManagers = await notifyManagers("التقرير التنفيذي اليومي", message);
+    let notifiedManagers = 0;
+    let managersError: string | null = null;
+    try { notifiedManagers = await notifyManagers("التقرير التنفيذي اليومي", message); } catch (error: any) { managersError = error?.message || "فشل حفظ الإشعار الداخلي"; console.error("[ReportScheduler] in-app notification failed", error); }
     let sentWhatsApp = false;
-    try { sentWhatsApp = (await sendWhatsAppNotification(message)).success; } catch (error) { console.warn("[ReportScheduler] WhatsApp failed", error); }
-    const summary = { lowStockCount, criticalCount: analysis.forecasts.length, omittedCriticalCount: Math.max(0, analysis.forecasts.length - 8), buildingAlerts: analysis.buildingAlerts.length, unassigned: analysis.unassigned, email: sentEmail, managers: notifiedManagers, whatsapp: sentWhatsApp };
+    let whatsappError: string | null = null;
+    try {
+      const result = await sendWhatsAppNotification(message);
+      sentWhatsApp = result.success;
+      if (!result.success) whatsappError = result.error || "فشل إرسال واتساب";
+    } catch (error: any) { whatsappError = error?.message || "فشل إرسال واتساب"; console.warn("[ReportScheduler] WhatsApp failed", error); }
+    const summary = { lowStockCount, criticalCount: analysis.forecasts.length, omittedCriticalCount: Math.max(0, analysis.forecasts.length - 8), buildingAlerts: analysis.buildingAlerts.length, unassigned: analysis.unassigned, email: sentEmail, emailError, managers: notifiedManagers, managersError, whatsapp: sentWhatsApp, whatsappError };
     await db.update(reportSchedulerRuns).set({ status: "success", completedAt: new Date(), resultSummary: JSON.stringify(summary), errorMessage: null }).where(eq(reportSchedulerRuns.id, run!.id));
     return { status: "success" as const, reportDate: today, runId: run!.id, ...summary };
   } catch (error: any) {
@@ -194,19 +238,4 @@ export async function runDailyExecutiveReport(options: { force?: boolean } = {})
     try { await notifyManagers("فشل التقرير التنفيذي اليومي", `فشل تشغيل تقرير ${today}: ${message}`); } catch (notifyError) { console.error("[ReportScheduler] failure notification failed", notifyError); }
     throw error;
   } finally { await lock.release(); }
-}
-
-export function startReportScheduler() {
-  let running = false;
-  const check = async () => {
-    if (running) return;
-    running = true;
-    try {
-      const config = await getReportSchedulerConfig();
-      if (config.enabled && isScheduleDue(new Date(), config.time, config.lastRun?.status === "success" ? config.lastRun.reportDate : null)) await runDailyExecutiveReport();
-    } catch (error) { console.error("[ReportScheduler] check failed", error); } finally { running = false; }
-  };
-  void check();
-  const timer = setInterval(() => void check(), CHECK_INTERVAL_MS);
-  return () => clearInterval(timer);
 }
