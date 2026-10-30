@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import OfflineDataNotice from "@/components/OfflineDataNotice";
+import BarcodeScanner from "@/components/BarcodeScanner";
 import { Label } from "@/components/ui/label";
 import { trpc } from "@/lib/trpc";
 import { resolveCompanyLogoUrl } from "@/lib/brandAssets";
 import { createReportMailtoUrl, sharePdfFile } from "@/lib/reportSharing";
 import { summarizeAccountStatementItems } from "@/lib/accountStatementGrouping";
 import { buildAccountStatementPdf, buildMainWarehousePdf, downloadAccountStatementExcel, downloadAccountStatementPdf, formatPdfCurrency, type AccountStatementPdfCard, type ExportColumnKey } from "@/lib/inventoryExportFiles";
-import { ArrowRight, ArrowUpDown, Boxes, BrickWall, Building2, Cable, Check, Copy, Download, Droplets, Edit3, Eye, FileText, GripVertical, Lightbulb, Loader2, Mail, MapPin, Package, Phone, Plus, Printer, Save, Search, Share2, Snowflake, Tag, Truck, UserRound, Warehouse, Wind, Wrench } from "lucide-react";
+import { ArrowRight, ArrowUpDown, Boxes, BrickWall, Building2, Cable, Check, Copy, Download, Droplets, Edit3, Eye, FileText, GripVertical, Lightbulb, Loader2, Mail, MapPin, Package, Phone, Plus, Printer, Save, ScanLine, Search, Share2, Snowflake, Tag, Truck, UserRound, Warehouse, Wind, Wrench } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
@@ -134,6 +135,7 @@ export function WarehousesPage() {
   const updatePreferences = trpc.preferences.update.useMutation();
   const canViewFinancialDetails = permissions.data?.allowedReports.includes(WAREHOUSE_FINANCIAL_PERMISSION) ?? false;
   const [financialPreferenceVisible, setFinancialPreferenceVisible] = useState(false);
+  const [warehouseScannerOpen, setWarehouseScannerOpen] = useState(false);
   const [permitFilter, setPermitFilter] = useState("");
   const [appliedPermitFilter, setAppliedPermitFilter] = useState("");
   const [permitImage, setPermitImage] = useState<{ url: string; name: string } | null>(null);
@@ -237,8 +239,8 @@ export function WarehousesPage() {
     }
   }
 
-  return <DashboardLayout><div className="mx-auto w-full min-w-0 max-w-[1500px] space-y-7">
-    <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="mb-2 text-[10px] font-black uppercase tracking-[0.27em] text-[#d08a3b]">WAREHOUSE CONTROL</p><h2 className="text-3xl font-black tracking-tight text-[#102a43]">المخازن</h2><p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500">ابدأ بالمخزن الرئيسي، ثم انتقل بين المخازن الأخرى من المبدّل الداخلي دون ازدحام التنقل الجانبي.</p></div><div className="flex flex-wrap items-center gap-2"><Badge className="w-fit rounded-full bg-[#e8f1f2] px-4 py-2 text-[#0d4f62]">{warehouses.data?.length ?? 1} مخازن</Badge><Button type="button" variant="outline" onClick={() => setLocation("/inventory-audit")} className="rounded-xl border-[#b9d4d9] text-[#0d4f62]"><Package className="ml-2 h-4 w-4" />تقرير الجرد الشامل</Button><Button type="button" onClick={() => setReportOpen(true)} disabled={!selected || items.isLoading} className="rounded-xl bg-[#0d4f62] font-bold text-white hover:bg-[#0a4150]"><FileText className="ml-2 h-4 w-4" />معاينة PDF لـ {reportName}</Button></div></div>
+  return <DashboardLayout><BarcodeScanner open={warehouseScannerOpen} onOpenChange={setWarehouseScannerOpen} title="مسح كود المخزن" description="وجّه الكاميرا نحو كود المخزن أو QR الخاص به" onDetected={value => { const normalized = value.trim().toLocaleLowerCase("ar-EG"); const match = visibleWarehouses.find(item => String(item.slot) === value.trim() || item.name.trim().toLocaleLowerCase("ar-EG") === normalized || item.name.toLocaleLowerCase("ar-EG").includes(normalized)); if (match) setLocation(match.slot === 1 ? "/warehouses" : `/warehouses/${match.slot}`); else toast.error("لم يتم العثور على مخزن بهذا الكود"); }} /><div className="mx-auto w-full min-w-0 max-w-[1500px] space-y-7">
+    <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="mb-2 text-[10px] font-black uppercase tracking-[0.27em] text-[#d08a3b]">WAREHOUSE CONTROL</p><h2 className="text-3xl font-black tracking-tight text-[#102a43]">المخازن</h2><p className="mt-2 max-w-2xl text-sm leading-7 text-slate-500">ابدأ بالمخزن الرئيسي، ثم انتقل بين المخازن الأخرى من المبدّل الداخلي دون ازدحام التنقل الجانبي.</p></div><div className="flex flex-wrap items-center gap-2"><Badge className="w-fit rounded-full bg-[#e8f1f2] px-4 py-2 text-[#0d4f62]">{warehouses.data?.length ?? 1} مخازن</Badge><Button type="button" variant="outline" onClick={() => setWarehouseScannerOpen(true)} className="rounded-xl border-[#b9d4d9] text-[#0d4f62]"><ScanLine className="ml-2 h-4 w-4" />مسح كود مخزن</Button><Button type="button" variant="outline" onClick={() => setLocation("/inventory-audit")} className="rounded-xl border-[#b9d4d9] text-[#0d4f62]"><Package className="ml-2 h-4 w-4" />تقرير الجرد الشامل</Button><Button type="button" onClick={() => setReportOpen(true)} disabled={!selected || items.isLoading} className="rounded-xl bg-[#0d4f62] font-bold text-white hover:bg-[#0a4150]"><FileText className="ml-2 h-4 w-4" />معاينة PDF لـ {reportName}</Button></div></div>
     <OfflineDataNotice resource="المخازن والأرصدة" hasCachedData={warehouses.data !== undefined || items.data !== undefined} />
     <WarehouseSwitcher warehouses={warehouses.data ?? []} selectedSlot={selected?.slot ?? requestedSlot} onSelect={slot => setLocation(slot === 1 ? "/warehouses" : `/warehouses/${slot}`)} />
     <div className="grid gap-4 md:grid-cols-2">

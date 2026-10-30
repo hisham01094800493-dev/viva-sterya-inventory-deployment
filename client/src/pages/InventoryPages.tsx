@@ -75,6 +75,7 @@ import { HelpRequestCard, HelpRequestsAdminCard } from "@/components/HelpRequest
 import { ITEM_CARD_MOVEMENT_FILTER_KEY, ITEM_CARD_PERMIT_COLUMN_KEY, ITEM_CARD_TOTAL_VALUE_KEY, ITEM_CARD_UNIT_PRICE_KEY, readItemCardColumnPreference, readItemCardMovementFilter, writeItemCardColumnPreference, writeItemCardMovementFilter } from "@/lib/itemCardPreferences";
 import { canCreateInventoryItems } from "@/lib/itemCreatePermission";
 import { ImageHoverPreview } from "@/components/ImageHoverPreview";
+import BarcodeScanner, { normalizeScannedBarcode } from "@/components/BarcodeScanner";
 
 const formatQuantity = (value: number | string | null | undefined) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 }).format(Number(value ?? 0));
 
@@ -93,38 +94,11 @@ function PdfLoadingPanel({ progress, etaSeconds, detail = "يتم تجهيز ا�
   return <div className="flex h-full min-h-[240px] items-center justify-center p-6" role="status" aria-live="polite"><div className="w-full max-w-md rounded-3xl border border-[#dce7ee] bg-white/95 p-6 text-center shadow-xl shadow-[#0d4f62]/10"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e8f1f2] text-[#0d4f62]"><Loader2 className="h-7 w-7 animate-spin" /></div><p className="mt-4 text-base font-black text-[#102a43]">جاري إنشاء ملف PDF</p><p className="mt-2 text-xs leading-6 text-slate-500">{detail}</p><div className="mt-5 flex items-center justify-between text-xs font-black text-[#0d4f62]"><span>{Math.round(progress)}%</span><span>{etaSeconds === null ? "جارٍ الحساب..." : etaSeconds > 0 ? `متبقٍ تقريباً ${etaSeconds} ث` : "اقترب الاكتمال"}</span></div><Progress value={progress} className="mt-2 h-2.5" /><p className="mt-3 text-[11px] text-slate-400">يمكنك الانتظار حتى اكتمال المعاينة؛ لن يتم إنشاء ملف مكرر أثناء المعالجة.</p></div></div>;
 }
 
-export function normalizeScannedBarcode(value: string) { const normalized = value.trim(); return normalized ? normalized.slice(0, 128) : null; }
 export function hasDocumentPreview(value?: string | null) { return Boolean(value?.trim()); }
 export const cameraImageInputProps = { accept: "image/jpeg,image/png,image/webp", capture: "environment" as const };
 
 async function readFileAsDataUrl(file: File) { return (await compressImageFile(file)).dataBase64; }
 
-type BarcodeDetectorLike = { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>> };
-
-function BarcodeScanner({ open, onOpenChange, onDetected }: { open: boolean; onOpenChange: (open: boolean) => void; onDetected: (value: string) => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const [status, setStatus] = useState("وجّه الكاميرا نحو الباركود");
-  useEffect(() => {
-    if (!open) { streamRef.current?.getTracks().forEach(track => track.stop()); streamRef.current = null; return; }
-    let cancelled = false;
-    const start = async () => {
-      try {
-        const Detector = (window as Window & { BarcodeDetector?: new () => BarcodeDetectorLike }).BarcodeDetector;
-        if (!Detector) { setStatus("المتصفح لا يدعم قراءة الباركود تلقائياً؛ أدخل الكود يدوياً أو استخدم Chrome حديثاً."); return; }
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-        if (cancelled || !videoRef.current) return stream.getTracks().forEach(track => track.stop());
-        streamRef.current = stream; videoRef.current.srcObject = stream; await videoRef.current.play();
-        const detector = new Detector();
-        const scan = async () => { if (cancelled || !videoRef.current) return; try { const result = await detector.detect(videoRef.current); const value = result[0]?.rawValue?.trim(); if (value) { onDetected(value); onOpenChange(false); return; } } catch { /* continue scanning */ } window.setTimeout(scan, 250); };
-        void scan();
-      } catch { setStatus("تعذر الوصول إلى الكاميرا. اسمح بإذن الكاميرا أو أدخل الكود يدوياً."); }
-    };
-    void start();
-    return () => { cancelled = true; streamRef.current?.getTracks().forEach(track => track.stop()); streamRef.current = null; };
-  }, [open, onDetected, onOpenChange]);
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-md rounded-2xl" dir="rtl"><DialogHeader><DialogTitle className="flex items-center gap-2 text-xl font-black text-[#102a43]"><ScanLine className="h-5 w-5 text-[#0d4f62]" />قراءة باركود الصنف</DialogTitle><DialogDescription>{status}</DialogDescription></DialogHeader><div className="overflow-hidden rounded-2xl bg-slate-950"><video ref={videoRef} muted playsInline className="aspect-video w-full object-cover" /></div><DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">إغلاق</Button></DialogFooter></DialogContent></Dialog>;
-}
 
 function sharePdfByEmail(title: string, fileName: string) {
   window.location.href = createReportMailtoUrl(title, fileName);
@@ -801,7 +775,7 @@ function MovementPage({ kind }: { kind: MovementKind }) {
   const [movementPdfPageCount, setMovementPdfPageCount] = useState(1);
   const [movementPdfZoom, setMovementPdfZoom] = useState(1);
   const movementPdfIframeRef = useRef<HTMLIFrameElement>(null);
-  const [supplierFilter, setSupplierFilter] = useState("all"); const [customerFilter, setCustomerFilter] = useState("all"); const [itemFilter, setItemFilter] = useState(""); const [permitFilter, setPermitFilter] = useState(""); const [purposeFilter, setPurposeFilter] = useState(""); const [fromDate, setFromDate] = useState(""); const [toDate, setToDate] = useState(""); const [appliedFilters, setAppliedFilters] = useState({ supplier: "all", customer: "all", item: "", permit: "", purpose: "", from: "", to: "" }); const [page, setPage] = useState(1);
+  const [supplierFilter, setSupplierFilter] = useState("all"); const [customerFilter, setCustomerFilter] = useState("all"); const [itemFilter, setItemFilter] = useState(""); const [permitFilter, setPermitFilter] = useState(""); const [purposeFilter, setPurposeFilter] = useState(""); const [fromDate, setFromDate] = useState(""); const [toDate, setToDate] = useState(""); const [barcodeTarget, setBarcodeTarget] = useState<"item" | "permit" | null>(null); const [appliedFilters, setAppliedFilters] = useState({ supplier: "all", customer: "all", item: "", permit: "", purpose: "", from: "", to: "" }); const [page, setPage] = useState(1);
   useEffect(() => { const params = new URLSearchParams(location.split("?")[1] ?? ""); const globalSearch = params.get("search")?.trim(); const permitSearch = params.get("permit")?.trim(); if (globalSearch || permitSearch) { setItemFilter(globalSearch ?? ""); setPermitFilter(permitSearch ?? ""); setAppliedFilters(current => ({ ...current, item: globalSearch ?? "", permit: permitSearch ?? "" })); setPage(1); } }, [location]);
   const commonPageInput = useMemo(() => ({ page, pageSize: 50, itemSearch: appliedFilters.item || undefined, permitSearch: appliedFilters.permit || undefined, purposeSearch: appliedFilters.purpose || undefined, fromDate: appliedFilters.from || undefined, toDate: appliedFilters.to || undefined }), [page, appliedFilters]);
   const additionsPageInput = useMemo(() => ({ ...commonPageInput, supplierId: appliedFilters.supplier === "all" ? undefined : Number(appliedFilters.supplier) }), [commonPageInput, appliedFilters.supplier]);
@@ -1019,7 +993,7 @@ function MovementPage({ kind }: { kind: MovementKind }) {
     }
   }, [totalQuantity, totalValue, totalRows, totalScopeLabel, showMovementFinancialDetails]);
   async function remove(row: MovementRow) { if (!window.confirm("هل أنت متأكد من حذف هذه الحركة؟ سيتم عكس أثرها على الرصيد.")) return; try { if (kind === "additions") await deleteAddition.mutateAsync({ id: row.id }); if (kind === "disbursements") await deleteDisbursement.mutateAsync({ id: row.id }); if (kind === "transfers") await deleteTransfer.mutateAsync({ id: row.id }); await Promise.all([query.refetch(), utils.dashboard.summary.invalidate(), utils.items.list.invalidate()]); toast.success("تم حذف الحركة وعكس أثرها"); } catch (error: any) { toast.error(error?.message || "تعذر حذف الحركة"); } }
-  return <DashboardLayout><div className="mx-auto w-full min-w-0 max-w-[1500px] space-y-6"><PageHeader eyebrow={meta.eyebrow} title={meta.title} description={meta.description} action={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setImportOpen(true)} className="modern-button h-11 rounded-xl border-[#b9d4d9] bg-white/90 px-4 font-bold text-[#0d4f62] hover:bg-[#eef7f7]"><Upload className="ml-2 h-4 w-4" />استيراد حركات</Button><Button onClick={() => { setEditing(undefined); setDialogOpen(true); }} className="modern-button h-11 rounded-xl bg-[#0d4f62] px-5 font-bold text-white shadow-lg shadow-[#0d4f62]/15 hover:bg-[#0a4150]"><Plus className="ml-2 h-4 w-4" />{meta.button}</Button></div>} />      <section className="rounded-[1.5rem] border border-[#dce7ee] bg-gradient-to-l from-[#f7fbfc] via-white to-[#fbfdff] p-4 shadow-[0_12px_36px_rgba(18,44,84,0.055)]">
+  return <DashboardLayout><BarcodeScanner open={barcodeTarget !== null} onOpenChange={open => { if (!open) setBarcodeTarget(null); }} title={barcodeTarget === "permit" ? "مسح رقم الإذن" : "مسح كود الصنف"} description={barcodeTarget === "permit" ? "وجّه الكاميرا نحو رقم الإذن أو QR الخاص به" : "وجّه الكاميرا نحو كود الصنف أو QR الخاص به"} onDetected={value => { if (barcodeTarget === "permit") setPermitFilter(value); else setItemFilter(value); setBarcodeTarget(null); }} /><div className="mx-auto w-full min-w-0 max-w-[1500px] space-y-6"><PageHeader eyebrow={meta.eyebrow} title={meta.title} description={meta.description} action={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setImportOpen(true)} className="modern-button h-11 rounded-xl border-[#b9d4d9] bg-white/90 px-4 font-bold text-[#0d4f62] hover:bg-[#eef7f7]"><Upload className="ml-2 h-4 w-4" />استيراد حركات</Button><Button onClick={() => { setEditing(undefined); setDialogOpen(true); }} className="modern-button h-11 rounded-xl bg-[#0d4f62] px-5 font-bold text-white shadow-lg shadow-[#0d4f62]/15 hover:bg-[#0a4150]"><Plus className="ml-2 h-4 w-4" />{meta.button}</Button></div>} />      <section className="rounded-[1.5rem] border border-[#dce7ee] bg-gradient-to-l from-[#f7fbfc] via-white to-[#fbfdff] p-4 shadow-[0_12px_36px_rgba(18,44,84,0.055)]">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d08a3b]">MOVEMENT STATEMENT</p>
@@ -1034,8 +1008,8 @@ function MovementPage({ kind }: { kind: MovementKind }) {
         </div>
       </section>
       <Card className="movement-filter-card overflow-hidden rounded-[1.5rem] border-[#d6eaec] bg-white shadow-[0_18px_50px_rgba(18,44,84,0.06)]"><div className="border-b border-[#edf2f5] bg-[#fbfdff] px-5 py-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"><div><p className="flex items-center gap-2 text-sm font-black text-[#102a43]"><Search className="h-4 w-4 text-[#0d7180]" />بحث وفلاتر الحركات</p><p className="mt-1 text-xs leading-6 text-slate-400">ابحث برقم الإذن أو الصنف، ثم استخدم الفلاتر المتقدمة عند الحاجة.</p></div><Badge className="w-fit rounded-full bg-[#e8f7f6] px-3 py-1.5 text-[11px] font-black text-[#0d806c]">{visibleRows.length} نتيجة حالية</Badge></div></div><CardContent className="movement-filter-content flex flex-wrap items-end gap-3 p-5">
-        <label className="min-w-56 flex-1 space-y-1 text-xs font-bold text-slate-500">بحث الصنف أو الكود<div className="flex items-center gap-2"><Input value={itemFilter} onChange={event => setItemFilter(event.target.value)} onKeyDown={event => { if (event.key === "Enter") applyFilters(); }} placeholder="اكتب اسم الصنف أو الكود" className="h-10 rounded-xl" /><VoiceInputButton onText={text => setItemFilter(normalizeVoiceSearchText(text))} label="البحث الصوتي باسم الصنف أو الكود" /></div></label>
-        <label className="min-w-44 flex-1 space-y-1 text-xs font-bold text-slate-500">بحث برقم الإذن<div className="flex items-center gap-2"><Input value={permitFilter} onChange={event => setPermitFilter(event.target.value)} onKeyDown={event => { if (event.key === "Enter") applyFilters(); }} placeholder="مثال: 1024 أو إذن-1024" className="h-10 rounded-xl" /><VoiceInputButton onText={text => setPermitFilter(normalizeVoiceSearchText(text))} label="البحث الصوتي برقم الإذن" /></div></label>
+        <label className="min-w-56 flex-1 space-y-1 text-xs font-bold text-slate-500">بحث الصنف أو الكود<div className="flex items-center gap-2"><Input value={itemFilter} onChange={event => setItemFilter(event.target.value)} onKeyDown={event => { if (event.key === "Enter") applyFilters(); }} placeholder="اكتب اسم الصنف أو الكود" className="h-10 rounded-xl" /><Button type="button" variant="outline" size="icon" onClick={() => setBarcodeTarget("item")} className="h-10 w-10 shrink-0 rounded-xl" aria-label="مسح كود الصنف"><ScanLine className="h-4 w-4" /></Button><VoiceInputButton onText={text => setItemFilter(normalizeVoiceSearchText(text))} label="البحث الصوتي باسم الصنف أو الكود" /></div></label>
+        <label className="min-w-44 flex-1 space-y-1 text-xs font-bold text-slate-500">بحث برقم الإذن<div className="flex items-center gap-2"><Input value={permitFilter} onChange={event => setPermitFilter(event.target.value)} onKeyDown={event => { if (event.key === "Enter") applyFilters(); }} placeholder="مثال: 1024 أو إذن-1024" className="h-10 rounded-xl" /><Button type="button" variant="outline" size="icon" onClick={() => setBarcodeTarget("permit")} className="h-10 w-10 shrink-0 rounded-xl" aria-label="مسح رقم الإذن"><ScanLine className="h-4 w-4" /></Button><VoiceInputButton onText={text => setPermitFilter(normalizeVoiceSearchText(text))} label="البحث الصوتي برقم الإذن" /></div></label>
         <Button type="button" onClick={applyFilters} className="h-10 rounded-xl bg-[#0d806c] px-5 font-black text-white shadow-md shadow-[#0d806c]/20 hover:bg-[#096b5a]"><Search className="ml-2 h-4 w-4" />بحث</Button>
         <Button type="button" variant="outline" onClick={() => setAdvancedFiltersOpen(value => !value)} aria-expanded={advancedFiltersOpen} className="h-10 rounded-xl border-[#b9d4d9] text-[#0d4f62]"><Filter className="ml-2 h-4 w-4" />الفلاتر المتقدمة<ChevronDown className={`mr-1 h-4 w-4 transition-transform ${advancedFiltersOpen ? "rotate-180" : ""}`} /></Button>
         <Button type="button" variant="outline" onClick={clearFilters} disabled={!activeFilterLabels.length && !itemFilter && !permitFilter} className="h-10 rounded-xl border-[#b9d4d9] text-[#0d4f62]">مسح الفلاتر</Button>
