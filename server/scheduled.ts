@@ -30,16 +30,17 @@ export function createInventoryReportHandler(kind: "low_stock" | "daily" | "week
 export function createDailyReportHeartbeatHandler() {
   return async (req: Request, res: Response) => {
     try {
-      const user = await sdk.authenticateRequest(req);
-      if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" });
-      if (!(await isReportHeartbeatTask(user.taskUid))) return res.json({ ok: true, skipped: "orphan_or_disabled" });
+      const vercelCron = req.headers["x-vercel-cron-schedule"] === "*/5 * * * *";
+      const user = vercelCron ? null : await sdk.authenticateRequest(req);
+      if (!vercelCron && (!user?.isCron || !user.taskUid)) return res.status(403).json({ error: "cron-only" });
+      if (!vercelCron && !(await isReportHeartbeatTask(user!.taskUid!))) return res.json({ ok: true, skipped: "orphan_or_disabled" });
       try {
         const result = await runDailyExecutiveReportIfDue();
-        return res.status(200).json({ ok: true, taskUid: user.taskUid, ...result });
+        return res.status(200).json({ ok: true, ...(user?.taskUid ? { taskUid: user.taskUid } : { source: "vercel-cron" }), ...result });
       } catch (error: any) {
         // The heartbeat itself succeeded; the run is recorded as failed and can be retried on the next tick.
         console.error("[Scheduled:daily_report_heartbeat] report run failed", error);
-        return res.status(200).json({ ok: true, taskUid: user.taskUid, status: "failed", error: "تعذر تنفيذ التقرير؛ تم تسجيل الفشل وسيُعاد الفحص في النبضة التالية", timestamp: new Date().toISOString() });
+        return res.status(200).json({ ok: true, ...(user?.taskUid ? { taskUid: user.taskUid } : { source: "vercel-cron" }), status: "failed", error: "تعذر تنفيذ التقرير؛ تم تسجيل الفشل وسيُعاد الفحص في النبضة التالية", timestamp: new Date().toISOString() });
       }
     } catch (error: any) {
       console.error("[Scheduled:daily_report_heartbeat] heartbeat failed", error);

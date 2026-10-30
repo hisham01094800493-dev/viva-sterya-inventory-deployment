@@ -2,6 +2,9 @@
   "buildCommand": "pnpm build",
   "outputDirectory": "dist/public",
   "framework": "vite",
+  "crons": [
+    { "path": "/api/scheduled/daily-report-heartbeat", "schedule": "*/5 * * * *" }
+  ],
   "functions": {
     "api/index.js": {
       "maxDuration": 300,
