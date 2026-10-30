@@ -232,7 +232,7 @@ export default function BuildingCostComparisonPage() {
           <DistributionChartCard title="توزيع التكلفة" description="حصة كل مبنى من قيمة الصرف المرتبطة بالمباني." rows={buildingOptions.map(row => ({ name: row.name, shortName: row.name, cost: Number(row.cost), quantity: Number(row.quantity) }))} loading={report.isLoading} emptyText="لا توجد تكلفة مسجلة للمباني ضمن الفترة." centerLabel="تكلفة مرتبطة" footnote="يعرض الرسم الصرف المرتبط بمبنى فقط؛ إجمالي التقرير يتضمن أيضًا الصرف غير المرتبط." />
         </section>}
 
-        <BuildingComparisonSection rows={rows} totals={totals} highestCost={highestCost} loading={report.isLoading} />
+        <BuildingComparisonSection rows={rows} totals={totals} highestCost={highestCost} loading={report.isLoading} onSelectBuilding={buildingId => { setSelectedBuildingId(String(buildingId)); setActiveTab("items"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
       </>}
 
       {activeTab === "items" && <section className="space-y-4">
@@ -395,11 +395,13 @@ function BuildingComparisonSection({
   totals,
   highestCost,
   loading,
+  onSelectBuilding,
 }: {
   rows: Array<{ buildingId: number | null; name: string; code: string; type: string | null; budget: number; movements: number; quantity: number; cost: number; remainingBudget: number; budgetUsagePercent: number | null; isUnassigned?: boolean }>;
   totals: { movements: number; quantity: number; cost: number; budget: number; remainingBudget: number };
   highestCost: number;
   loading: boolean;
+  onSelectBuilding: (buildingId: number) => void;
 }) {
   return <Card className="overflow-hidden rounded-[1.5rem] border-[#dce7ee] shadow-[0_14px_38px_rgba(18,44,84,0.055)] sm:rounded-[1.75rem]">
     <CardHeader className="border-b border-[#edf2f5] bg-gradient-to-l from-[#f5fafb] to-white p-4 sm:p-5">
@@ -408,7 +410,7 @@ function BuildingComparisonSection({
     <CardContent className="p-3 sm:p-5">
       {loading ? <ChartLoading height={180} /> : rows.length === 0 ? <EmptyState icon={<Building2 className="h-6 w-6" />} title="لا توجد بيانات في الفترة المحددة" text="عدّل نطاق التاريخ أو راجع أذونات الصرف المرتبطة بالمباني." compact /> : <>
         <div className="space-y-3 lg:hidden">
-          {rows.map(row => <BuildingMobileCard key={`${row.buildingId ?? "unassigned"}-${row.code}`} row={row} highestCost={highestCost} />)}
+          {rows.map(row => <BuildingMobileCard key={`${row.buildingId ?? "unassigned"}-${row.code}`} row={row} highestCost={highestCost} onSelectBuilding={onSelectBuilding} />)}
         </div>
         <div className="hidden overflow-x-auto rounded-xl border border-[#e5eef1] lg:block">
           <table className="w-full min-w-[980px] text-right text-sm">
@@ -422,10 +424,11 @@ function BuildingComparisonSection({
   </Card>;
 }
 
-function BuildingMobileCard({ row, highestCost }: { row: BuildingComparisonRow; highestCost: number }) {
+function BuildingMobileCard({ row, highestCost, onSelectBuilding }: { row: BuildingComparisonRow; highestCost: number; onSelectBuilding: (buildingId: number) => void }) {
   const over = row.budget > 0 && row.cost > row.budget;
   const budgetPercent = row.budget > 0 ? Number(row.budgetUsagePercent ?? 0) : null;
-  return <article className="rounded-2xl border border-[#e3ecef] bg-white p-3.5 shadow-[0_5px_16px_rgba(18,44,84,0.035)] sm:p-4">
+  const selectable = row.buildingId != null && !row.isUnassigned;
+  return <article role={selectable ? "button" : undefined} tabIndex={selectable ? 0 : undefined} onClick={() => selectable && onSelectBuilding(row.buildingId as number)} onKeyDown={event => { if (selectable && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelectBuilding(row.buildingId as number); } }} className={`rounded-2xl border border-[#e3ecef] bg-white p-3.5 shadow-[0_5px_16px_rgba(18,44,84,0.035)] sm:p-4 ${selectable ? "cursor-pointer transition hover:-translate-y-0.5 hover:border-[#8fcfce] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#0d7180]/30" : ""}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0"><h3 className="truncate text-sm font-black text-[#102a43]">{row.name}</h3><p className="mt-1 text-[10px] text-slate-400">{row.code}{row.type ? ` · ${row.type === "subcontractor" ? "مقاول" : "مبنى مملوك"}` : ""}</p></div>
       <StatusBadge over={over} budget={row.budget} />
