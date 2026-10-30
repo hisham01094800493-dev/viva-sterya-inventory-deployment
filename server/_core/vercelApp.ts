@@ -6,6 +6,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { checkDatabaseReadiness } from "../db";
 import { registerMigrationImportRoutes } from "../migrationImport";
+import { createDailyReportHeartbeatHandler, createInventoryReportHandler } from "../scheduled";
 
 export async function createVercelApp() {
   const app = express();
@@ -55,6 +56,8 @@ export async function createVercelApp() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerMigrationImportRoutes(app);
+  app.post("/api/scheduled/daily-report-heartbeat", createDailyReportHeartbeatHandler());
+  app.post("/api/scheduled/daily-report", createInventoryReportHandler("daily"));
   const trpcMiddleware = createExpressMiddleware({ router: appRouter, createContext });
   app.use("/api/trpc", trpcMiddleware);
   app.use("/trpc", trpcMiddleware);

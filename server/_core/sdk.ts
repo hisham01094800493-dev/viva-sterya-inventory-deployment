@@ -5,10 +5,12 @@ import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import { randomUUID } from "node:crypto";
 import type { User } from "../../drizzle/schema";
+import type { GetUserInfoWithJwtResponse } from "./types/manusTypes";
 import * as db from "../db";
 import { ENV } from "./env";
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.length > 0;
+const CRON_OPEN_ID_PREFIX = "cron_";
 
 export type SessionPayload = { openId: string; appId: string; name: string; sessionId?: string };
 export type AuthenticatedUser = User & { taskUid?: string; isCron?: boolean };
@@ -48,12 +50,33 @@ class SDKServer {
     }
   }
 
+  private async getUserInfoWithJwt(jwtToken: string): Promise<GetUserInfoWithJwtResponse> {
+    if (!ENV.forgeApiUrl || !ENV.forgeApiKey) throw ForbiddenError("Cron authentication service is not configured");
+    const response = await fetch(`${ENV.forgeApiUrl.replace(/\/$/, "")}/webdevtoken.v1.WebDevService/GetUserInfoWithJwt`, {
+      method: "POST",
+      headers: { accept: "application/json", authorization: `Bearer ${ENV.forgeApiKey}`, "content-type": "application/json", "connect-protocol-version": "1" },
+      body: JSON.stringify({ jwtToken, projectId: ENV.appId }),
+    });
+    if (!response.ok) throw ForbiddenError("Invalid cron session");
+    return (await response.json()) as GetUserInfoWithJwtResponse;
+  }
+
+  private buildCronUser(userInfo: GetUserInfoWithJwtResponse): AuthenticatedUser {
+    const now = new Date();
+    return { id: -1, openId: userInfo.openId, name: userInfo.name || "Manus Scheduled Task", email: userInfo.email ?? null, loginMethod: userInfo.loginMethod ?? null, role: "user", createdAt: now, updatedAt: now, lastSignedIn: now, taskUid: userInfo.taskUid ?? undefined, isCron: true } as AuthenticatedUser;
+  }
+
   async authenticateRequest(req: Request): Promise<AuthenticatedUser> {
     const cookies = this.parseCookies(req.headers.cookie);
     let sessionToken = cookies.get(COOKIE_NAME);
     if (!sessionToken && typeof req.headers.authorization === "string" && req.headers.authorization.startsWith("Bearer ")) sessionToken = req.headers.authorization.slice(7);
     const session = await this.verifySession(sessionToken);
     if (!session) throw ForbiddenError("Invalid session cookie");
+    if (session.openId.startsWith(CRON_OPEN_ID_PREFIX)) {
+      const userInfo = await this.getUserInfoWithJwt(sessionToken ?? "");
+      if (!userInfo.taskUid) throw ForbiddenError("Cron session missing task_uid");
+      return this.buildCronUser(userInfo);
+    }
     if (await db.isSessionRevoked(session.sessionId)) throw ForbiddenError("Session has been revoked");
     const user = await db.getUserByOpenId(session.openId);
     if (!user) throw ForbiddenError("User not found");

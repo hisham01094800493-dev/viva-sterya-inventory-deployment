@@ -164,6 +164,9 @@ export async function saveReportSchedulerConfig(input: { enabled: boolean; time:
 }
 
 export async function configureReportHeartbeat(input: { enabled: boolean; userSession: string }) {
+  if (!process.env.BUILT_IN_FORGE_API_URL || !process.env.BUILT_IN_FORGE_API_KEY) {
+    return { taskUid: null, nextExecutionAt: null, enabled: input.enabled, mode: "project-heartbeat" as const };
+  }
   const existingTaskUid = await getSettingValue(REPORT_HEARTBEAT_TASK_SETTING, "");
   if (!existingTaskUid && !input.enabled) return { taskUid: null, nextExecutionAt: null, enabled: false };
   const job = existingTaskUid
