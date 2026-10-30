@@ -6496,12 +6496,13 @@ export async function sendChatMessage(input: {
   const recipientRows =
     conversation[0]?.type === "general"
       ? await db
-          .select({ userId: users.id })
+          .select({ userId: users.id, email: users.email, name: users.name })
           .from(users)
           .where(not(eq(users.id, input.userId)))
       : await db
-          .select({ userId: chatMembers.userId })
+          .select({ userId: chatMembers.userId, email: users.email, name: users.name })
           .from(chatMembers)
+          .innerJoin(users, eq(users.id, chatMembers.userId))
           .where(
             and(
               eq(chatMembers.conversationId, input.conversationId),
@@ -6515,6 +6516,29 @@ export async function sendChatMessage(input: {
         userId: recipient.userId,
       }))
     );
+  const externalRecipients = recipientRows
+    .map(recipient => recipient.email?.trim())
+    .filter((email): email is string => Boolean(email && email.includes("@")));
+  if (externalRecipients.length) {
+    try {
+      const sender = await db
+        .select({ name: users.name, email: users.email })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
+      const senderName = sender[0]?.name || sender[0]?.email || "زميل";
+      const escapeMail = (value: string) => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char);
+      const subject = `Smart Inventory — رسالة جديدة${conversation[0]?.type === "general" ? " في محادثة الفريق" : " في محادثة خاصة"}`;
+      const attachmentNotice = attachmentData ? `<p><b>مرفق:</b> <a href="${encodeURI(attachmentData.url)}">${escapeMail(attachmentData.name)}</a></p>` : "";
+      await sendConfiguredEmail({
+        subject,
+        recipients: externalRecipients,
+        html: `<div dir="rtl" style="font-family:Arial,sans-serif;color:#102a43"><h2>${escapeMail(senderName)} أرسل رسالة جديدة</h2><p style="white-space:pre-wrap">${escapeMail(body || "تم إرسال مرفق")}</p>${attachmentNotice}<p style="color:#6b7d86;font-size:12px">يمكنك فتح Smart Inventory لمتابعة المحادثة والرد.</p></div>`,
+      });
+    } catch (error) {
+      console.warn("[Chat] external email notification failed; message was saved", error);
+    }
+  }
   await db
     .update(chatConversations)
     .set({ updatedAt: new Date() })
