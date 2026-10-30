@@ -428,8 +428,6 @@ export default function Home() {
               {cardDefinitions.map(({ key, ...card }) => <StatCard key={key} {...card} />)}
             </section>
 
-            <SmartWatchCard count={smartWatch.data?.total ?? 0} rows={(smartWatch.data?.rows ?? []).map(row => ({ code: row.code, name: row.name, daysOfCover: row.daysOfCover, unit: row.unit }))} onOpen={() => setLocation("/alerts")} />
-
             <section className="home-surface overflow-hidden rounded-2xl border border-[#dce7ee] bg-white shadow-[0_10px_30px_rgba(18,44,84,0.055)]">
               <div className="p-4 sm:p-5">
                 <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -482,9 +480,11 @@ export default function Home() {
               {warehouseCardsExpanded ? <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{warehouseBalances.map(warehouse => <WarehouseBranchCard key={`summary-${warehouse.id}`} warehouse={warehouse} lowItems={lowStockByWarehouse.get(warehouse.id) ?? []} onOpen={() => setLocation(`/warehouses/${warehouse.slot}`)} />)}</div> : null}
             </section>
 
-            <details className="home-surface group rounded-2xl border border-[#dce7ee] bg-white shadow-[0_8px_22px_rgba(18,44,84,0.045)]">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 marker:content-none"><div><h3 className="text-sm font-black text-[#102a43]">تفاصيل المتابعة</h3><p className="mt-0.5 text-[11px] text-slate-400">الأصناف المنخفضة وآخر الحركات</p></div><ChevronDown className="h-4 w-4 text-[#0d4f62] transition-transform group-open:rotate-180" /></summary>
-              <div className="grid gap-5 border-t border-[#edf2f5] p-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <details className="home-surface group rounded-2xl border border-[#dce7ee] bg-white shadow-[0_8px_22px_rgba(18,44,84,0.045)] dark:border-[#315f68] dark:bg-[#172b35]">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 marker:content-none"><div><h3 className="text-sm font-black text-[#102a43] dark:text-[#f1fbfc]">تفاصيل المتابعة</h3><p className="mt-0.5 text-[11px] text-slate-400">المراقبة الذكية، الأصناف المنخفضة وآخر الحركات</p></div><ChevronDown className="h-4 w-4 text-[#0d4f62] transition-transform group-open:rotate-180 dark:text-[#8ed3d1]" /></summary>
+              <div className="space-y-5 border-t border-[#edf2f5] p-4 dark:border-[#315f68]">
+                <SmartWatchCard count={smartWatch.data?.total ?? 0} rows={(smartWatch.data?.rows ?? []).map(row => ({ code: row.code, name: row.name, daysOfCover: row.daysOfCover, unit: row.unit }))} onOpen={() => setLocation("/alerts")} />
+                <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
               <Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm">
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between border-b border-[#edf2f5] px-6 py-5">
@@ -510,6 +510,7 @@ export default function Home() {
                   <Button variant="ghost" onClick={() => setLocation("/items")} className="mb-4 mr-4 rounded-lg text-xs font-bold text-[#0d4f62] hover:bg-[#e8f1f2]">استعراض المخزون<ChevronLeft className="mr-1 h-4 w-4" /></Button>
                 </CardContent>
               </Card>
+                </div>
               </div>
             </details>
           </>
