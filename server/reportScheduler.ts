@@ -75,6 +75,23 @@ export function isScheduleDue(now: Date, scheduleTime: string, lastSuccessfulDat
   return cairo.minutes >= hour * 60 + minute && lastSuccessfulDate !== cairo.date;
 }
 
+/**
+ * يحسب الموعد القادم لتشغيل التقرير بتوقيت القاهرة ويعيده بصيغة ISO (UTC).
+ * يُستخدم لعرض "التشغيل القادم" في الإعدادات وللتشخيص عبر نقطة الحالة.
+ */
+export function computeNextRunAt(now: Date, scheduleTime: string): string {
+  const [hour, minute] = /^([01]\d|2[0-3]):([0-5]\d)$/.test(scheduleTime) ? scheduleTime.split(":").map(Number) : [17, 0];
+  const targetMinutes = hour * 60 + minute;
+  const cairo = getCairoParts(now);
+  const dayOffset = cairo.minutes < targetMinutes ? 0 : 1;
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  // فرق الساعة بين ساعة الحائط في القاهرة وUTC (يشمل التوقيت الصيفي)
+  let offsetMinutes = cairo.minutes - utcMinutes;
+  offsetMinutes = (((offsetMinutes + 720) % 1440) + 1440) % 1440 - 720;
+  const cairoMidnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - offsetMinutes * 60_000;
+  return new Date(cairoMidnightUtc + dayOffset * 86_400_000 + targetMinutes * 60_000).toISOString();
+}
+
 function shiftDate(date: Date, days: number) {
   const copy = new Date(date);
   copy.setUTCDate(copy.getUTCDate() + days);
@@ -153,7 +170,16 @@ export async function getReportSchedulerConfig() {
   const [enabledRaw, timeRaw] = await Promise.all([getSettingValue("report_schedule_enabled", "true"), getSettingValue("report_schedule_time", DEFAULT_TIME)]);
   const db = await requireDb();
   const lastRun = (await db.select().from(reportSchedulerRuns).orderBy(desc(reportSchedulerRuns.startedAt)).limit(1))[0] ?? null;
-  return { enabled: enabledRaw !== "false", time: /^([01]\d|2[0-3]):[0-5]\d$/.test(timeRaw) ? timeRaw : DEFAULT_TIME, lastRun, timeZone: TIME_ZONE };
+  const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(timeRaw) ? timeRaw : DEFAULT_TIME;
+  const lastSuccessfulDate = lastRun?.status === "success" ? lastRun.reportDate : null;
+  return {
+    enabled: enabledRaw !== "false",
+    time,
+    lastRun,
+    lastSuccessfulDate,
+    nextRunAt: computeNextRunAt(new Date(), time),
+    timeZone: TIME_ZONE,
+  };
 }
 
 export async function saveReportSchedulerConfig(input: { enabled: boolean; time: string }) {
@@ -204,7 +230,7 @@ export async function runDailyExecutiveReport(options: { force?: boolean } = {})
     const startedAt = new Date();
     if (run) await db.update(reportSchedulerRuns).set({ status: "running", startedAt, completedAt: null, errorMessage: null }).where(eq(reportSchedulerRuns.id, run.id));
     else { const result = await db.insert(reportSchedulerRuns).values({ reportDate: today, status: "running", startedAt }); run = (await db.select().from(reportSchedulerRuns).where(eq(reportSchedulerRuns.reportDate, today)).limit(1))[0]; if (!run && result) throw new Error("تعذر إنشاء سجل تشغيل التقرير"); }
-    const [rows, thresholdRaw, recipientsRaw, analysis] = await Promise.all([getInventoryRows(), getSettingValue("threshold_percentage", "20"), getSettingValue("report_recipients", process.env.INVENTORY_REPORT_EMAILS ?? ""), collectForecastAndBuildings(today, now)]);
+    const [rows, thresholdRaw, recipientsRaw, analysis] = await Promise.all([getInventoryRows(), getSettingValue("threshold_percentage", "20"), getSettingValue("report_recipients", process.env.INVENTORY_REPORT_EMAILS ?? process.env.ADMIN_EMAIL ?? ""), collectForecastAndBuildings(today, now)]);
     const threshold = Math.min(100, Math.max(0, Number(thresholdRaw) || 20));
     const lowStockCount = getLowStockItems(rows, threshold).length;
     const currentHtml = buildInventoryReportHtml(rows as any, threshold, "التقرير اليومي للمخزون");

@@ -6,7 +6,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { checkDatabaseReadiness } from "../db";
 import { registerMigrationImportRoutes } from "../migrationImport";
-import { createBackupRestoreVerificationHandler, createCronJobDailyReportHandler, createDailyReportHeartbeatHandler, createInventoryReportHandler } from "../scheduled";
+import { createBackupRestoreVerificationHandler, createCronJobDailyReportHandler, createDailyReportHeartbeatHandler, createDailyReportStatusHandler, createInventoryReportHandler } from "../scheduled";
 
 export async function createVercelApp() {
   const app = express();
@@ -56,11 +56,12 @@ export async function createVercelApp() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerMigrationImportRoutes(app);
-  app.post("/api/scheduled/low-stock", createInventoryReportHandler("low_stock"));
-  app.post("/api/scheduled/daily-report", createInventoryReportHandler("daily"));
-  app.post("/api/scheduled/weekly-report", createInventoryReportHandler("weekly"));
-  app.post("/api/scheduled/daily-report-heartbeat", createDailyReportHeartbeatHandler());
-  app.post("/api/scheduled/backup-restore-verification", createBackupRestoreVerificationHandler());
+  app.all("/api/scheduled/low-stock", createInventoryReportHandler("low_stock"));
+  app.all("/api/scheduled/daily-report", createInventoryReportHandler("daily"));
+  app.all("/api/scheduled/weekly-report", createInventoryReportHandler("weekly"));
+  app.all("/api/scheduled/daily-report-heartbeat", createDailyReportHeartbeatHandler());
+  app.all("/api/scheduled/daily-report-status", createDailyReportStatusHandler());
+  app.all("/api/scheduled/backup-restore-verification", createBackupRestoreVerificationHandler());
   app.all("/api/cron/daily-inventory-report", createCronJobDailyReportHandler());
   const trpcMiddleware = createExpressMiddleware({ router: appRouter, createContext });
   app.use("/api/trpc", trpcMiddleware);
