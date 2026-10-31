@@ -1258,13 +1258,20 @@ export async function getItemCard(
   const legacyReturnDisbursements = disbursementRows.filter(isReturnDisbursement);
   const normalDisbursements = disbursementRows.filter(row => !isReturnDisbursement(row));
   const buildingIds = Array.from(new Set(normalDisbursements.map(row => Number(row.buildingId)).filter(id => Number.isInteger(id) && id > 0)));
-  const customerIds = Array.from(new Set(normalDisbursements.map(row => Number(row.customerId)).filter(id => Number.isInteger(id) && id > 0)));
-  const [buildingRows, customerRows] = await Promise.all([
+  const customerIds = Array.from(new Set([
+    ...normalDisbursements.map(row => Number(row.customerId)),
+    ...transferRows.flatMap(row => [Number(row.fromCustomerId), Number(row.toCustomerId)]),
+  ].filter(id => Number.isInteger(id) && id > 0)));
+  const supplierIds = Array.from(new Set(additionRows.map(row => Number(row.supplierId)).filter(id => Number.isInteger(id) && id > 0)));
+  const [buildingRows, customerRows, supplierRows] = await Promise.all([
     buildingIds.length ? db.select({ id: buildings.id, name: buildings.name, code: buildings.code }).from(buildings).where(inArray(buildings.id, buildingIds)) : Promise.resolve([]),
     customerIds.length ? db.select({ id: customers.id, name: customers.name }).from(customers).where(inArray(customers.id, customerIds)) : Promise.resolve([]),
+    supplierIds.length ? db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).where(inArray(suppliers.id, supplierIds)) : Promise.resolve([]),
   ]);
   const buildingById = new Map(buildingRows.map(row => [row.id, row]));
   const customerById = new Map(customerRows.map(row => [row.id, row.name]));
+  const supplierById = new Map(supplierRows.map(row => [row.id, row.name]));
+  const enrichedAdditions = additionRows.map(row => ({ ...row, supplier: row.supplier || (row.supplierId ? supplierById.get(row.supplierId) : null) || null }));
   const enrichedDisbursements = normalDisbursements.map(row => {
     const building = row.buildingId ? buildingById.get(row.buildingId) : undefined;
     const customerName = row.customerId ? customerById.get(row.customerId) : undefined;
@@ -1275,7 +1282,12 @@ export async function getItemCard(
       buildingName: building?.name || building?.code || null,
     };
   });
-  const returnTransfers = transferRows.filter(row => isReturnTransfer(row.transferType));
+  const enrichedTransfers = transferRows.map(row => ({
+    ...row,
+    fromCustomer: row.fromCustomerId ? customerById.get(row.fromCustomerId) || null : null,
+    toCustomer: row.toCustomerId ? customerById.get(row.toCustomerId) || null : null,
+  }));
+  const returnTransfers = enrichedTransfers.filter(row => isReturnTransfer(row.transferType));
   const returns = [
     ...returnTransfers,
     ...legacyReturnDisbursements.map(row => ({
@@ -1289,11 +1301,11 @@ export async function getItemCard(
   ];
   return {
     item,
-    additions: additionRows,
+    additions: enrichedAdditions,
     // لا نعرض إذن المرتجع القديم مرة ثانية كصرف.
     disbursements: enrichedDisbursements,
     returns: dedupeItemCardReturns(returns),
-    transfers: transferRows,
+    transfers: enrichedTransfers,
   };
 }
 

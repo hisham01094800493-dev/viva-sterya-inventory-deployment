@@ -533,20 +533,20 @@ export type ItemCardMovementPdfRow = {
 
 export function formatItemCardMovementDetail(movement: ItemCardMovementKind, row: Record<string, any>) {
   const permit = row.eznNum ? ` — رقم الإذن: ${row.eznNum}` : "";
-  if (movement === "إضافة") return `وارد من: ${row.supplier || row.store || "—"}${permit}`;
+  if (movement === "إضافة") return `وارد من: ${row.supplier || row.supplierName || row.store || "—"}${permit}`;
   if (movement === "صرف") {
     const destination = row.destination || row.customer || row.store || "—";
     const building = String(row.buildingName || row.building || row.buildingCode || "").trim().replace(/^مبنى\s*/, "");
     return `صرف إلى: ${destination}${building ? ` للمبنى ${building}` : ""}${permit}`;
   }
   if (movement === "مرتجع") {
-    const from = row.fromStore || row.sourceStore || row.supplier || row.customer;
-    const to = row.toStore || row.destination || row.store;
+    const from = row.fromStore || row.sourceStore || row.supplier || row.fromCustomer || row.customer;
+    const to = row.toStore || row.destination || row.toCustomer || row.store;
     const description = from && to ? `مرتجع من: ${from} إلى: ${to}` : from ? `مرتجع من: ${from}` : to ? `مرتجع إلى: ${to}` : "مرتجع";
     return `${description}${permit}`;
   }
-  const from = row.fromStore || row.sourceStore || row.supplier || "—";
-  const to = row.toStore || row.destination || row.customer || "—";
+  const from = row.fromStore || row.sourceStore || row.fromCustomer || row.supplier || "—";
+  const to = row.toStore || row.destination || row.toCustomer || row.customer || "—";
   return `تحويل من: ${from} إلى: ${to}${permit}`;
 }
 
