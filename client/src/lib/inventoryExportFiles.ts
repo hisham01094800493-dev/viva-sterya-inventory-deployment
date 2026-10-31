@@ -539,7 +539,8 @@ export function formatItemCardMovementDetail(movement: ItemCardMovementKind, row
     const destination = String(row.destination || row.customer || row.store || "").trim();
     const customer = String(row.customer || "").trim();
     const client = customer || (destination && destination !== building ? destination : "—");
-    const buildingText = building ? ` — المبنى: ${building}` : "";
+    // عزل الأكواد اللاتينية يمنع خوارزمية RTL من نقل B2-L2-L4 إلى بداية البيان.
+    const buildingText = building ? ` — المبنى: \u200E${building}\u200E` : "";
     return `رقم الإذن: ${row.eznNum || "—"} — صرف للعميل: ${client}${buildingText}`;
   }
   if (movement === "مرتجع") {

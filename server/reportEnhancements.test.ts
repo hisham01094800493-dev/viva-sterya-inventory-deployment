@@ -284,8 +284,8 @@ describe("تحسينات تقارير المخزون", () => {
     expect(formatItemCardMovementDetail("إضافة", { supplier: "مورد النور" })).toBe("وارد من: مورد النور");
     expect(formatItemCardMovementDetail("إضافة", { supplierName: "مورد الدليل", eznNum: "A-7" })).toBe("وارد من: مورد الدليل — رقم الإذن: A-7");
     expect(formatItemCardMovementDetail("صرف", { destination: "شركة البناء" })).toBe("رقم الإذن: — — صرف للعميل: شركة البناء");
-    expect(formatItemCardMovementDetail("صرف", { destination: "شركة البناء", buildingName: "مبنى L2", eznNum: "D-12" })).toBe("رقم الإذن: D-12 — صرف للعميل: شركة البناء — المبنى: L2");
-    expect(formatItemCardMovementDetail("صرف", { destination: "شركة البناء", customer: "شركة البناء", buildingName: "L2", eznNum: "D-13" })).toBe("رقم الإذن: D-13 — صرف للعميل: شركة البناء — المبنى: L2");
+    expect(formatItemCardMovementDetail("صرف", { destination: "شركة البناء", buildingName: "مبنى L2", eznNum: "D-12" })).toBe("رقم الإذن: D-12 — صرف للعميل: شركة البناء — المبنى: ‎L2‎");
+    expect(formatItemCardMovementDetail("صرف", { destination: "شركة البناء", customer: "شركة البناء", buildingName: "L2", eznNum: "D-13" })).toBe("رقم الإذن: D-13 — صرف للعميل: شركة البناء — المبنى: ‎L2‎");
     expect(formatItemCardMovementDetail("مرتجع", { fromStore: "مخزن 1", toStore: "مخزن 2" })).toBe("مرتجع من: مخزن 1 إلى: مخزن 2");
     expect(formatItemCardMovementDetail("مرتجع", { fromCustomer: "شركة البناء", toStore: "المخزن" })).toBe("مرتجع من: شركة البناء إلى: المخزن");
     expect(formatItemCardMovementDetail("تحويل", { fromCustomer: "شركة أ", toCustomer: "شركة ب" })).toBe("تحويل من: شركة أ إلى: شركة ب");
