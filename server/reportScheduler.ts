@@ -88,7 +88,9 @@ export function computeNextRunAt(now: Date, scheduleTime: string): string {
   // فرق الساعة بين ساعة الحائط في القاهرة وUTC (يشمل التوقيت الصيفي)
   let offsetMinutes = cairo.minutes - utcMinutes;
   offsetMinutes = (((offsetMinutes + 720) % 1440) + 1440) % 1440 - 720;
-  const cairoMidnightUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - offsetMinutes * 60_000;
+  // مهم: نستخدم تاريخ القاهرة (مش تاريخ UTC) لأن الاتنين ممكن يختلفوا حول منتصف الليل.
+  const [cairoYear, cairoMonth, cairoDay] = cairo.date.split("-").map(Number);
+  const cairoMidnightUtc = Date.UTC(cairoYear, cairoMonth - 1, cairoDay) - offsetMinutes * 60_000;
   return new Date(cairoMidnightUtc + dayOffset * 86_400_000 + targetMinutes * 60_000).toISOString();
 }
 
