@@ -538,9 +538,9 @@ export function formatItemCardMovementDetail(movement: ItemCardMovementKind, row
     const building = String(row.buildingName || row.building || row.buildingCode || "").trim().replace(/^مبنى\s*/, "");
     const destination = String(row.destination || row.customer || row.store || "").trim();
     const customer = String(row.customer || "").trim();
-    const party = building || destination || customer || "—";
-    const secondary = building && customer && customer !== building ? ` — العميل: ${customer}` : building && destination && destination !== building && destination !== customer ? ` — الجهة: ${destination}` : "";
-    return `صرف إلى الجهة: ${party}${secondary}${permit}`;
+    const client = customer || (destination && destination !== building ? destination : "—");
+    const buildingText = building ? ` — المبنى: ${building}` : "";
+    return `رقم الإذن: ${row.eznNum || "—"} — صرف للعميل: ${client}${buildingText}`;
   }
   if (movement === "مرتجع") {
     const from = row.fromStore || row.sourceStore || row.supplier || row.fromCustomer || row.customer;
