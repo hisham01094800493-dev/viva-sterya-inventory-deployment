@@ -37,6 +37,16 @@ Authorization: Bearer YOUR_CRON_SECRET
 ```json
 {"ok":true,"status":"skipped","reason":"not-due"}
 ```
+
+> **مهم:** نقطة النبضة تقبل `GET` و`POST` (لأن cron-job.org يرسل `GET` افتراضيًا)، وتوجد نقطة تشخيص محمية بنفس السر:
+>
+> ```text
+> GET https://YOUR-DOMAIN/api/scheduled/daily-report-status
+> Authorization: Bearer YOUR_CRON_SECRET
+> ```
+>
+> تعرض التفعيل والوقت والمنطقة الزمنية و`nextRunAt` وآخر تشغيل وحالة قنوات البريد والواتساب والإشعارات الداخلية.
+> راجع الدليل الكامل: [`DAILY_REPORT_CRON_SETUP_AR.md`](./DAILY_REPORT_CRON_SETUP_AR.md)
 التواصل والتنبيهات
 محادثات فريق العمل داخل النظام مع إيصالات القراءة.
 مركز إشعارات وتنبيهات المخزون المنخفض.

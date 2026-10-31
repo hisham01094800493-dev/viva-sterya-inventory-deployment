@@ -6,7 +6,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { createBackupRestoreVerificationHandler, createDailyReportHeartbeatHandler, createInventoryReportHandler } from "../scheduled";
+import { createBackupRestoreVerificationHandler, createDailyReportHeartbeatHandler, createDailyReportStatusHandler, createInventoryReportHandler } from "../scheduled";
 import { checkDatabaseReadiness, closeDatabasePool, runDueLocalBackupVerification } from "../db";
 import { registerMigrationImportRoutes } from "../migrationImport";
 
@@ -72,11 +72,12 @@ export async function createApp(options: { withStaticFiles?: boolean } = {}) {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerMigrationImportRoutes(app);
-  app.post("/api/scheduled/low-stock", createInventoryReportHandler("low_stock"));
-  app.post("/api/scheduled/daily-report", createInventoryReportHandler("daily"));
-  app.post("/api/scheduled/daily-report-heartbeat", createDailyReportHeartbeatHandler());
-  app.post("/api/scheduled/weekly-report", createInventoryReportHandler("weekly"));
-  app.post("/api/scheduled/backup-restore-verification", createBackupRestoreVerificationHandler());
+  app.all("/api/scheduled/low-stock", createInventoryReportHandler("low_stock"));
+  app.all("/api/scheduled/daily-report", createInventoryReportHandler("daily"));
+  app.all("/api/scheduled/daily-report-heartbeat", createDailyReportHeartbeatHandler());
+  app.all("/api/scheduled/daily-report-status", createDailyReportStatusHandler());
+  app.all("/api/scheduled/weekly-report", createInventoryReportHandler("weekly"));
+  app.all("/api/scheduled/backup-restore-verification", createBackupRestoreVerificationHandler());
   const trpcMiddleware = createExpressMiddleware({ router: appRouter, createContext });
   app.use("/api/trpc", trpcMiddleware);
   app.use("/trpc", trpcMiddleware);

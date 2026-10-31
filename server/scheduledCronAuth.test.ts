@@ -10,6 +10,7 @@ vi.mock("./_core/sdk", () => ({ sdk: { authenticateRequest: mocks.authenticateRe
 vi.mock("./reportScheduler", () => ({
   isReportHeartbeatTask: mocks.isReportHeartbeatTask,
   runDailyExecutiveReportIfDue: mocks.runDailyExecutiveReportIfDue,
+  getReportSchedulerConfig: vi.fn(),
 }));
 
 import { createDailyReportHeartbeatHandler } from "./scheduled";
@@ -24,7 +25,7 @@ function makeResponse() {
 }
 
 function makeRequest(authorization?: string, extraHeaders: Record<string, string> = {}) {
-  return { headers: { ...(authorization ? { authorization } : {}), ...extraHeaders }, originalUrl: "/api/scheduled/daily-report-heartbeat" } as never;
+  return { method: "POST", headers: { ...(authorization ? { authorization } : {}), ...extraHeaders }, originalUrl: "/api/scheduled/daily-report-heartbeat" } as never;
 }
 
 describe("daily report heartbeat authentication", () => {
