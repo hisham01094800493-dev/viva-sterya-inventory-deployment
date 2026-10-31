@@ -69,7 +69,7 @@ import { filterMovementRowsByItemAndPermit } from "@/lib/movementFilters";
 import { formatDisbursementPurpose } from "@/lib/movementPurpose";
 import { compressImageFile } from "@/lib/imageCompression";
 import { createDescriptiveImageFileName } from "@/lib/uploadFileName";
-import { buildItemCardPdf, downloadItemCardExcel, buildInventoryPdf, buildMovementPdf, buildExcelFileBlob, inventoryExportColumns, movementPdfExportColumns, movementPdfExportColumnsWithoutDetail, type ExportColumnKey } from "@/lib/inventoryExportFiles";
+import { buildItemCardPdf, downloadItemCardExcel, buildInventoryPdf, buildMovementPdf, buildExcelFileBlob, formatItemCardMovementDetail, inventoryExportColumns, movementPdfExportColumns, movementPdfExportColumnsWithoutDetail, type ExportColumnKey } from "@/lib/inventoryExportFiles";
 import { VoiceInputButton, normalizeVoiceSearchText } from "@/components/VoiceInputButton";
 import { inventoryQueryOptions, dashboardQueryOptions, detailQueryOptions } from "@/lib/queryOptions";
 import { HelpRequestCard, HelpRequestsAdminCard } from "@/components/HelpRequestCards";
@@ -257,10 +257,10 @@ function ItemMovementHistoryDialog({ itemId, open, onOpenChange }: { itemId?: nu
     const data = cardQuery.data;
     if (!data) return [];
     const raw = [
-      ...(data.additions ?? []).map((row: any) => ({ ...row, movement: "إضافة", party: row.supplier || row.store || "—", detail: row.purpose || "—", signedQuantity: Number(row.quantity ?? 0) })),
-      ...(data.disbursements ?? []).map((row: any) => ({ ...row, movement: "صرف", party: row.destination || row.store || "—", detail: row.notes || row.disburseType || "—", signedQuantity: -Number(row.quantity ?? 0) })),
-      ...(data.returns ?? []).map((row: any) => { const customerToCustomer = String(row.transferType ?? "").toLowerCase() === "customer_transfer" || String(row.transferType ?? "").includes("عميل إلى عميل"); return { ...row, movement: customerToCustomer ? "تحويل" : "مرتجع", party: customerToCustomer ? "تحويل من عميل إلى عميل" : row.fromStore || row.toStore || "—", detail: row.notes || (customerToCustomer ? "تحويل محايد للمخزون" : "مرتجع"), signedQuantity: customerToCustomer ? 0 : Number(row.quantity ?? 0) }; }),
-      ...(data.transfers ?? []).filter((row: any) => !(data.returns ?? []).some((returned: any) => returned.id === row.id)).map((row: any) => ({ ...row, movement: "تحويل", party: [row.fromStore, row.toStore].filter(Boolean).join(" ← ") || "—", detail: row.notes || "—", signedQuantity: 0 })),
+      ...(data.additions ?? []).map((row: any) => ({ ...row, movement: "إضافة", party: row.supplier || row.store || "—", detail: formatItemCardMovementDetail("إضافة", row), signedQuantity: Number(row.quantity ?? 0) })),
+      ...(data.disbursements ?? []).map((row: any) => ({ ...row, movement: "صرف", party: row.destination || row.customer || row.buildingName || row.store || "—", detail: formatItemCardMovementDetail("صرف", row), signedQuantity: -Number(row.quantity ?? 0) })),
+      ...(data.returns ?? []).map((row: any) => { const customerToCustomer = String(row.transferType ?? "").toLowerCase() === "customer_transfer" || String(row.transferType ?? "").includes("عميل إلى عميل"); const movement = customerToCustomer ? "تحويل" : "مرتجع"; return { ...row, movement, party: customerToCustomer ? "تحويل من عميل إلى عميل" : row.fromStore || row.toStore || "—", detail: customerToCustomer ? formatItemCardMovementDetail("تحويل", row) : formatItemCardMovementDetail("مرتجع", row), signedQuantity: customerToCustomer ? 0 : Number(row.quantity ?? 0) }; }),
+      ...(data.transfers ?? []).filter((row: any) => !(data.returns ?? []).some((returned: any) => returned.id === row.id)).map((row: any) => ({ ...row, movement: "تحويل", party: [row.fromStore, row.toStore].filter(Boolean).join(" ← ") || "—", detail: formatItemCardMovementDetail("تحويل", row), signedQuantity: 0 })),
     ].sort((left, right) => String(left.date).localeCompare(String(right.date)) || Number(left.id ?? 0) - Number(right.id ?? 0));
     let running = Number(data.item.initialStock ?? 0);
     return raw.map(row => { running += row.signedQuantity; return { ...row, balanceAfter: running }; }).reverse();

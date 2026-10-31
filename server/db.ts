@@ -2940,21 +2940,28 @@ function reportWhereConditions(
     additionsConditions.push(
       or(
         like(additions.supplier, `%${incoming}%`),
-        like(additions.store, `%${incoming}%`)
+        like(additions.store, `%${incoming}%`),
+        sql`EXISTS (SELECT 1 FROM suppliers WHERE suppliers.id = ${additions.supplierId} AND suppliers.name LIKE ${`%${incoming}%`})`
       )
     );
   if (outgoing) {
     disbursementsConditions.push(
       or(
         like(disbursements.destination, `%${outgoing}%`),
-        like(disbursements.store, `%${outgoing}%`)
+        like(disbursements.store, `%${outgoing}%`),
+        like(disbursements.disburseType, `%${outgoing}%`),
+        like(disbursements.notes, `%${outgoing}%`),
+        sql`EXISTS (SELECT 1 FROM customers WHERE customers.id = ${disbursements.customerId} AND customers.name LIKE ${`%${outgoing}%`})`,
+        sql`EXISTS (SELECT 1 FROM buildings WHERE buildings.id = ${disbursements.buildingId} AND (buildings.name LIKE ${`%${outgoing}%`} OR buildings.code LIKE ${`%${outgoing}%`}))`
       )
     );
     transfersConditions.push(
       or(
         like(transfers.fromStore, `%${outgoing}%`),
         like(transfers.toStore, `%${outgoing}%`),
-        like(transfers.notes, `%${outgoing}%`)
+        like(transfers.notes, `%${outgoing}%`),
+        sql`EXISTS (SELECT 1 FROM customers WHERE customers.id = ${transfers.fromCustomerId} AND customers.name LIKE ${`%${outgoing}%`})`,
+        sql`EXISTS (SELECT 1 FROM customers WHERE customers.id = ${transfers.toCustomerId} AND customers.name LIKE ${`%${outgoing}%`})`
       )
     );
   }
