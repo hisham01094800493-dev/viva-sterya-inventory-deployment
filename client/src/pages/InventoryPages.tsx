@@ -53,6 +53,12 @@ import {
   Volume2,
   Clock3,
   PlayCircle,
+  Palette,
+  BellRing,
+  Send,
+  Save,
+  Sparkles,
+  SlidersHorizontal,
 } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -1318,7 +1324,539 @@ export function SettingsPage() {
       toast.error(error?.message || "فشل اختبار SMTP. راجع أسرار البريد في إعدادات المشروع.");
     }
   }
-  return <DashboardLayout><div className="mx-auto max-w-[1200px] space-y-7"><PageHeader eyebrow="SYSTEM / CONFIGURATION" title="إعدادات النظام" description="اضبط التنبيهات والتقارير والتخصيص من مكان واحد. تبقى بيانات SMTP سرية، وتُضاف من إعدادات المشروع." /><nav aria-label="أقسام الإعدادات" className="sticky top-2 z-20 overflow-x-auto rounded-2xl border border-[#dce7ee] bg-white/90 p-2 shadow-sm backdrop-blur-md"><div className="flex min-w-max items-center gap-2 text-xs font-black text-[#0d4f62]"><a href="#settings-logo" className="rounded-xl bg-[#e8f7f6] px-3 py-2 hover:bg-[#d7f0ef]">الشعار</a><a href="#settings-display" className="rounded-xl px-3 py-2 hover:bg-[#eef7f7]">العرض</a><a href="#settings-quick" className="rounded-xl px-3 py-2 hover:bg-[#eef7f7]">الاختصارات</a><a href="#settings-app" className="rounded-xl px-3 py-2 hover:bg-[#eef7f7]">الأيقونة</a><a href="#settings-alerts" className="rounded-xl px-3 py-2 hover:bg-[#eef7f7]">التنبيهات</a><a href="#settings-reports" className="rounded-xl px-3 py-2 hover:bg-[#eef7f7]">التقارير</a><a href="#settings-whatsapp" className="rounded-xl px-3 py-2 hover:bg-[#eef7f7]">واتساب</a></div></nav><Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm"><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5"><div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e8f1f2] text-[#0d4f62]"><Volume2 className="h-5 w-5" /></div><div><p className="font-black text-[#102a43]">اختبار صوت الإشعارات والرسائل</p><p className="mt-1 text-xs leading-6 text-slate-500">اضغط لتشغيل نغمة فعلية والتأكد من السماح بالصوت في الهاتف والمتصفح.</p></div></div><div className="flex min-w-[220px] flex-1 flex-wrap items-center gap-3 sm:flex-none"><label className="flex min-w-[150px] flex-1 items-center gap-2 text-xs font-bold text-[#102a43]"><span className="sr-only">نغمة الإشعارات</span><select value={notificationSound} onChange={event => { const value = event.target.value as NotificationSoundId; setNotificationSound(value); setNotificationSoundPreference(value); }} className="h-10 w-full rounded-xl border border-[#b9d4d9] bg-white px-3 font-bold text-[#102a43]" aria-label="نغمة الإشعارات">{(Object.entries(notificationSoundPresets) as [NotificationSoundId, typeof notificationSoundPresets[NotificationSoundId]][]).map(([id, preset]) => <option key={id} value={id}>{preset.label}</option>)}</select></label><label className="flex min-w-[150px] flex-1 items-center gap-2 text-xs font-bold text-[#102a43]" title={`مستوى الصوت ${notificationVolume}%`}><span className="sr-only">مستوى الصوت</span><input type="range" min="0" max="100" step="5" value={notificationVolume} onChange={event => { const value = Number(event.target.value); setNotificationVolumeState(value); setNotificationVolume(value / 100); }} className="w-full accent-[#0d4f62]" aria-label={`مستوى الصوت ${notificationVolume}%`} /><span className="w-10 text-center tabular-nums">{notificationVolume}%</span></label></div><Button type="button" onClick={() => void testNotificationSound()} className="gap-2 rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]"><Volume2 className="h-4 w-4" />اختبار الصوت</Button></CardContent></Card><div className="grid gap-6 lg:grid-cols-2"><div className="lg:col-span-2 rounded-2xl border border-[#dce7ee] bg-[#f8fcfc] px-4 py-3"><p className="text-xs font-black uppercase tracking-[0.18em] text-[#0d7180]">IDENTITY & DISPLAY</p><p className="mt-1 text-sm font-bold text-[#102a43]">هوية التطبيق وطريقة ظهوره</p></div><Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm" id="settings-logo"><CardContent className="p-6 md:p-8"><div className="mb-6 flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e8f1f2] text-[#0d4f62]"><ImageIcon className="h-6 w-6" /></div><div><p className="text-lg font-black text-[#102a43]">شعار الشركة</p><p className="mt-1 text-xs leading-6 text-slate-400">غيّر الشعار الذي يظهر في ترويسة تقارير PDF والمعاينات. الصيغ المدعومة: JPG وPNG وWEBP، بحد أقصى 5 ميجابايت.</p></div></div><div className="flex flex-col gap-5 sm:flex-row sm:items-center"><div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#dce7ee] bg-[#f7fbfc]">{logoDataUrl || companyLogoUrl ? <img src={logoDataUrl || companyLogoUrl || ""} alt="معاينة شعار الشركة" className="h-full w-full object-contain p-2" /> : <ImageIcon className="h-8 w-8 text-slate-300" />}</div><label className="flex flex-1 cursor-pointer items-center justify-between gap-4 rounded-2xl border-2 border-dashed border-[#b9d4d9] bg-[#f7fbfc] p-4 hover:border-[#0d4f62]"><input type="file" accept="image/*" className="hidden" onChange={chooseCompanyLogo} /><span><span className="block font-black text-[#102a43]">{uploadLogo.isPending ? "جارٍ رفع الشعار..." : logoDataUrl || companyLogoUrl ? "اختيار شعار جديد" : "رفع شعار الشركة"}</span><span className="mt-1 block text-xs text-slate-400">سيتم حفظ الشعار واستخدامه تلقائياً في التقارير التالية.</span></span><Upload className="h-5 w-5 text-[#0d4f62]" /></label><Button type="button" variant="outline" onClick={() => void clearCompanyLogo()} disabled={clearLogo.isPending || (!companyLogoUrl && !logoDataUrl)} className="w-full rounded-xl border-[#e6b7b2] font-bold text-[#bd5147] hover:bg-[#fff4f2] sm:w-auto"><Trash2 className="ml-2 h-4 w-4" />{clearLogo.isPending ? "جارٍ مسح الشعار..." : "مسح الشعار"}</Button></div></CardContent></Card><Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm" id="settings-display"><CardContent className="p-6 md:p-8"><div className="mb-6 flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff4df] text-[#a96821]"><Settings2 className="h-6 w-6" /></div><div><p className="text-lg font-black text-[#102a43]">حجم أرقام الجداول</p><p className="mt-1 text-xs leading-6 text-slate-400">اختر الحجم الذي يوضح الكميات والأكواد والتواريخ، مع حفظ الإعداد لهذا الجهاز.</p></div></div><div className="flex flex-col gap-4 sm:flex-row sm:items-center"><select value={numberScale} onChange={event => setNumberScale(event.target.value as "small" | "normal" | "large")} className="h-11 rounded-xl border border-[#b9d4d9] bg-white px-4 font-bold text-[#102a43] sm:w-64"><option value="small">صغير</option><option value="normal">متوسط</option><option value="large">كبير وواضح</option></select><p className="text-xs text-slate-400">يُطبّق فوراً على الجداول وحقول الأرقام دون تغيير البيانات.</p></div></CardContent></Card><Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm" id="settings-quick"><CardContent className="p-6 md:p-8"><div className="mb-6 flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e8f1f2] text-[#0d4f62]"><Settings2 className="h-6 w-6" /></div><div><div className="flex flex-wrap items-center gap-3"><p className="text-lg font-black text-[#102a43]">إجراءات القائمة السريعة</p><span role="status" aria-live="polite" className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-black ${syncStatus === "synced" ? "bg-emerald-50 text-emerald-700" : syncStatus === "syncing" ? "bg-amber-50 text-amber-700" : syncStatus === "error" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-500"}`}>{syncStatus === "synced" ? "✓ تمت المزامنة" : syncStatus === "syncing" ? "جارٍ حفظ التغييرات..." : syncStatus === "error" ? "تعذر حفظ التغييرات" : "في انتظار المزامنة"}</span></div><p className="mt-1 text-xs leading-6 text-slate-400">اختر الإجراءات الأكثر استخداماً لتظهر داخل الزر العائم. يجب إبقاء إجراء واحد على الأقل مفعلاً.</p></div></div><div className="grid gap-3 sm:grid-cols-3">{quickActionPaths.map(path => quickActionOptions.find(option => option.path === path)).filter(Boolean).map(option => <label key={option!.path} draggable onDragStart={() => { setDraggedQuickAction(option!.path); triggerHaptic(12, hapticEnabled); }} onDragOver={event => event.preventDefault()} onDrop={() => { if (!draggedQuickAction || draggedQuickAction === option!.path) return; setQuickActionPaths(current => { const next = [...current]; const from = next.indexOf(draggedQuickAction); const to = next.indexOf(option!.path); next.splice(from, 1); next.splice(to, 0, draggedQuickAction); return next; }); triggerHaptic(18, hapticEnabled); setDraggedQuickAction(null); }} onPointerDown={() => { setDraggedQuickAction(option!.path); triggerHaptic(12, hapticEnabled); }} onPointerEnter={() => { setDropTargetQuickAction(option!.path); if (!draggedQuickAction || draggedQuickAction === option!.path) return; setQuickActionPaths(current => { const next = [...current]; const from = next.indexOf(draggedQuickAction); const to = next.indexOf(option!.path); next.splice(from, 1); next.splice(to, 0, draggedQuickAction); return next; }); }} onPointerUp={() => { triggerHaptic(18, hapticEnabled); setDropTargetQuickAction(null); setDraggedQuickAction(null); }} className={dropTargetQuickAction === option!.path && draggedQuickAction ? "touch-none flex cursor-grab items-center gap-3 rounded-2xl border border-[#d08a3b] bg-[#fff4df] p-4 shadow-md ring-2 ring-[#d08a3b]/25 transition-all active:cursor-grabbing" : "touch-none flex cursor-grab items-center gap-3 rounded-2xl border border-[#e5eef1] bg-[#fbfdff] p-4 transition-all hover:border-[#8ebac1] active:cursor-grabbing"}><GripVertical className="h-5 w-5 shrink-0 text-slate-300" /><input type="checkbox" checked readOnly className="h-5 w-5 accent-[#0d4f62]" /><span><span className="block font-bold text-[#102a43]">{option!.label}</span><span className="mt-1 block text-xs text-slate-400">{option!.description}</span></span></label>)}{quickActionOptions.filter(option => !quickActionPaths.includes(option.path)).map(option => <label key={option.path} className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-[#d8e6e9] bg-white p-4 opacity-75 hover:border-[#8ebac1]"><input type="checkbox" checked={false} onChange={() => setQuickActionPaths(current => [...current, option.path])} className="h-5 w-5 accent-[#0d4f62]" /><span><span className="block font-bold text-[#102a43]">{option.label}</span><span className="mt-1 block text-xs text-slate-400">إضافة إلى القائمة السريعة</span></span></label>)}</div><div className="mt-5 grid gap-4 rounded-2xl border border-[#e5eef1] bg-[#fbfdff] p-4 sm:grid-cols-2"><label className="space-y-2 text-xs font-bold text-[#102a43]"><span className="block">شكل الزر المصغّر</span><select value={compactButtonShape} onChange={event => setCompactButtonShape(event.target.value as "circle" | "rounded" | "square")} className="h-10 w-full rounded-xl border border-[#b9d4d9] bg-white px-3"><option value="circle">دائري</option><option value="rounded">مستدير</option><option value="square">مربع بحواف ناعمة</option></select></label><label className="space-y-2 text-xs font-bold text-[#102a43]"><span className="block">لون الزر المصغّر</span><select value={compactButtonColor} onChange={event => setCompactButtonColor(event.target.value as "status" | "teal" | "purple" | "orange")} className="h-10 w-full rounded-xl border border-[#b9d4d9] bg-white px-3"><option value="status">حسب حالة الاتصال: أخضر / أحمر</option><option value="teal">تركوازي</option><option value="purple">بنفسجي</option><option value="orange">برتقالي</option></select></label><label className="space-y-2 text-xs font-bold text-[#102a43]"><span className="block">موضع الزر المصغّر</span><select value={compactButtonEdge} onChange={event => setCompactButtonEdge(event.target.value as "right" | "left")} className="h-10 w-full rounded-xl border border-[#b9d4d9] bg-white px-3"><option value="right">الحافة اليمنى</option><option value="left">الحافة اليسرى</option></select></label><p className="text-xs leading-5 text-slate-400 sm:col-span-2">عند اختيار «حسب حالة الاتصال» يتغير لون الزر تلقائياً إلى الأخضر عند الاتصال والأحمر عند انقطاع الإنترنت.</p></div><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-4"><p className="text-xs text-slate-400">اسحب البطاقات لإعادة ترتيبها، ويمكنك تفعيل إجراء غير ظاهر من البطاقات المنقطة.</p><label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-[#0d4f62]"><input type="checkbox" checked={hapticEnabled} onChange={event => setHapticEnabled(event.target.checked)} className="h-4 w-4 accent-[#0d4f62]" />اهتزاز عند السحب والإفلات</label></div><Button type="button" variant="outline" onClick={restorePersonalizationDefaults} className="rounded-xl border-[#b9d4d9] text-[#0d4f62]">استعادة الإعدادات الافتراضية</Button></div></CardContent></Card><Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm" id="settings-app"><CardContent className="p-6 md:p-8"><div className="mb-6 flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e8f1f2] text-[#0d4f62]"><ImageIcon className="h-6 w-6" /></div><div><p className="text-lg font-black text-[#102a43]">أيقونة التطبيق</p><p className="mt-1 text-xs leading-6 text-slate-400">اختر مظهراً جاهزاً لأيقونة Smart Inventory على هذا الجهاز.</p></div></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{iconOptions.map(icon => <button key={icon.id} type="button" onClick={() => setSelectedIconId(icon.id)} className={`rounded-2xl border p-2 text-center transition-all ${selectedIconId === icon.id ? "border-[#0d4f62] bg-[#eef8f8] shadow-md" : "border-[#e5eef1] bg-white hover:border-[#8ebac1]"}`}><img src={icon.url} alt={icon.label} className="mx-auto h-16 w-16 rounded-xl object-cover" /><span className="mt-2 block text-xs font-bold text-[#102a43]">{icon.label}</span></button>)}<button type="button" onClick={() => customIconUrl && setSelectedIconId("custom")} disabled={!customIconUrl} className={`rounded-2xl border p-2 text-center transition-all ${selectedIconId === "custom" ? "border-[#0d4f62] bg-[#eef8f8] shadow-md" : "border-dashed border-[#b9d4d9] bg-white hover:border-[#8ebac1]"}`}><span className="mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-[#f4fafb]">{customIconUrl ? <img src={customIconUrl} alt="الأيقونة المخصصة" className="h-full w-full object-cover" /> : <ImageIcon className="h-7 w-7 text-slate-300" />}</span><span className="mt-2 block text-xs font-bold text-[#102a43]">أيقونتي المخصصة</span></button></div><div className="mt-4 flex flex-wrap justify-between gap-3"><label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-[#b9d4d9] px-4 py-2.5 text-xs font-bold text-[#0d4f62] hover:border-[#0d4f62]"><input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={chooseCustomAppIcon} /><Upload className="h-4 w-4" />رفع صورة مخصصة</label><Button type="button" variant="outline" onClick={restorePersonalizationDefaults} className="rounded-xl border-[#b9d4d9] text-[#0d4f62]">استعادة الأيقونة والقائمة</Button></div><p className="mt-3 text-xs leading-6 text-slate-400">يتم حفظ الصورة المخصصة على هذا الجهاز فقط، بحد أقصى 2 ميجابايت. استخدم صورة مربعة واضحة للحصول على أفضل نتيجة.</p></CardContent></Card><div className="lg:col-span-2 rounded-2xl border border-[#f1dfbd] bg-[#fffaf2] px-4 py-3"><p className="text-xs font-black uppercase tracking-[0.18em] text-[#a96821]">ALERTS & REPORTS</p><p className="mt-1 text-sm font-bold text-[#102a43]">التنبيهات والتقارير والإرسال التلقائي</p></div><Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm lg:col-span-2" id="settings-alerts"><CardContent className="p-6 md:p-8"><div className="mb-7 flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e8f1f2] text-[#0d4f62]"><Settings2 className="h-6 w-6" /></div><div><p className="text-lg font-black text-[#102a43]">نسبة تنبيه انخفاض المخزون</p><p className="mt-1 text-xs leading-6 text-slate-400">تُستخدم لحساب الأصناف التي تحتاج إلى متابعة في لوحة التحكم.</p></div></div><form onSubmit={saveThreshold} className="space-y-5"><Field label="النسبة المئوية" required><div className="relative max-w-xs"><Input type="number" min="0" max="100" step="1" value={percentage} onChange={event => setPercentage(event.target.value)} className="h-12 rounded-xl pl-12 text-lg font-black" required /><span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-[#d08a3b]">%</span></div></Field><div className="rounded-2xl border border-[#f5e4c8] bg-[#fffaf2] p-4 text-sm leading-7 text-[#8a632f]">مثال: عند ضبط النسبة على 20%، سيظهر الصنف في التنبيهات عندما يساوي رصيده الحالي 20% أو أقل من حد الطلب.</div><Button type="submit" disabled={update.isPending} className="h-11 rounded-xl bg-[#0d4f62] px-6 font-bold text-white hover:bg-[#0a4150]">{update.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}حفظ الإعداد</Button></form></CardContent></Card><Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm" id="settings-reports"><CardContent className="p-6 md:p-8"><div className="mb-7 flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff5e7] text-[#a96821]"><BellIcon /></div><div><p className="text-lg font-black text-[#102a43]">التقارير والتنبيهات</p><p className="mt-1 text-xs leading-6 text-slate-400">اكتب بريد المدير أو أكثر من مستلم، مفصولين بفاصلة أو سطر جديد.</p></div></div><form onSubmit={saveReports} className="space-y-5"><Field label="مستلمو التقارير"><Textarea value={recipients} onChange={event => setRecipients(event.target.value)} placeholder="manager@example.com\nwarehouse@example.com" className="min-h-28 rounded-xl" /></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="اسم المورد الافتراضي"><Input value={defaultSupplier} onChange={event => setDefaultSupplier(event.target.value)} placeholder="مثال: مورد الشركة" className="h-11 rounded-xl" /></Field><Field label="مدة التوريد (يوم)"><Input type="number" min="0" value={forecastLeadTime} onChange={event => setForecastLeadTime(event.target.value)} className="h-11 rounded-xl" /></Field><Field label="مخزون الأمان (يوم)"><Input type="number" min="0" value={forecastSafetyStock} onChange={event => setForecastSafetyStock(event.target.value)} className="h-11 rounded-xl" /></Field><Field label="اسم العميل الافتراضي"><Input value={defaultCustomer} onChange={event => setDefaultCustomer(event.target.value)} placeholder="مثال: العميل الرئيسي" className="h-11 rounded-xl" /></Field><label className="flex items-center gap-3 rounded-xl border border-[#e5eef1] bg-[#fbfdff] px-3 py-3 text-sm font-bold text-[#102a43]"><input type="checkbox" checked={watermarkEnabled} onChange={event => setWatermarkEnabled(event.target.checked)} className="h-5 w-5 accent-[#0d4f62]" />تفعيل العلامة المائية في تقارير PDF</label><Field label="شفافية العلامة المائية (0.02 إلى 0.25)"><Input type="number" min="0.02" max="0.25" step="0.01" value={watermarkOpacity} onChange={event => setWatermarkOpacity(event.target.value)} className="h-11 rounded-xl" /></Field><Field label="حجم العلامة المائية (0.2 إلى 0.8)"><Input type="number" min="0.2" max="0.8" step="0.05" value={watermarkScale} onChange={event => setWatermarkScale(event.target.value)} className="h-11 rounded-xl" /></Field><Field label="موضع العلامة المائية"><select value={watermarkPosition} onChange={event => setWatermarkPosition(event.target.value as "center" | "top" | "bottom")} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm"><option value="center">المنتصف</option><option value="top">أعلى الصفحة</option><option value="bottom">أسفل الصفحة</option></select></Field><label className="flex items-center gap-3 rounded-xl border border-[#e5eef1] bg-[#fbfdff] px-3 py-3 text-sm font-bold text-[#102a43]"><input type="checkbox" checked={watermarkRepeat} onChange={event => setWatermarkRepeat(event.target.checked)} className="h-5 w-5 accent-[#0d4f62]" />تكرار العلامة المائية داخل الصفحة</label></div><p className="rounded-2xl border border-[#dcebee] bg-[#f4fafb] p-4 text-xs leading-6 text-[#386672]">تُستخدم هذه الأسماء تلقائياً في تقارير PDF عند عدم وجود مورد أو عميل محدد للحركة، ويمكن تغييرها لاحقاً من إعدادات النظام.</p><label className="flex cursor-pointer items-center justify-between rounded-2xl border border-[#e5eef1] bg-[#fbfdff] px-4 py-4"><span><span className="block font-bold text-[#102a43]">تفعيل التنبيهات الدورية</span><span className="mt-1 block text-xs text-slate-400">يشمل تنبيه النقص والتقارير اليومية والأسبوعية.</span></span><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} className="h-5 w-5 accent-[#0d4f62]" /></label><div className="rounded-2xl border border-[#dcebee] bg-[#f4fafb] p-4 text-xs leading-6 text-[#386672]">بعد إضافة بيانات SMTP في أسرار المشروع، سيرسل النظام البريد تلقائياً. قبل ذلك سيستخدم إشعار المالك كبديل آمن، ولن يفقد التقرير.</div><div className="grid gap-4 rounded-2xl border border-[#dcebee] bg-[#fbfdff] p-4 sm:grid-cols-2"><label className="flex items-center gap-3 text-sm font-bold text-[#102a43]"><input type="checkbox" checked={scheduleEnabled} onChange={event => setScheduleEnabled(event.target.checked)} className="h-5 w-5 accent-[#0d4f62]" /><span><span className="block">التقرير اليومي التلقائي</span><span className="mt-1 block text-xs font-normal text-slate-400">يعمل داخل الخادم بتوقيت القاهرة، ويعالج الموعد الفائت بعد إعادة التشغيل.</span></span></label><label className="space-y-2 text-xs font-bold text-[#102a43]"><span className="flex items-center gap-2"><Clock3 className="h-4 w-4 text-[#0d4f62]" />وقت التنفيذ</span><Input type="time" value={scheduleTime} onChange={event => setScheduleTime(event.target.value)} className="h-11 rounded-xl" /></label><div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-3"><div className="text-xs leading-6 text-slate-500"><b className="text-[#102a43]">حالة التقارير:</b> {reportSchedulerStatus.data?.lastRun ? `${reportSchedulerStatus.data.lastRun.status === "success" ? "نجح" : reportSchedulerStatus.data.lastRun.status === "failed" ? "فشل" : "قيد التنفيذ"} — ${new Date(reportSchedulerStatus.data.lastRun.completedAt ?? reportSchedulerStatus.data.lastRun.startedAt).toLocaleString("ar-EG", { timeZone: "Africa/Cairo" })}` : "لم يتم تشغيل التقرير بعد"}<span className="mt-1 block text-[11px] text-slate-400">يُحفظ سجل التشغيل داخل النظام، ويظهر ملخصه في إشعارات المديرين. يعمل البريد وواتساب فقط بعد اكتمال إعداداتهما.</span>{reportSchedulerStatus.data?.lastRun?.status === "success" && <span className={`mt-2 block text-[11px] font-black ${lastReportSummary.email ? "text-emerald-700" : "text-amber-700"}`}>{lastReportSummary.email ? "✓ تم إرسال البريد الإلكتروني فعلياً" : "! لم يتم إرسال البريد — تم استخدام إشعار النظام كبديل"}{lastReportSummary.managers ? ` · إشعارات داخلية: ${lastReportSummary.managers}` : ""}</span>}<span className="mx-2 text-slate-300">•</span> المنطقة الزمنية: توقيت القاهرة</div><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => runDailyReportNow.mutate()} disabled={runDailyReportNow.isPending} className="rounded-xl border-[#0d4f62] text-[#0d4f62]">{runDailyReportNow.isPending ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <PlayCircle className="ml-2 h-4 w-4" />}تشغيل الآن</Button><Button type="button" onClick={() => void downloadExecutiveReportPdf()} disabled={executivePdfBuilding || runDailyReportNow.isPending || reportSchedulerStatus.data?.lastRun?.status !== "success"} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">{executivePdfBuilding ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Download className="ml-2 h-4 w-4" />}{executivePdfBuilding ? "جاري تجهيز PDF" : "تنزيل التقرير التنفيذي (PDF)"}</Button></div></div></div><div className="flex flex-wrap gap-2"><Button type="submit" disabled={updateReports.isPending} className="h-11 rounded-xl bg-[#0d4f62] px-6 font-bold text-white hover:bg-[#0a4150]">{updateReports.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}حفظ إعدادات التقارير</Button><Button type="button" variant="outline" onClick={() => void sendReportEmailTest()} disabled={backupEmailTest.isPending} className="h-11 rounded-xl border-sky-300 px-5 font-bold text-sky-800 hover:bg-sky-50">{backupEmailTest.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}اختبار البريد الإلكتروني</Button></div></form></CardContent></Card><div className="lg:col-span-2 rounded-2xl border border-[#dce7ee] bg-[#f8fcfc] px-4 py-3"><p className="text-xs font-black uppercase tracking-[0.18em] text-[#0d7180]">MESSAGING</p><p className="mt-1 text-sm font-bold text-[#102a43]">قنوات الإشعارات الخارجية</p></div><Card className="border-0 bg-white shadow-[0_10px_30px_rgba(18,44,84,0.055)] lg:col-span-2" id="settings-whatsapp"><CardContent className="p-6 md:p-8"><div className="mb-7 flex items-center justify-between"><div className="flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600"><Phone className="h-6 w-6" /></div><div><p className="text-lg font-black text-[#102a43]">إشعارات واتساب الرسمية</p><p className="mt-1 text-xs leading-6 text-slate-400">اربط رقم هاتف الموظف أو المدير لإرسال تنبيهات النواقص والتقارير عبر Meta Cloud API.</p></div></div><Badge className={`rounded-full px-3 py-1 text-xs font-bold ${whatsappConfig.data?.configured ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{whatsappConfig.data?.configured ? "مفاتيح Meta مفعّلة" : "في انتظار مفاتيح Meta"}</Badge></div><form onSubmit={saveWhatsApp} className="space-y-5"><div className="grid gap-4 sm:grid-cols-2"><Field label="رقم المستلم على واتساب (مع رمز الدولة)"><Input value={whatsappPhone} onChange={event => setWhatsappPhone(event.target.value)} placeholder="مثال: 201012345678+" /></Field><div className="flex items-end gap-3"><Button type="submit" disabled={saveWhatsAppPhone.isPending} className="h-11 flex-1 rounded-xl bg-[#0d4f62] px-6 font-bold text-white hover:bg-[#0a4150]">{saveWhatsAppPhone.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}حفظ الرقم</Button><Button type="button" variant="outline" onClick={sendTestWhatsApp} disabled={testWhatsApp.isPending} className="h-11 rounded-xl border-emerald-600 text-emerald-700 hover:bg-emerald-50">{testWhatsApp.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}إرسال رسالة تجريبية</Button></div></div><div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 text-xs leading-7 text-emerald-900">للبدء الفعلي، أضف <code>WHATSAPP_ACCESS_TOKEN</code> و <code>WHATSAPP_PHONE_NUMBER_ID</code> في أسرار المشروع. يمكنك قراءة ملف <code>whatsapp-guide.md</code> في المشروع للاطلاع على طريقة الحصول عليها من لوحة مطوري Meta خطوة بخطوة.</div></form></CardContent></Card></div></div></DashboardLayout>;
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>("appearance");
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const elements = SETTINGS_SECTIONS
+      .map(section => document.getElementById(section.id))
+      .filter((element): element is HTMLElement => Boolean(element));
+    if (!elements.length) return;
+    const observer = new IntersectionObserver(
+      entries => {
+        const visible = entries
+          .filter(entry => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) setActiveSection(visible.target.id as SettingsSectionId);
+      },
+      { rootMargin: "-140px 0px -55% 0px", threshold: [0.05, 0.25, 0.6] },
+    );
+    elements.forEach(element => observer.observe(element));
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <DashboardLayout>
+      <div className="mx-auto max-w-[1240px] space-y-6 pb-16">
+        <PageHeader
+          eyebrow="SYSTEM / CONFIGURATION"
+          title="إعدادات النظام"
+          description="اضبط الهوية والتخصيص والتنبيهات وقنوات الإرسال من مكان واحد. تبقى بيانات SMTP سرية وتُضاف من إعدادات المشروع."
+        />
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <SettingsStat label="نسبة التنبيه" value={`${percentage || "20"}%`} icon={<AlertTriangle className="h-4 w-4" />} tone="amber" />
+          <SettingsStat label="التقرير اليومي" value={scheduleEnabled ? scheduleTime : "متوقف"} icon={<Clock3 className="h-4 w-4" />} tone={scheduleEnabled ? "teal" : "slate"} />
+          <SettingsStat label="مستلمو التقارير" value={`${recipients.split(/[\n,;]+/).map(value => value.trim()).filter(Boolean).length} مستلم`} icon={<Mail className="h-4 w-4" />} tone="teal" />
+          <SettingsStat label="واتساب" value={whatsappConfig.data?.configured ? "مفعّل" : "بانتظار المفاتيح"} icon={<Phone className="h-4 w-4" />} tone={whatsappConfig.data?.configured ? "emerald" : "slate"} />
+        </div>
+
+        <div className="lg:grid lg:grid-cols-[250px_minmax(0,1fr)] lg:items-start lg:gap-6">
+          <nav aria-label="أقسام الإعدادات" className="sticky top-3 z-20 -mx-1 mb-5 overflow-x-auto rounded-2xl border border-[#e3edf2] bg-white/95 p-2 shadow-[0_16px_40px_-34px_rgba(13,79,98,0.6)] backdrop-blur-md lg:mx-0 lg:mb-0 lg:overflow-visible">
+            <p className="hidden px-3 pb-2 pt-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400 lg:block">أقسام الإعدادات</p>
+            <ul className="flex min-w-max items-center gap-1.5 lg:min-w-0 lg:flex-col lg:items-stretch">
+              {SETTINGS_SECTIONS.map(section => (
+                <li key={section.id}>
+                  <a
+                    href={`#${section.id}`}
+                    onClick={() => setActiveSection(section.id)}
+                    aria-current={activeSection === section.id ? "true" : undefined}
+                    className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-black transition lg:text-[13px] ${activeSection === section.id ? "bg-[#0d4f62] text-white shadow-sm" : "text-[#33566b] hover:bg-[#eef7f8]"}`}
+                  >
+                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${activeSection === section.id ? "bg-white/15 text-white" : "bg-[#eef7f8] text-[#0d7180]"}`}>{section.icon}</span>
+                    <span className="whitespace-nowrap">{section.label}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          <div className="space-y-6">
+            <div className="space-y-6" id="appearance">
+              <SettingsCard
+                id="settings-logo"
+                icon={<ImageIcon className="h-5 w-5" />}
+                title="شعار الشركة"
+                description="يظهر في ترويسة تقارير PDF والمعاينات. الصيغ المدعومة JPG وPNG وWEBP بحد أقصى 5 ميجابايت."
+              >
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#e3edf2] bg-[#f7fbfc]">
+                    {logoDataUrl || companyLogoUrl ? (
+                      <img src={logoDataUrl || companyLogoUrl || ""} alt="معاينة شعار الشركة" className="h-full w-full object-contain p-2" />
+                    ) : (
+                      <ImageIcon className="h-8 w-8 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+                    <label className="flex flex-1 cursor-pointer items-center justify-between gap-4 rounded-2xl border-2 border-dashed border-[#c6dde3] bg-[#f7fbfc] px-4 py-3.5 transition hover:border-[#0d4f62] hover:bg-[#f2fafb]">
+                      <input type="file" accept="image/*" className="hidden" onChange={chooseCompanyLogo} />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-black text-[#102a43]">{uploadLogo.isPending ? "جارٍ رفع الشعار..." : logoDataUrl || companyLogoUrl ? "اختيار شعار جديد" : "رفع شعار الشركة"}</span>
+                        <span className="mt-0.5 block text-xs text-slate-400">يُحفظ ويُستخدم تلقائيًا في التقارير التالية.</span>
+                      </span>
+                      <Upload className="h-5 w-5 shrink-0 text-[#0d4f62]" />
+                    </label>
+                    <Button type="button" variant="outline" onClick={() => void clearCompanyLogo()} disabled={clearLogo.isPending || (!companyLogoUrl && !logoDataUrl)} className="h-11 shrink-0 rounded-xl border-[#eec6c1] font-bold text-[#bd5147] hover:bg-[#fff4f2]">
+                      <Trash2 className="ml-2 h-4 w-4" />
+                      {clearLogo.isPending ? "جارٍ المسح..." : "مسح الشعار"}
+                    </Button>
+                  </div>
+                </div>
+              </SettingsCard>
+
+              <SettingsCard
+                id="settings-app"
+                icon={<Sparkles className="h-5 w-5" />}
+                title="أيقونة التطبيق"
+                description="اختر مظهرًا جاهزًا لأيقونة Smart Inventory على هذا الجهاز، أو ارفع صورة مخصصة بحد أقصى 2 ميجابايت."
+              >
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {iconOptions.map(icon => (
+                    <button
+                      key={icon.id}
+                      type="button"
+                      onClick={() => setSelectedIconId(icon.id)}
+                      className={`rounded-2xl border p-2.5 text-center transition-all ${selectedIconId === icon.id ? "border-[#0d4f62] bg-[#eef8f8] shadow-md ring-2 ring-[#0d4f62]/15" : "border-[#e5eef1] bg-white hover:border-[#8ebac1]"}`}
+                    >
+                      <img src={icon.url} alt={icon.label} className="mx-auto h-14 w-14 rounded-xl object-cover" />
+                      <span className="mt-2 block text-[11px] font-bold text-[#102a43]">{icon.label}</span>
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => customIconUrl && setSelectedIconId("custom")}
+                    disabled={!customIconUrl}
+                    className={`rounded-2xl border p-2.5 text-center transition-all disabled:cursor-not-allowed ${selectedIconId === "custom" ? "border-[#0d4f62] bg-[#eef8f8] shadow-md ring-2 ring-[#0d4f62]/15" : "border-dashed border-[#b9d4d9] bg-white hover:border-[#8ebac1]"}`}
+                  >
+                    <span className="mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-[#f4fafb]">
+                      {customIconUrl ? <img src={customIconUrl} alt="الأيقونة المخصصة" className="h-full w-full object-cover" /> : <ImageIcon className="h-6 w-6 text-slate-300" />}
+                    </span>
+                    <span className="mt-2 block text-[11px] font-bold text-[#102a43]">أيقونتي المخصصة</span>
+                  </button>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-[#b9d4d9] px-4 py-2.5 text-xs font-bold text-[#0d4f62] transition hover:border-[#0d4f62] hover:bg-[#f4fafb]">
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={chooseCustomAppIcon} />
+                    <Upload className="h-4 w-4" />
+                    رفع صورة مخصصة
+                  </label>
+                  <Button type="button" variant="outline" onClick={restorePersonalizationDefaults} className="h-10 rounded-xl border-[#b9d4d9] text-[#0d4f62]">
+                    <RotateCcw className="ml-2 h-4 w-4" />
+                    استعادة الافتراضي
+                  </Button>
+                </div>
+              </SettingsCard>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <SettingsCard
+                  id="settings-display"
+                  icon={<SlidersHorizontal className="h-5 w-5" />}
+                  title="حجم أرقام الجداول"
+                  description="يُطبّق فورًا على الجداول وحقول الأرقام دون تغيير البيانات."
+                >
+                  <select value={numberScale} onChange={event => setNumberScale(event.target.value as "small" | "normal" | "large")} className="h-11 w-full rounded-xl border border-[#b9d4d9] bg-white px-3 text-sm font-bold text-[#102a43]">
+                    <option value="small">صغير</option>
+                    <option value="normal">متوسط</option>
+                    <option value="large">كبير وواضح</option>
+                  </select>
+                </SettingsCard>
+
+                <SettingsCard
+                  icon={<Volume2 className="h-5 w-5" />}
+                  title="صوت الإشعارات"
+                  description="اختر النغمة ومستوى الصوت، ثم اختبر التشغيل فعليًا."
+                >
+                  <div className="space-y-4">
+                    <select
+                      value={notificationSound}
+                      onChange={event => { const value = event.target.value as NotificationSoundId; setNotificationSound(value); setNotificationSoundPreference(value); }}
+                      className="h-11 w-full rounded-xl border border-[#b9d4d9] bg-white px-3 text-sm font-bold text-[#102a43]"
+                      aria-label="نغمة الإشعارات"
+                    >
+                      {(Object.entries(notificationSoundPresets) as [NotificationSoundId, typeof notificationSoundPresets[NotificationSoundId]][]).map(([id, preset]) => (
+                        <option key={id} value={id}>{preset.label}</option>
+                      ))}
+                    </select>
+                    <label className="flex items-center gap-3" title={`مستوى الصوت ${notificationVolume}%`}>
+                      <span className="sr-only">مستوى الصوت</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={notificationVolume}
+                        onChange={event => { const value = Number(event.target.value); setNotificationVolumeState(value); setNotificationVolume(value / 100); }}
+                        className="w-full accent-[#0d4f62]"
+                        aria-label={`مستوى الصوت ${notificationVolume}%`}
+                      />
+                      <span className="w-11 shrink-0 text-center text-xs font-black tabular-nums text-[#0d4f62]">{notificationVolume}%</span>
+                    </label>
+                    <Button type="button" onClick={() => void testNotificationSound()} className="h-11 w-full gap-2 rounded-xl bg-[#0d4f62] font-bold text-white hover:bg-[#0a4150]">
+                      <Volume2 className="h-4 w-4" />
+                      اختبار الصوت
+                    </Button>
+                  </div>
+                </SettingsCard>
+              </div>
+            </div>
+
+            <div className="space-y-6" id="personalization">
+              <SettingsCard
+                id="settings-quick"
+                icon={<GripVertical className="h-5 w-5" />}
+                title="إجراءات القائمة السريعة"
+                description="اختر الإجراءات الأكثر استخدامًا لتظهر داخل الزر العائم، واسحب البطاقات لإعادة ترتيبها."
+                badge={(
+                  <span role="status" aria-live="polite" className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-black ${syncStatus === "synced" ? "bg-emerald-50 text-emerald-700" : syncStatus === "syncing" ? "bg-amber-50 text-amber-700" : syncStatus === "error" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-500"}`}>
+                    {syncStatus === "synced" ? "✓ تمت المزامنة" : syncStatus === "syncing" ? "جارٍ الحفظ..." : syncStatus === "error" ? "تعذر الحفظ" : "في انتظار المزامنة"}
+                  </span>
+                )}
+              >
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {quickActionPaths.map(path => quickActionOptions.find(option => option.path === path)).filter(Boolean).map(option => (
+                    <label
+                      key={option!.path}
+                      draggable
+                      onDragStart={() => { setDraggedQuickAction(option!.path); triggerHaptic(12, hapticEnabled); }}
+                      onDragOver={event => event.preventDefault()}
+                      onDrop={() => {
+                        if (!draggedQuickAction || draggedQuickAction === option!.path) return;
+                        setQuickActionPaths(current => { const next = [...current]; const from = next.indexOf(draggedQuickAction); const to = next.indexOf(option!.path); next.splice(from, 1); next.splice(to, 0, draggedQuickAction); return next; });
+                        triggerHaptic(18, hapticEnabled);
+                        setDraggedQuickAction(null);
+                      }}
+                      onPointerDown={() => { setDraggedQuickAction(option!.path); triggerHaptic(12, hapticEnabled); }}
+                      onPointerEnter={() => {
+                        setDropTargetQuickAction(option!.path);
+                        if (!draggedQuickAction || draggedQuickAction === option!.path) return;
+                        setQuickActionPaths(current => { const next = [...current]; const from = next.indexOf(draggedQuickAction); const to = next.indexOf(option!.path); next.splice(from, 1); next.splice(to, 0, draggedQuickAction); return next; });
+                      }}
+                      onPointerUp={() => { triggerHaptic(18, hapticEnabled); setDropTargetQuickAction(null); setDraggedQuickAction(null); }}
+                      className={dropTargetQuickAction === option!.path && draggedQuickAction ? "touch-none flex cursor-grab items-center gap-3 rounded-2xl border border-[#d08a3b] bg-[#fff4df] p-3.5 shadow-md ring-2 ring-[#d08a3b]/25 transition-all active:cursor-grabbing" : "touch-none flex cursor-grab items-center gap-3 rounded-2xl border border-[#e5eef1] bg-[#fbfdff] p-3.5 transition-all hover:border-[#8ebac1] active:cursor-grabbing"}
+                    >
+                      <GripVertical className="h-5 w-5 shrink-0 text-slate-300" />
+                      <input type="checkbox" checked readOnly className="h-4 w-4 shrink-0 accent-[#0d4f62]" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-bold text-[#102a43]">{option!.label}</span>
+                        <span className="mt-0.5 block text-[11px] leading-5 text-slate-400">{option!.description}</span>
+                      </span>
+                    </label>
+                  ))}
+                  {quickActionOptions.filter(option => !quickActionPaths.includes(option.path)).map(option => (
+                    <label key={option.path} className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-[#d8e6e9] bg-white p-3.5 opacity-80 transition hover:border-[#8ebac1] hover:opacity-100">
+                      <input type="checkbox" checked={false} onChange={() => setQuickActionPaths(current => [...current, option.path])} className="h-4 w-4 shrink-0 accent-[#0d4f62]" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-bold text-[#102a43]">{option.label}</span>
+                        <span className="mt-0.5 block text-[11px] leading-5 text-slate-400">إضافة إلى القائمة السريعة</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-[#e7eff3] bg-[#fbfdfe] p-4">
+                  <p className="mb-3 text-xs font-black uppercase tracking-[0.16em] text-[#0d7180]">شكل الزر العائم</p>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <Field label="الشكل">
+                      <select value={compactButtonShape} onChange={event => setCompactButtonShape(event.target.value as "circle" | "rounded" | "square")} className="h-10 w-full rounded-xl border border-[#b9d4d9] bg-white px-3 text-sm">
+                        <option value="circle">دائري</option>
+                        <option value="rounded">مستدير</option>
+                        <option value="square">مربع بحواف ناعمة</option>
+                      </select>
+                    </Field>
+                    <Field label="اللون">
+                      <select value={compactButtonColor} onChange={event => setCompactButtonColor(event.target.value as "status" | "teal" | "purple" | "orange")} className="h-10 w-full rounded-xl border border-[#b9d4d9] bg-white px-3 text-sm">
+                        <option value="status">حسب حالة الاتصال</option>
+                        <option value="teal">تركواني</option>
+                        <option value="purple">بنفسجي</option>
+                        <option value="orange">برتقالي</option>
+                      </select>
+                    </Field>
+                    <Field label="الموضع">
+                      <select value={compactButtonEdge} onChange={event => setCompactButtonEdge(event.target.value as "right" | "left")} className="h-10 w-full rounded-xl border border-[#b9d4d9] bg-white px-3 text-sm">
+                        <option value="right">الحافة اليمنى</option>
+                        <option value="left">الحافة اليسرى</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <p className="mt-3 text-[11px] leading-5 text-slate-400">عند اختيار «حسب حالة الاتصال» يتغيّر لون الزر تلقائيًا إلى الأخضر عند الاتصال والأحمر عند انقطاع الإنترنت.</p>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <SettingsToggle checked={hapticEnabled} onChange={setHapticEnabled} title="اهتزاز عند السحب والإفلات" description="استجابة لمسية خفيفة أثناء إعادة الترتيب." />
+                  <Button type="button" variant="outline" onClick={restorePersonalizationDefaults} className="h-11 rounded-xl border-[#b9d4d9] text-[#0d4f62]">
+                    <RotateCcw className="ml-2 h-4 w-4" />
+                    استعادة الإعدادات الافتراضية
+                  </Button>
+                </div>
+              </SettingsCard>
+            </div>
+
+            <div className="space-y-6" id="alerts">
+              <SettingsCard
+                id="settings-alerts"
+                icon={<AlertTriangle className="h-5 w-5" />}
+                title="نسبة تنبيه انخفاض المخزون"
+                description="تُستخدم لحساب الأصناف التي تحتاج إلى متابعة في لوحة التحكم."
+              >
+                <form onSubmit={saveThreshold} className="space-y-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+                    <Field label="النسبة المئوية" required>
+                      <div className="relative w-full sm:w-40">
+                        <Input type="number" min="0" max="100" step="1" value={percentage} onChange={event => setPercentage(event.target.value)} className="h-12 rounded-xl pl-11 text-lg font-black" required />
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-[#d08a3b]">%</span>
+                      </div>
+                    </Field>
+                    <Button type="submit" disabled={update.isPending} className="h-12 rounded-xl bg-[#0d4f62] px-6 font-bold text-white hover:bg-[#0a4150]">
+                      {update.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                      حفظ النسبة
+                    </Button>
+                  </div>
+                  <div className="rounded-2xl border border-[#f5e4c8] bg-[#fffaf2] px-4 py-3 text-xs leading-6 text-[#8a632f]">
+                    مثال: عند ضبط النسبة على 20% سيظهر الصنف في التنبيهات عندما يساوي رصيده الحالي 20% أو أقل من حد الطلب.
+                  </div>
+                </form>
+              </SettingsCard>
+
+              <form onSubmit={saveReports} className="space-y-6">
+                <SettingsCard
+                  id="settings-reports"
+                  icon={<BellIcon />}
+                  title="مستلمو التقارير والأسماء الافتراضية"
+                  description="أضف بريد المدير أو أكثر من مستلم مفصولين بفاصلة أو سطر جديد، وحدّد الأسماء الافتراضية المستخدمة في تقارير PDF."
+                >
+                  <div className="space-y-4">
+                    <Field label="مستلمو التقارير">
+                      <Textarea value={recipients} onChange={event => setRecipients(event.target.value)} placeholder={"manager@example.com\nwarehouse@example.com"} className="min-h-24 rounded-xl" />
+                    </Field>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="اسم المورد الافتراضي">
+                        <Input value={defaultSupplier} onChange={event => setDefaultSupplier(event.target.value)} placeholder="مثال: مورد الشركة" className="h-11 rounded-xl" />
+                      </Field>
+                      <Field label="اسم العميل الافتراضي">
+                        <Input value={defaultCustomer} onChange={event => setDefaultCustomer(event.target.value)} placeholder="مثال: العميل الرئيسي" className="h-11 rounded-xl" />
+                      </Field>
+                      <Field label="مدة التوريد (يوم)">
+                        <Input type="number" min="0" value={forecastLeadTime} onChange={event => setForecastLeadTime(event.target.value)} className="h-11 rounded-xl" />
+                      </Field>
+                      <Field label="مخزون الأمان (يوم)">
+                        <Input type="number" min="0" value={forecastSafetyStock} onChange={event => setForecastSafetyStock(event.target.value)} className="h-11 rounded-xl" />
+                      </Field>
+                    </div>
+                    <p className="rounded-2xl border border-[#dcebee] bg-[#f4fafb] px-4 py-3 text-[11px] leading-6 text-[#386672]">
+                      تُستخدم هذه الأسماء تلقائيًا في تقارير PDF عند عدم وجود مورد أو عميل محدد للحركة، ويمكن تغييرها لاحقًا من إعدادات النظام.
+                    </p>
+                  </div>
+                </SettingsCard>
+
+                <SettingsCard
+                  icon={<FileText className="h-5 w-5" />}
+                  title="العلامة المائية في PDF"
+                  description="تحكم في ظهور علامة الشركة داخل التقارير المطبوعة."
+                >
+                  <div className="space-y-4">
+                    <SettingsToggle checked={watermarkEnabled} onChange={setWatermarkEnabled} title="تفعيل العلامة المائية" description="تظهر العلامة خلف محتوى تقارير PDF." />
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <Field label="الشفافية (0.02 – 0.25)">
+                        <Input type="number" min="0.02" max="0.25" step="0.01" value={watermarkOpacity} onChange={event => setWatermarkOpacity(event.target.value)} className="h-11 rounded-xl" />
+                      </Field>
+                      <Field label="الحجم (0.2 – 0.8)">
+                        <Input type="number" min="0.2" max="0.8" step="0.05" value={watermarkScale} onChange={event => setWatermarkScale(event.target.value)} className="h-11 rounded-xl" />
+                      </Field>
+                      <Field label="الموضع">
+                        <select value={watermarkPosition} onChange={event => setWatermarkPosition(event.target.value as "center" | "top" | "bottom")} className="h-11 w-full rounded-xl border border-[#b9d4d9] bg-white px-3 text-sm">
+                          <option value="center">المنتصف</option>
+                          <option value="top">أعلى الصفحة</option>
+                          <option value="bottom">أسفل الصفحة</option>
+                        </select>
+                      </Field>
+                    </div>
+                    <SettingsToggle checked={watermarkRepeat} onChange={setWatermarkRepeat} title="تكرار العلامة داخل الصفحة" description="تظهر العلامة أكثر من مرة لتغطية الصفحة بالكامل." />
+                  </div>
+                </SettingsCard>
+
+                <SettingsCard
+                  icon={<Clock3 className="h-5 w-5" />}
+                  title="الجدولة والتشغيل"
+                  description="يعمل التقرير اليومي داخل الخادم بتوقيت القاهرة، ويعالج الموعد الفائت بعد إعادة التشغيل."
+                >
+                  <div className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <SettingsToggle checked={scheduleEnabled} onChange={setScheduleEnabled} title="التقرير اليومي التلقائي" description="إرسال تلقائي في الموعد المحدد." />
+                      <Field label="وقت التنفيذ">
+                        <Input type="time" value={scheduleTime} onChange={event => setScheduleTime(event.target.value)} className="h-11 rounded-xl" />
+                      </Field>
+                    </div>
+
+                    <SettingsToggle checked={enabled} onChange={setEnabled} title="تفعيل التنبيهات الدورية" description="يشمل تنبيه النقص والتقارير اليومية والأسبوعية." />
+
+                    <div className="rounded-2xl border border-[#e3edf2] bg-[#fbfdfe] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0 text-xs leading-6 text-slate-500">
+                          <b className="text-[#102a43]">حالة التقارير:</b>{" "}
+                          {reportSchedulerStatus.data?.lastRun
+                            ? `${reportSchedulerStatus.data.lastRun.status === "success" ? "نجح" : reportSchedulerStatus.data.lastRun.status === "failed" ? "فشل" : "قيد التنفيذ"} — ${new Date(reportSchedulerStatus.data.lastRun.completedAt ?? reportSchedulerStatus.data.lastRun.startedAt).toLocaleString("ar-EG", { timeZone: "Africa/Cairo" })}`
+                            : "لم يتم تشغيل التقرير بعد"}
+                          <span className="mt-1 block text-[11px] text-slate-400">يُحفظ سجل التشغيل داخل النظام ويظهر ملخصه في إشعارات المديرين. المنطقة الزمنية: توقيت القاهرة.</span>
+                          {reportSchedulerStatus.data?.lastRun?.status === "success" && (
+                            <span className={`mt-2 block text-[11px] font-black ${lastReportSummary.email ? "text-emerald-700" : "text-amber-700"}`}>
+                              {lastReportSummary.email ? "✓ تم إرسال البريد الإلكتروني فعليًا" : "! لم يتم إرسال البريد — تم استخدام إشعار النظام كبديل"}
+                              {lastReportSummary.managers ? ` · إشعارات داخلية: ${lastReportSummary.managers}` : ""}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="outline" onClick={() => runDailyReportNow.mutate()} disabled={runDailyReportNow.isPending} className="h-10 rounded-xl border-[#0d4f62] font-bold text-[#0d4f62]">
+                            {runDailyReportNow.isPending ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <PlayCircle className="ml-2 h-4 w-4" />}
+                            تشغيل الآن
+                          </Button>
+                          <Button type="button" onClick={() => void downloadExecutiveReportPdf()} disabled={executivePdfBuilding || runDailyReportNow.isPending || reportSchedulerStatus.data?.lastRun?.status !== "success"} className="h-10 rounded-xl bg-[#0d4f62] font-bold text-white hover:bg-[#0a4150]">
+                            {executivePdfBuilding ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <Download className="ml-2 h-4 w-4" />}
+                            {executivePdfBuilding ? "جارٍ تجهيز PDF" : "تنزيل التقرير التنفيذي"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eff5f8] pt-4">
+                      <p className="text-[11px] leading-5 text-slate-400">تُحفظ كل إعدادات هذه الصفحة معًا من الزر المجاور.</p>
+                      <Button type="submit" disabled={updateReports.isPending} className="h-11 rounded-xl bg-[#0d4f62] px-6 font-bold text-white hover:bg-[#0a4150]">
+                        {updateReports.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                        <Save className="ml-2 h-4 w-4" />
+                        حفظ إعدادات التقارير
+                      </Button>
+                    </div>
+                  </div>
+                </SettingsCard>
+              </form>
+            </div>
+
+            <div className="space-y-6" id="channels">
+              <SettingsCard
+                icon={<Mail className="h-5 w-5" />}
+                title="البريد الإلكتروني (SMTP)"
+                description="تُضاف بيانات SMTP في أسرار المشروع. قبل ذلك يستخدم النظام إشعار المالك كبديل آمن، ولن يفقد التقرير."
+                badge={(
+                  <Badge className={`rounded-full px-3 py-1 text-[11px] font-bold ${lastReportSummary.email ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                    {lastReportSummary.email ? "تم الإرسال فعليًا" : "بانتظار التحقق"}
+                  </Badge>
+                )}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs leading-6 text-slate-500">أرسل رسالة اختبار إلى بريد المدير للتأكد من صحة إعدادات SMTP.</p>
+                  <Button type="button" variant="outline" onClick={() => void sendReportEmailTest()} disabled={backupEmailTest.isPending} className="h-11 rounded-xl border-sky-300 px-5 font-bold text-sky-800 hover:bg-sky-50">
+                    {backupEmailTest.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                    اختبار البريد الإلكتروني
+                  </Button>
+                </div>
+              </SettingsCard>
+
+              <SettingsCard
+                id="settings-whatsapp"
+                icon={<Phone className="h-5 w-5" />}
+                title="إشعارات واتساب الرسمية"
+                description="اربط رقم هاتف الموظف أو المدير لإرسال تنبيهات النواقص والتقارير عبر Meta Cloud API."
+                badge={(
+                  <Badge className={`rounded-full px-3 py-1 text-[11px] font-bold ${whatsappConfig.data?.configured ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                    {whatsappConfig.data?.configured ? "مفاتيح Meta مفعّلة" : "في انتظار مفاتيح Meta"}
+                  </Badge>
+                )}
+              >
+                <form onSubmit={saveWhatsApp} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                    <Field label="رقم المستلم على واتساب (مع رمز الدولة)">
+                      <Input value={whatsappPhone} onChange={event => setWhatsappPhone(event.target.value)} placeholder="مثال: 201012345678+" className="h-11 rounded-xl" />
+                    </Field>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="submit" disabled={saveWhatsAppPhone.isPending} className="h-11 rounded-xl bg-[#0d4f62] px-5 font-bold text-white hover:bg-[#0a4150]">
+                        {saveWhatsAppPhone.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                        حفظ الرقم
+                      </Button>
+                      <Button type="button" variant="outline" onClick={sendTestWhatsApp} disabled={testWhatsApp.isPending} className="h-11 rounded-xl border-emerald-600 font-bold text-emerald-700 hover:bg-emerald-50">
+                        {testWhatsApp.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                        رسالة تجريبية
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 px-4 py-3 text-[11px] leading-6 text-emerald-900">
+                    للبدء الفعلي أضف <code className="rounded bg-white/70 px-1">WHATSAPP_ACCESS_TOKEN</code> و <code className="rounded bg-white/70 px-1">WHATSAPP_PHONE_NUMBER_ID</code> في أسرار المشروع. راجع ملف <code className="rounded bg-white/70 px-1">whatsapp-guide.md</code> للحصول عليهما من لوحة مطوري Meta خطوة بخطوة.
+                  </div>
+                </form>
+              </SettingsCard>
+            </div>
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
 }
 
 function BellIcon() { return <AlertTriangle className="h-6 w-6 text-[#f5c27b]" />; }
+
+type SettingsSectionId = "appearance" | "personalization" | "alerts" | "channels";
+
+const SETTINGS_SECTIONS: { id: SettingsSectionId; label: string; icon: React.ReactNode }[] = [
+  { id: "appearance", label: "الهوية والمظهر", icon: <Palette className="h-4 w-4" /> },
+  { id: "personalization", label: "الاختصارات والتخصيص", icon: <GripVertical className="h-4 w-4" /> },
+  { id: "alerts", label: "التنبيهات والتقارير", icon: <BellRing className="h-4 w-4" /> },
+  { id: "channels", label: "قنوات الإرسال", icon: <Send className="h-4 w-4" /> },
+];
+
+const SETTINGS_STAT_TONES: Record<string, string> = {
+  teal: "border-[#d7e9ec] bg-[#f2fafb] text-[#0d4f62]",
+  amber: "border-[#f3e3c6] bg-[#fffaf2] text-[#a96821]",
+  emerald: "border-[#d3efdd] bg-[#f2fdf6] text-[#067647]",
+  slate: "border-[#e6ecf1] bg-[#f8fafc] text-[#475569]",
+};
+
+function SettingsStat({ label, value, icon, tone = "teal" }: { label: string; value: string; icon: React.ReactNode; tone?: keyof typeof SETTINGS_STAT_TONES }) {
+  return (
+    <div className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 ${SETTINGS_STAT_TONES[tone] ?? SETTINGS_STAT_TONES.teal}`}>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/70 shadow-sm">{icon}</span>
+      <span className="min-w-0">
+        <span className="block truncate text-[10px] font-black uppercase tracking-[0.14em] opacity-70">{label}</span>
+        <span className="mt-0.5 block truncate text-sm font-black tabular-nums">{value}</span>
+      </span>
+    </div>
+  );
+}
+
+function SettingsCard({ id, icon, title, description, badge, children, className = "" }: { id?: string; icon: React.ReactNode; title: string; description?: string; badge?: React.ReactNode; children: React.ReactNode; className?: string }) {
+  return (
+    <section id={id} className={`scroll-mt-28 overflow-hidden rounded-3xl border border-[#e3edf2] bg-white shadow-[0_20px_50px_-38px_rgba(13,79,98,0.55)] ${className}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#eff5f8] bg-[#fbfdfe] px-5 py-4 sm:px-6">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#eaf5f6] text-[#0d4f62]">{icon}</span>
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-black leading-6 text-[#102a43]">{title}</h3>
+            {description ? <p className="mt-0.5 max-w-2xl text-xs leading-5 text-slate-500">{description}</p> : null}
+          </div>
+        </div>
+        {badge ? <div className="shrink-0">{badge}</div> : null}
+      </div>
+      <div className="px-5 py-5 sm:px-6">{children}</div>
+    </section>
+  );
+}
+
+function SettingsToggle({ checked, onChange, title, description }: { checked: boolean; onChange: (checked: boolean) => void; title: string; description?: string }) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-[#e7eff3] bg-[#fbfdfe] px-4 py-3 transition hover:border-[#b9d4d9]">
+      <span className="min-w-0">
+        <span className="block text-sm font-bold text-[#102a43]">{title}</span>
+        {description ? <span className="mt-0.5 block text-[11px] leading-5 text-slate-400">{description}</span> : null}
+      </span>
+      <span dir="ltr" className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${checked ? "bg-[#0d4f62]" : "bg-slate-300"}`}>
+        <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+        <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`} />
+      </span>
+    </label>
+  );
+}
