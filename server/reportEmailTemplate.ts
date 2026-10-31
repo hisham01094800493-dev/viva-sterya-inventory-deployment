@@ -154,10 +154,10 @@ export function buildDailyReportEmail(input: ReportEmailInput): string {
 
   // ---- ملخص سريع في سطر واحد ----
   const quickBits: string[] = [];
-  quickBits.push(`تم تسجيل <b style="color:${BRAND}">${num(summary.permitCount, 0)}</b> إذن صرف بقيمة <b style="color:${BRAND}">${money(summary.netValue)}</b> ج.م`);
-  if (minimumStockItems.length) quickBits.push(`و<b style="color:${WARN}">${num(minimumStockItems.length, 0)}</b> صنف عند حد الطلب أو دونه`);
-  if (criticalForecasts.length) quickBits.push(`و<b style="color:${CRITICAL}">${num(criticalForecasts.length, 0)}</b> صنف معرّض للنفاذ خلال أسبوع`);
-  if (!minimumStockItems.length && !criticalForecasts.length) quickBits.push(`والمخزون <b style="color:${OK}">مستقر</b> بلا تنبيهات`);
+  quickBits.push(`أذون الصرف اليوم: <b style="color:${BRAND}">${num(summary.permitCount, 0)}</b> بقيمة <b style="color:${BRAND}">${money(summary.netValue)}</b> ج.م`);
+  if (minimumStockItems.length) quickBits.push(`أصناف تحت حد الطلب: <b style="color:${WARN}">${num(minimumStockItems.length, 0)}</b>`);
+  if (criticalForecasts.length) quickBits.push(`معرّضة للنفاذ خلال أسبوع: <b style="color:${CRITICAL}">${num(criticalForecasts.length, 0)}</b>`);
+  if (!minimumStockItems.length && !criticalForecasts.length) quickBits.push(`المخزون <b style="color:${OK}">مستقر</b> بلا تنبيهات`);
 
   // ---- ١ أصناف تحت حد الطلب ----
   const stockRows = minimumStockItems.length
@@ -311,7 +311,7 @@ export function buildDailyReportEmail(input: ReportEmailInput): string {
   <tr><td style="padding:16px 24px 0">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f9fb;border:1px solid #d9e8ee;border-radius:12px">
       <tr><td align="right" style="padding:13px 15px;font-size:12.5px;line-height:1.85;color:#334e68">
-        ${quickBits.join("، ")}.
+        ${quickBits.join(" &nbsp;·&nbsp; ")}.
       </td></tr>
     </table>
   </td></tr>
