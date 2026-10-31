@@ -76,6 +76,7 @@ export async function createApp(options: { withStaticFiles?: boolean } = {}) {
   app.post("/api/scheduled/daily-report", createInventoryReportHandler("daily"));
   app.post("/api/scheduled/daily-report-heartbeat", createDailyReportHeartbeatHandler());
   app.post("/api/scheduled/weekly-report", createInventoryReportHandler("weekly"));
+  app.post("/api/scheduled/daily-report-heartbeat", createDailyReportHeartbeatHandler());
   app.post("/api/scheduled/backup-restore-verification", createBackupRestoreVerificationHandler());
   const trpcMiddleware = createExpressMiddleware({ router: appRouter, createContext });
   app.use("/api/trpc", trpcMiddleware);

@@ -1,8 +1,17 @@
+import { timingSafeEqual } from "node:crypto";
 import type { Request, Response } from "express";
 import { sdk } from "./_core/sdk";
 import { runInventoryReport } from "./inventoryReports";
 import { isBackupVerificationScheduleTask, runScheduledBackupVerification } from "./db";
 import { isReportHeartbeatTask, runDailyExecutiveReportIfDue } from "./reportScheduler";
+
+function hasValidCronSecret(req: Request) {
+  const secret = process.env.CRON_SECRET?.trim();
+  if (!secret) return false;
+  const actual = Buffer.from(String(req.headers.authorization ?? ""));
+  const expected = Buffer.from(`Bearer ${secret}`);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
 
 export function createInventoryReportHandler(kind: "low_stock" | "daily" | "weekly") {
   return async (req: Request, res: Response) => {
@@ -30,17 +39,17 @@ export function createInventoryReportHandler(kind: "low_stock" | "daily" | "week
 export function createDailyReportHeartbeatHandler() {
   return async (req: Request, res: Response) => {
     try {
-      const vercelCron = req.headers["x-vercel-cron-schedule"] === "*/5 * * * *";
-      const user = vercelCron ? null : await sdk.authenticateRequest(req);
-      if (!vercelCron && (!user?.isCron || !user.taskUid)) return res.status(403).json({ error: "cron-only" });
-      if (!vercelCron && !(await isReportHeartbeatTask(user!.taskUid!))) return res.json({ ok: true, skipped: "orphan_or_disabled" });
+      const externalCron = hasValidCronSecret(req);
+      const user = externalCron ? null : await sdk.authenticateRequest(req);
+      if (!externalCron && (!user?.isCron || !user.taskUid)) return res.status(403).json({ error: "cron-only" });
+      if (!externalCron && !(await isReportHeartbeatTask(user!.taskUid!))) return res.json({ ok: true, skipped: "orphan_or_disabled" });
       try {
         const result = await runDailyExecutiveReportIfDue();
-        return res.status(200).json({ ok: true, ...(user?.taskUid ? { taskUid: user.taskUid } : { source: "vercel-cron" }), ...result });
+        return res.status(200).json({ ok: true, ...(user?.taskUid ? { taskUid: user.taskUid } : { source: "external-cron" }), ...result });
       } catch (error: any) {
         // The heartbeat itself succeeded; the run is recorded as failed and can be retried on the next tick.
         console.error("[Scheduled:daily_report_heartbeat] report run failed", error);
-        return res.status(200).json({ ok: true, ...(user?.taskUid ? { taskUid: user.taskUid } : { source: "vercel-cron" }), status: "failed", error: "تعذر تنفيذ التقرير؛ تم تسجيل الفشل وسيُعاد الفحص في النبضة التالية", timestamp: new Date().toISOString() });
+        return res.status(200).json({ ok: true, ...(user?.taskUid ? { taskUid: user.taskUid } : { source: "external-cron" }), status: "failed", error: "تعذر تنفيذ التقرير؛ تم تسجيل الفشل وسيُعاد الفحص في النبضة التالية", timestamp: new Date().toISOString() });
       }
     } catch (error: any) {
       console.error("[Scheduled:daily_report_heartbeat] heartbeat failed", error);
