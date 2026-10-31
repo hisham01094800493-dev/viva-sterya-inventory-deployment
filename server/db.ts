@@ -1886,7 +1886,16 @@ export function buildCustomerTransferAccountRows(transferRows: Array<any>, custo
   });
 }
 export function normalizeCustomerAccountDisbursement<T extends { eznNum?: string | number | null; quantity?: unknown; totalValue?: unknown; disburseType?: string | null; notes?: string | null }>(row: T) {
-  if (!isReturnDisbursement(row)) return row;
+  if (!isReturnDisbursement(row)) {
+    if (Number(row.quantity ?? 0) < 0)
+      return {
+        ...row,
+        quantity: String(-Math.abs(Number(row.quantity ?? 0))),
+        totalValue: String(-Math.abs(Number(row.totalValue ?? 0))),
+        disburseType: row.disburseType || "صرف تصحيح",
+      };
+    return row;
+  }
   return {
     ...row,
     transferType: "مرتجع من عميل",
@@ -2036,6 +2045,7 @@ export async function updateAddition(input: {
       .for("update");
     const old = oldRows[0];
     if (!old) throw new InventoryError("NOT_FOUND", "سجل الإضافة غير موجود");
+    await assertMovementNotCanceled(tx, "addition", input.id);
 
     const oldCode = old.itemCode;
     const nextCode = normalizeItemCode(input.itemCode ?? oldCode);
@@ -2142,38 +2152,101 @@ export async function updateAddition(input: {
   });
 }
 
-export async function deleteAddition(id: number) {
-  const db = await requireDb();
-  return db.transaction(async (tx: any) => {
-    const rows = await tx
-      .select()
-      .from(additions)
-      .where(eq(additions.id, id))
-      .limit(1)
-      .for("update");
-    const addition = rows[0];
-    if (!addition)
-      throw new InventoryError("NOT_FOUND", "سجل الإضافة غير موجود");
-    const item = await getItemForUpdate(tx, addition.itemCode);
-    const warehouse = await resolveWarehouseId(
-      tx,
-      addition.warehouseId,
-      addition.store
-    );
-    await applyStockDelta(tx, item, {
-      incoming: -toScaled(addition.quantity),
-      outgoing: 0,
-      current: -toScaled(addition.quantity),
-    });
-    await applyWarehouseBalanceDelta(
-      tx,
-      item.id,
-      warehouse.id,
-      -toScaled(addition.quantity)
-    );
-    await tx.delete(additions).where(eq(additions.id, id));
-    return { id, snapshot: addition };
+type MovementCancellationActor = { userId: number; userName?: string | null };
+
+function validateMovementCancellationReason(reason: string) {
+  const value = reason.trim();
+  if (value.length < 5) throw new InventoryError("BAD_REQUEST", "سبب الإلغاء مطلوب (5 أحرف على الأقل)");
+  if (value.length > 1000) throw new InventoryError("BAD_REQUEST", "سبب الإلغاء أطول من الحد المسموح");
+  return value;
+}
+
+function reversalPermitNumber(originalPermit: string, id: number) {
+  const suffix = `-REV-${id}`;
+  return `${String(originalPermit || "MOV").slice(0, 64 - suffix.length)}${suffix}`;
+}
+
+function movementCancellationNote(type: string, id: number, permit: string, reason: string) {
+  return `إلغاء موثق للحركة ${type} #${id} (الإذن ${permit}). السبب: ${reason}`;
+}
+
+async function assertMovementNotCanceled(tx: any, type: "addition" | "disbursement" | "transfer", id: number) {
+  const rows = await tx
+    .select({ id: auditLogs.id })
+    .from(auditLogs)
+    .where(and(eq(auditLogs.action, "cancel_movement"), eq(auditLogs.entity, type), eq(auditLogs.entityId, String(id))))
+    .limit(1);
+  if (rows[0]) throw new InventoryError("CONFLICT", "تم إلغاء هذه الحركة بالفعل بقيد عكسي موثق");
+}
+
+async function writeMovementCancellationAudit(tx: any, input: {
+  actor: MovementCancellationActor;
+  type: "addition" | "disbursement" | "transfer";
+  id: number;
+  reason: string;
+  original: unknown;
+  reversal: unknown;
+  balanceBefore?: string;
+  balanceAfter?: string;
+  warehouseId?: number | null;
+  warehouseBefore?: string;
+  warehouseAfter?: string;
+}) {
+  await tx.insert(auditLogs).values({
+    userId: input.actor.userId,
+    userName: input.actor.userName ?? null,
+    action: "cancel_movement",
+    entity: input.type,
+    entityId: String(input.id),
+    details: JSON.stringify({ reason: input.reason, originalSnapshot: input.original, reversalSnapshot: input.reversal, balanceBefore: input.balanceBefore, balanceAfter: input.balanceAfter, warehouseId: input.warehouseId, warehouseBefore: input.warehouseBefore, warehouseAfter: input.warehouseAfter }),
   });
+}
+
+export async function cancelAddition(input: { id: number; reason: string } & MovementCancellationActor) {
+  const db = await requireDb();
+  const reason = validateMovementCancellationReason(input.reason);
+  return db.transaction(async (tx: any) => {
+    const rows = await tx.select().from(additions).where(eq(additions.id, input.id)).limit(1).for("update");
+    const addition = rows[0];
+    if (!addition) throw new InventoryError("NOT_FOUND", "سجل الإضافة غير موجود");
+    await assertMovementNotCanceled(tx, "addition", input.id);
+    const item = await getItemForUpdate(tx, addition.itemCode);
+    const warehouse = await resolveWarehouseId(tx, addition.warehouseId, addition.store);
+    const quantity = toScaled(addition.quantity);
+    const stockBefore = toScaled(item.currentStock);
+    const warehouseRows = await tx.select({ currentStock: itemWarehouseBalances.currentStock }).from(itemWarehouseBalances).where(and(eq(itemWarehouseBalances.itemId, item.id), eq(itemWarehouseBalances.warehouseId, warehouse.id))).limit(1).for("update");
+    const warehouseBefore = toScaled(warehouseRows[0]?.currentStock ?? 0);
+    await applyStockDelta(tx, item, { incoming: -quantity, outgoing: 0, current: -quantity });
+    await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, -quantity);
+    const permit = reversalPermitNumber(addition.eznNum, input.id);
+    const note = movementCancellationNote("الإضافة", input.id, addition.eznNum, reason);
+    const insertResult = await tx.insert(additions).values({
+      date: new Date().toISOString().slice(0, 10),
+      eznNum: permit,
+      itemCode: addition.itemCode,
+      itemName: addition.itemName,
+      store: addition.store,
+      warehouseId: warehouse.id,
+      quantity: fromScaled(-quantity),
+      unitPrice: addition.unitPrice,
+      totalValue: fromMoneyScaled(-toMoneyScaled(addition.totalValue)),
+      purpose: note.slice(0, 500),
+      supplier: addition.supplier,
+      supplierId: addition.supplierId,
+      category: addition.category,
+      clientRequestId: `cancel-addition-${input.id}`,
+    });
+    const reversalId = resultInsertId(insertResult);
+    const reversalRows = await tx.select().from(additions).where(eq(additions.id, reversalId)).limit(1);
+    const stockAfter = stockBefore - quantity;
+    const warehouseAfter = warehouseBefore - quantity;
+    await writeMovementCancellationAudit(tx, { actor: input, type: "addition", id: input.id, reason, original: addition, reversal: reversalRows[0], balanceBefore: fromScaled(stockBefore), balanceAfter: fromScaled(stockAfter), warehouseId: warehouse.id, warehouseBefore: fromScaled(warehouseBefore), warehouseAfter: fromScaled(warehouseAfter) });
+    return { id: input.id, reversalId, permitNumber: permit, stockBefore: fromScaled(stockBefore), stockAfter: fromScaled(stockAfter), warehouseBefore: fromScaled(warehouseBefore), warehouseAfter: fromScaled(warehouseAfter) };
+  });
+}
+
+export async function deleteAddition(_id: number): Promise<never> {
+  throw new InventoryError("BAD_REQUEST", "الحذف المباشر للحركات متوقف؛ استخدم الإلغاء الموثق مع السبب");
 }
 
 export async function listDisbursements(
@@ -2274,7 +2347,7 @@ export async function createDisbursement(input: {
       "BAD_REQUEST",
       "كمية الصرف لا يمكن أن تساوي صفراً"
     );
-  const quantity = Math.abs(enteredQuantity);
+  const quantity = enteredQuantity;
   const clientRequestId = input.clientRequestId?.trim() || null;
   if (!input.buildingId) throw new InventoryError("BAD_REQUEST", "يجب ربط إذن الصرف بمبنى أو جهة مستلمة");
   const buildingId = input.buildingId;
@@ -2299,7 +2372,7 @@ export async function createDisbursement(input: {
       throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
     }
     const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
-    const totalValue = calculateTotalValue(unitPrice, quantity);
+    const totalValue = Math.sign(quantity) * calculateTotalValue(unitPrice, Math.abs(quantity));
     const historicalRows = await tx
       .select({
         buildingId: disbursements.buildingId,
@@ -2347,7 +2420,7 @@ export async function createDisbursement(input: {
       notes: input.notes?.trim() || null,
       store: input.store?.trim() || null,
       warehouseId: warehouse.id,
-      disburseType: input.disburseType?.trim() || null,
+      disburseType: quantity < 0 ? "صرف تصحيح" : input.disburseType?.trim() || null,
       clientRequestId,
     });
     const id = resultInsertId(result);
@@ -2367,6 +2440,114 @@ export async function createDisbursement(input: {
           ? quantity / baseline.dailyAverage
           : null,
     };
+  });
+}
+
+export async function createDisbursementBatch(input: {
+  date: string;
+  eznNum: string;
+  warehouseId: number;
+  buildingId: number;
+  destination?: string | null;
+  customerId?: number | null;
+  notes?: string | null;
+  disburseType?: string | null;
+  clientRequestId: string;
+  userId: number;
+  userName?: string | null;
+  lines: Array<{ itemCode: string; quantity: number; unitPrice?: number }>;
+}) {
+  const db = await requireDb();
+  const batchKey = input.clientRequestId.trim();
+  if (!batchKey) throw new InventoryError("BAD_REQUEST", "مفتاح الإذن مطلوب");
+  if (!input.buildingId) throw new InventoryError("BAD_REQUEST", "يجب ربط إذن الصرف بمبنى أو جهة مستلمة");
+  if (input.lines.length < 1 || input.lines.length > 50)
+    throw new InventoryError("BAD_REQUEST", "يجب أن يحتوي الإذن على بند واحد إلى 50 بنداً");
+
+  const normalizedLines = input.lines.map(line => ({
+    ...line,
+    itemCode: normalizeItemCode(line.itemCode),
+    quantity: toScaled(line.quantity),
+  }));
+  if (normalizedLines.some(line => !line.itemCode || line.quantity <= 0))
+    throw new InventoryError("BAD_REQUEST", "أدخل كود صنف وكمية موجبة لكل بند");
+  if (new Set(normalizedLines.map(line => line.itemCode)).size !== normalizedLines.length)
+    throw new InventoryError("BAD_REQUEST", "الصنف مكرر في الإذن؛ اجمع كمياته في بند واحد");
+
+  const requestIds = normalizedLines.map((_, index) => `${batchKey}-line-${index + 1}`);
+  return db.transaction(async (tx: any) => {
+    const existing = await tx
+      .select()
+      .from(disbursements)
+      .where(inArray(disbursements.clientRequestId, requestIds))
+      .for("update");
+    if (existing.length) {
+      const existingByRequestId = new Map(existing.map((row: any) => [row.clientRequestId, row]));
+      const ordered = requestIds.map(requestId => existingByRequestId.get(requestId));
+      const sameRequest = ordered.length === normalizedLines.length && ordered.every((row: any, index) => {
+        const line = normalizedLines[index];
+        return row && row.date === input.date.trim() && row.eznNum === input.eznNum.trim() &&
+          row.itemCode === line.itemCode && toScaled(row.quantity) === line.quantity &&
+          row.warehouseId === input.warehouseId && row.buildingId === input.buildingId &&
+          (line.unitPrice === undefined || toMoneyScaled(row.unitPrice) === toMoneyScaled(line.unitPrice));
+      });
+      if (sameRequest) return { items: ordered, count: ordered.length, idempotent: true };
+      throw new InventoryError("CONFLICT", "مفتاح الإذن مستخدم لطلب آخر أو حُفظ جزء غير متوقع منه");
+    }
+
+    const buildingRows = await tx
+      .select({ id: buildings.id })
+      .from(buildings)
+      .where(and(eq(buildings.id, input.buildingId), eq(buildings.status, "active")))
+      .limit(1);
+    if (!buildingRows[0]) throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
+    const warehouse = await resolveWarehouseId(tx, input.warehouseId);
+    const lockedItems = new Map<string, any>();
+    for (const code of Array.from(new Set(normalizedLines.map(line => line.itemCode))).sort())
+      lockedItems.set(code, await getItemForUpdate(tx, code));
+
+    const created: any[] = [];
+    for (let index = 0; index < normalizedLines.length; index += 1) {
+      const line = normalizedLines[index];
+      const item = lockedItems.get(line.itemCode);
+      const warehouseBalanceRows = await tx.select({ currentStock: itemWarehouseBalances.currentStock }).from(itemWarehouseBalances).where(and(eq(itemWarehouseBalances.itemId, item.id), eq(itemWarehouseBalances.warehouseId, warehouse.id))).limit(1).for("update");
+      const stockBefore = toScaled(warehouseBalanceRows[0]?.currentStock ?? 0);
+      const unitPrice = toMoneyScaled(line.unitPrice ?? item.unitPrice);
+      const totalValue = calculateTotalValue(unitPrice, line.quantity);
+      await applyStockDelta(tx, item, { incoming: 0, outgoing: line.quantity, current: -line.quantity });
+      await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, -line.quantity);
+      const insertResult = await tx.insert(disbursements).values({
+        date: input.date.trim(),
+        eznNum: input.eznNum.trim(),
+        itemCode: item.code,
+        itemName: item.name,
+        destination: input.destination?.trim() || null,
+        customerId: input.customerId ?? null,
+        buildingId: input.buildingId,
+        quantity: fromScaled(line.quantity),
+        unitPrice: fromMoneyScaled(unitPrice),
+        totalValue: fromMoneyScaled(totalValue),
+        notes: input.notes?.trim() || null,
+        store: warehouse.name,
+        warehouseId: warehouse.id,
+        disburseType: input.disburseType?.trim() || "صرف",
+        clientRequestId: requestIds[index],
+      });
+      const id = resultInsertId(insertResult);
+      const rowResult = await tx.select().from(disbursements).where(eq(disbursements.id, id)).limit(1);
+      const row = rowResult[0];
+      const stockAfter = stockBefore - line.quantity;
+      await tx.insert(auditLogs).values({
+        userId: input.userId,
+        userName: input.userName ?? null,
+        action: "create_batch",
+        entity: "disbursement",
+        entityId: String(id),
+        details: JSON.stringify({ snapshot: row, batchPermit: input.eznNum.trim(), batchKey, lineNumber: index + 1, lineCount: normalizedLines.length, warehouseId: warehouse.id, stockBefore: fromScaled(stockBefore), stockAfter: fromScaled(stockAfter) }),
+      });
+      created.push({ ...row, stockBefore: fromScaled(stockBefore), stockAfter: fromScaled(stockAfter) });
+    }
+    return { items: created, count: created.length, idempotent: false };
   });
 }
 
@@ -2395,11 +2576,11 @@ export async function updateDisbursement(input: {
       .for("update");
     const old = oldRows[0];
     if (!old) throw new InventoryError("NOT_FOUND", "سجل الصرف غير موجود");
+    await assertMovementNotCanceled(tx, "disbursement", input.id);
 
     const oldCode = old.itemCode;
     const nextCode = normalizeItemCode(input.itemCode ?? oldCode);
     const oldSignedQuantity = toScaled(old.quantity);
-    const oldQuantity = Math.abs(oldSignedQuantity);
     const enteredNextQuantity =
       input.quantity === undefined ? oldSignedQuantity : toScaled(input.quantity);
     if (enteredNextQuantity === 0)
@@ -2407,7 +2588,7 @@ export async function updateDisbursement(input: {
         "BAD_REQUEST",
         "كمية الصرف لا يمكن أن تساوي صفراً"
       );
-    const nextQuantity = Math.abs(enteredNextQuantity);
+    const nextQuantity = enteredNextQuantity;
 
     const codes = Array.from(new Set([oldCode, nextCode])).sort();
     const lockedItems = new Map<string, any>();
@@ -2425,20 +2606,20 @@ export async function updateDisbursement(input: {
     );
     const stockAffectingChange =
       oldCode !== nextCode ||
-      oldQuantity !== nextQuantity ||
+      oldSignedQuantity !== nextQuantity ||
       oldWarehouse.id !== nextWarehouse.id;
 
     if (stockAffectingChange && oldCode === nextCode) {
       await applyStockDelta(tx, lockedItems.get(oldCode), {
         incoming: 0,
-        outgoing: nextQuantity - oldQuantity,
-        current: oldQuantity - nextQuantity,
+        outgoing: nextQuantity - oldSignedQuantity,
+        current: oldSignedQuantity - nextQuantity,
       });
     } else if (stockAffectingChange) {
       await applyStockDelta(tx, lockedItems.get(oldCode), {
         incoming: 0,
-        outgoing: -oldQuantity,
-        current: oldQuantity,
+        outgoing: -oldSignedQuantity,
+        current: oldSignedQuantity,
       });
       await applyStockDelta(tx, lockedItems.get(nextCode), {
         incoming: 0,
@@ -2452,7 +2633,7 @@ export async function updateDisbursement(input: {
         tx,
         lockedItems.get(oldCode).id,
         oldWarehouse.id,
-        oldQuantity
+        oldSignedQuantity
       );
       await applyWarehouseBalanceDelta(
         tx,
@@ -2473,7 +2654,7 @@ export async function updateDisbursement(input: {
       if (!buildingRows[0]) throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
     }
     const unitPrice = toMoneyScaled(input.unitPrice ?? old.unitPrice);
-    const totalValue = calculateTotalValue(unitPrice, nextQuantity);
+    const totalValue = Math.sign(nextQuantity) * calculateTotalValue(unitPrice, Math.abs(nextQuantity));
     const updates: Partial<InsertDisbursement> = {
       date: input.date?.trim() ?? old.date,
       eznNum: input.eznNum?.trim() ?? old.eznNum,
@@ -2496,8 +2677,9 @@ export async function updateDisbursement(input: {
       store:
         input.store === undefined ? old.store : input.store?.trim() || null,
       warehouseId: nextWarehouse.id,
-      disburseType:
-        input.disburseType === undefined
+      disburseType: nextQuantity < 0
+        ? "صرف تصحيح"
+        : input.disburseType === undefined
           ? old.disburseType
           : input.disburseType?.trim() || null,
     };
@@ -2514,36 +2696,54 @@ export async function updateDisbursement(input: {
   });
 }
 
-export async function deleteDisbursement(id: number) {
+export async function cancelDisbursement(input: { id: number; reason: string } & MovementCancellationActor) {
   const db = await requireDb();
+  const reason = validateMovementCancellationReason(input.reason);
   return db.transaction(async (tx: any) => {
-    const rows = await tx
-      .select()
-      .from(disbursements)
-      .where(eq(disbursements.id, id))
-      .limit(1)
-      .for("update");
+    const rows = await tx.select().from(disbursements).where(eq(disbursements.id, input.id)).limit(1).for("update");
     const disbursement = rows[0];
-    if (!disbursement)
-      throw new InventoryError("NOT_FOUND", "سجل الصرف غير موجود");
+    if (!disbursement) throw new InventoryError("NOT_FOUND", "سجل الصرف غير موجود");
+    await assertMovementNotCanceled(tx, "disbursement", input.id);
     const item = await getItemForUpdate(tx, disbursement.itemCode);
-    // Keep the sign: creation applies outgoing += quantity and current -= quantity.
-    // This also correctly reverses legacy correction rows with negative quantities.
     const quantity = toScaled(disbursement.quantity);
-    const warehouse = await resolveWarehouseId(
-      tx,
-      disbursement.warehouseId,
-      disbursement.store
-    );
-    await applyStockDelta(tx, item, {
-      incoming: 0,
-      outgoing: -quantity,
-      current: quantity,
-    }, { allowNegativeCurrent: true });
-    await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity, { allowNegativeCurrent: true });
-    await tx.delete(disbursements).where(eq(disbursements.id, id));
-    return { id, snapshot: disbursement };
+    const stockBefore = toScaled(item.currentStock);
+    const warehouse = await resolveWarehouseId(tx, disbursement.warehouseId, disbursement.store);
+    const warehouseRows = await tx.select({ currentStock: itemWarehouseBalances.currentStock }).from(itemWarehouseBalances).where(and(eq(itemWarehouseBalances.itemId, item.id), eq(itemWarehouseBalances.warehouseId, warehouse.id))).limit(1).for("update");
+    const warehouseBefore = toScaled(warehouseRows[0]?.currentStock ?? 0);
+    await applyStockDelta(tx, item, { incoming: 0, outgoing: -quantity, current: quantity });
+    await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity);
+    const normalizedOriginal = normalizeCustomerAccountDisbursement(disbursement);
+    const reversalValue = -toMoneyScaled(normalizedOriginal.totalValue);
+    const permit = reversalPermitNumber(disbursement.eznNum, input.id);
+    const note = movementCancellationNote("الصرف", input.id, disbursement.eznNum, reason);
+    const insertResult = await tx.insert(disbursements).values({
+      date: new Date().toISOString().slice(0, 10),
+      eznNum: permit,
+      itemCode: disbursement.itemCode,
+      itemName: disbursement.itemName,
+      destination: disbursement.destination,
+      customerId: disbursement.customerId,
+      buildingId: disbursement.buildingId,
+      quantity: fromScaled(-quantity),
+      unitPrice: disbursement.unitPrice,
+      totalValue: fromMoneyScaled(reversalValue),
+      notes: note,
+      store: disbursement.store,
+      warehouseId: warehouse.id,
+      disburseType: "إلغاء موثق",
+      clientRequestId: `cancel-disbursement-${input.id}`,
+    });
+    const reversalId = resultInsertId(insertResult);
+    const reversalRows = await tx.select().from(disbursements).where(eq(disbursements.id, reversalId)).limit(1);
+    const stockAfter = stockBefore + quantity;
+    const warehouseAfter = warehouseBefore + quantity;
+    await writeMovementCancellationAudit(tx, { actor: input, type: "disbursement", id: input.id, reason, original: disbursement, reversal: reversalRows[0], balanceBefore: fromScaled(stockBefore), balanceAfter: fromScaled(stockAfter), warehouseId: warehouse.id, warehouseBefore: fromScaled(warehouseBefore), warehouseAfter: fromScaled(warehouseAfter) });
+    return { id: input.id, reversalId, permitNumber: permit, stockBefore: fromScaled(stockBefore), stockAfter: fromScaled(stockAfter), warehouseBefore: fromScaled(warehouseBefore), warehouseAfter: fromScaled(warehouseAfter) };
   });
+}
+
+export async function deleteDisbursement(_id: number): Promise<never> {
+  throw new InventoryError("BAD_REQUEST", "الحذف المباشر للحركات متوقف؛ استخدم الإلغاء الموثق مع السبب");
 }
 
 export async function listTransfers(
@@ -3208,6 +3408,8 @@ export function isReturnTransfer(type: string | null | undefined) {
 /** Keep historical permits 18 and 19 classified as customer returns in account and item statements. */
 export function isReturnDisbursement(row: { eznNum?: string | number | null; quantity?: unknown; disburseType?: string | null; notes?: string | null } | null | undefined) {
   const permitNumber = String(row?.eznNum ?? "").trim();
+  const movementType = `${row?.disburseType ?? ""}`.trim().toLowerCase();
+  if (/تصحيح|عكس موثق|إلغاء موثق/.test(movementType)) return false;
   // Permit 5207 is a normal positive disbursement for Tahami, not a return.
   if (permitNumber === "5207") return false;
   if (["18", "19"].includes(permitNumber)) return true;
@@ -3405,6 +3607,7 @@ export async function updateTransfer(input: {
       .for("update");
     const old = oldRows[0];
     if (!old) throw new InventoryError("NOT_FOUND", "سجل التحويل غير موجود");
+    await assertMovementNotCanceled(tx, "transfer", input.id);
 
     const oldCode = old.itemCode;
     const nextCode = normalizeItemCode(input.itemCode ?? oldCode);
@@ -3503,31 +3706,59 @@ export async function updateTransfer(input: {
   });
 }
 
-export async function deleteTransfer(id: number) {
+export async function cancelTransfer(input: { id: number; reason: string } & MovementCancellationActor) {
   const db = await requireDb();
+  const reason = validateMovementCancellationReason(input.reason);
   return db.transaction(async (tx: any) => {
-    const rows = await tx
-      .select()
-      .from(transfers)
-      .where(eq(transfers.id, id))
-      .limit(1)
-      .for("update");
+    const rows = await tx.select().from(transfers).where(eq(transfers.id, input.id)).limit(1).for("update");
     const transfer = rows[0];
-    if (!transfer)
-      throw new InventoryError("NOT_FOUND", "سجل التحويل غير موجود");
-    if (transfer.fromWarehouseId || transfer.toWarehouseId) {
-      const item = await getItemForUpdate(tx, transfer.itemCode);
-      const quantity = toScaled(transfer.quantity);
+    if (!transfer) throw new InventoryError("NOT_FOUND", "سجل التحويل غير موجود");
+    await assertMovementNotCanceled(tx, "transfer", input.id);
+    const item = await getItemForUpdate(tx, transfer.itemCode);
+    const quantity = toScaled(transfer.quantity);
+    const stockBefore = toScaled(item.currentStock);
+    if (transfer.fromWarehouseId || transfer.toWarehouseId || isInternalTransfer(transfer.transferType) || isReturnTransfer(transfer.transferType)) {
       await applyTransferWarehouseEffect(tx, item, {
         transferType: transfer.transferType,
         fromWarehouseId: transfer.fromWarehouseId,
         toWarehouseId: transfer.toWarehouseId,
+        fromCustomerId: transfer.fromCustomerId,
+        toCustomerId: transfer.toCustomerId,
+        fromStore: transfer.fromStore,
+        toStore: transfer.toStore,
         quantity: -quantity,
       });
     }
-    await tx.delete(transfers).where(eq(transfers.id, id));
-    return { id, snapshot: transfer };
+    const permit = reversalPermitNumber(transfer.eznNum, input.id);
+    const note = movementCancellationNote("التحويل", input.id, transfer.eznNum, reason);
+    const insertResult = await tx.insert(transfers).values({
+      date: new Date().toISOString().slice(0, 10),
+      eznNum: permit,
+      itemCode: transfer.itemCode,
+      itemName: transfer.itemName,
+      fromStore: transfer.fromStore,
+      toStore: transfer.toStore,
+      fromWarehouseId: transfer.fromWarehouseId,
+      toWarehouseId: transfer.toWarehouseId,
+      fromCustomerId: transfer.fromCustomerId,
+      toCustomerId: transfer.toCustomerId,
+      quantity: fromScaled(-quantity),
+      unitPrice: transfer.unitPrice,
+      totalValue: fromMoneyScaled(-toMoneyScaled(transfer.totalValue)),
+      notes: note,
+      transferType: transfer.transferType,
+      clientRequestId: `cancel-transfer-${input.id}`,
+    });
+    const reversalId = resultInsertId(insertResult);
+    const reversalRows = await tx.select().from(transfers).where(eq(transfers.id, reversalId)).limit(1);
+    const stockAfter = isReturnTransfer(transfer.transferType) ? stockBefore - quantity : stockBefore;
+    await writeMovementCancellationAudit(tx, { actor: input, type: "transfer", id: input.id, reason, original: transfer, reversal: reversalRows[0], balanceBefore: fromScaled(stockBefore), balanceAfter: fromScaled(stockAfter) });
+    return { id: input.id, reversalId, permitNumber: permit, stockBefore: fromScaled(stockBefore), stockAfter: fromScaled(stockAfter) };
   });
+}
+
+export async function deleteTransfer(_id: number): Promise<never> {
+  throw new InventoryError("BAD_REQUEST", "الحذف المباشر للحركات متوقف؛ استخدم الإلغاء الموثق مع السبب");
 }
 
 export async function getMovementSnapshot(type: "addition" | "disbursement" | "transfer", id: number) {
@@ -3594,10 +3825,14 @@ export async function undoUpdatedMovement(auditLogId: number) {
   return { auditLogId, entity: log.entity, originalId: Number(log.entityId) };
 }
 
+export function isPersistentMovementAuditEntity(entity: string) {
+  return ["addition", "disbursement", "transfer"].includes(entity);
+}
+
 export async function clearAuditLogs() {
   const db = await requireDb();
-  const result = await db.delete(auditLogs);
-  return { deleted: Number(result[0]?.affectedRows ?? 0) };
+  const result = await db.delete(auditLogs).where(not(inArray(auditLogs.entity, ["addition", "disbursement", "transfer"])));
+  return { deleted: Number(result[0]?.affectedRows ?? 0), preservedMovementRecords: true };
 }
 
 export type MovementImportRow = {
@@ -3704,6 +3939,16 @@ export async function listAuditLogs(limit = 200) {
     .from(auditLogs)
     .orderBy(desc(auditLogs.createdAt))
     .limit(Math.min(500, Math.max(1, limit)));
+}
+
+export async function listMovementCancellationAudits(limit = 5000) {
+  const db = await requireDb();
+  return db
+    .select()
+    .from(auditLogs)
+    .where(eq(auditLogs.action, "cancel_movement"))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(Math.min(5000, Math.max(1, limit)));
 }
 
 export async function listShareActivity(limit = 200) {

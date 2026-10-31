@@ -13,14 +13,18 @@ describe("تنظيم الشاشة الرئيسية", () => {
     expect(home).toContain("إضافة صنف جديد");
     expect(home).toContain("<QuickCalculator />");
     expect(home).toContain('aria-label="فتح الآلة الحاسبة"');
-    expect(home.indexOf('className="home-hero relative overflow-hidden')).toBeLessThan(home.indexOf('className="grid grid-cols-3 gap-2.5'));
+    expect(home.indexOf('className="home-hero relative overflow-hidden')).toBeLessThan(home.indexOf('aria-label="مركز العمل اليومي"'));
   });
 
-  it("يعرض ثلاث مؤشرات مختصرة ثم خطًا زمنيًا بعرض كامل قبل التفاصيل المطوية", () => {
-    expect(home).toContain('className="grid grid-cols-3 gap-2.5 sm:gap-3"');
-    expect(home).toContain('className="home-surface overflow-hidden rounded-2xl');
-    expect(home).toContain("إجمالي المنصرف");
-    expect(home).toContain('details className="home-surface group');
+  it("يجمع المؤشرات في بطاقة واحدة ويعرض قسماً واحداً متحركاً عند الاختيار", () => {
+    expect(home).toContain('aria-label="مركز العمل اليومي"');
+    expect(home).toContain('className="mt-3 flex gap-1 overflow-x-auto rounded-xl');
+    expect(home).toContain('workCenterView === "movement"');
+    expect(home).toContain('workCenterView === "stagnant"');
+    expect(home).toContain('workCenterView === "operations"');
+    expect(home).toContain("AnimatePresence mode=\"wait\"");
+    expect(home).toContain("ملخص سريع؛ اختر القسم لعرض تفاصيله.");
+    expect(home).toContain('details className="home-latest-ticker home-surface group');
     expect(home).not.toContain("STOCK ALERTS");
   });
 

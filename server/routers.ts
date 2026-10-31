@@ -6,14 +6,15 @@ import { buildActivityCleanupAuditDetails } from "./activityCleanup";
 import {
   createAddition,
   createDisbursement,
+  createDisbursementBatch,
   createItem,
   importItems,
   importMovements,
   createTransfer,
-  deleteAddition,
-  deleteDisbursement,
   deleteItem,
-  deleteTransfer,
+  cancelAddition,
+  cancelDisbursement,
+  cancelTransfer,
   undoDeletedMovement,
   undoUpdatedMovement,
   getMovementSnapshot,
@@ -80,6 +81,7 @@ import {
   upsertSetting,
   createAuditLog,
   listAuditLogs,
+  listMovementCancellationAudits,
   listShareActivity,
   clearShareActivity,
   clearLoginActivity,
@@ -252,6 +254,28 @@ const disbursementInput = z.object({
   disburseType: z.string().trim().max(128).nullable().optional(),
   unitPrice: z.coerce.number().min(0).optional(),
   clientRequestId: z.string().trim().min(16).max(64).nullable().optional(),
+});
+
+const disbursementBatchInput = z.object({
+  date: z.string().trim().min(1).max(32),
+  eznNum: z.string().trim().min(1).max(64),
+  warehouseId: z.number().int().positive(),
+  buildingId: z.number().int().positive(),
+  destination: z.string().trim().max(128).nullable().optional(),
+  customerId: z.number().int().positive().nullable().optional(),
+  notes: z.string().trim().max(1000).nullable().optional(),
+  disburseType: z.string().trim().max(128).nullable().optional(),
+  clientRequestId: z.string().trim().min(16).max(40),
+  lines: z.array(z.object({
+    itemCode: z.string().trim().min(1).max(64),
+    quantity: z.coerce.number().positive(),
+    unitPrice: z.coerce.number().min(0).optional(),
+  })).min(1).max(50),
+});
+
+const cancelMovementInput = z.object({
+  id: z.number().int().positive(),
+  reason: z.string().trim().min(5).max(1000),
 });
 
 const movementImportRow = z.object({
@@ -431,9 +455,7 @@ export const appRouter = router({
       await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "addition", entityId: input.movementId });
       return result;
     }),
-    delete: adminProcedure
-      .input(z.object({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteAddition(input.id)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "addition", entityId: input.id, details: { deletedSnapshot: result.snapshot } }); return { id: result.id, undoAuditLogId }; }),
+    cancel: adminProcedure.input(cancelMovementInput).mutation(({ input, ctx }) => safe(() => cancelAddition({ ...input, userId: ctx.user.id, userName: ctx.user.name }))),
   }),
 
   disbursements: router({
@@ -450,6 +472,7 @@ export const appRouter = router({
     create: writePermissionProcedure("disbursements")
       .input(disbursementInput)
       .mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createDisbursement(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "disbursement", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
+    batch: writePermissionProcedure("disbursements").input(disbursementBatchInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); return safe(() => createDisbursementBatch({ ...input, userId: ctx.user.id, userName: ctx.user.name })); }),
     update: writePermissionProcedure("disbursements")
       .input(disbursementInput.partial().extend({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("disbursement", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const previousSnapshot = await safe(() => getMovementSnapshot("disbursement", input.id)); const result = await safe(() => updateDisbursement(input)); invalidateForecastCache(); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "disbursement", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
@@ -463,9 +486,7 @@ export const appRouter = router({
       await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "disbursement", entityId: input.movementId });
       return result;
     }),
-    delete: adminProcedure
-      .input(z.object({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteDisbursement(input.id)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "disbursement", entityId: input.id, details: { deletedSnapshot: result.snapshot } }); return { id: result.id, undoAuditLogId }; }),
+    cancel: adminProcedure.input(cancelMovementInput).mutation(({ input, ctx }) => safe(() => cancelDisbursement({ ...input, userId: ctx.user.id, userName: ctx.user.name }))),
   }),
 
   transfers: router({
@@ -487,9 +508,7 @@ export const appRouter = router({
       await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "transfer", entityId: input.movementId });
       return result;
     }),
-    delete: adminProcedure
-      .input(z.object({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const result = await safe(() => deleteTransfer(input.id)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "transfer", entityId: input.id, details: { deletedSnapshot: result.snapshot } }); return { id: result.id, undoAuditLogId }; }),
+    cancel: adminProcedure.input(cancelMovementInput).mutation(({ input, ctx }) => safe(() => cancelTransfer({ ...input, userId: ctx.user.id, userName: ctx.user.name }))),
   }),
 
   reports: router({
@@ -612,6 +631,7 @@ export const appRouter = router({
 
   governance: router({
     audit: managementProcedure.query(() => safe(() => listAuditLogs(300))),
+    movementCancellations: adminProcedure.query(() => safe(() => listMovementCancellationAudits(5000))),
     undoDeletedMovement: adminProcedure.input(z.object({ auditLogId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await safe(() => undoDeletedMovement(input.auditLogId)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "undo_delete", entity: result.entity, entityId: result.originalId, details: { originalAuditLogId: input.auditLogId } }); return result; }),
     undoUpdatedMovement: adminProcedure.input(z.object({ auditLogId: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await safe(() => undoUpdatedMovement(input.auditLogId)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "undo_update", entity: result.entity, entityId: result.originalId, details: { originalAuditLogId: input.auditLogId } }); return result; }),
     clearAuditLogs: adminProcedure.mutation(async ({ ctx }) => { const result = await safe(() => clearAuditLogs()); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_audit", entity: "audit_logs", details: { deleted: result.deleted } }); return result; }),
