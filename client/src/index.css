@@ -3232,17 +3232,27 @@ body {
   .directory-contact-actions > button { flex: 1 1 auto; }
 }
 
-/* Mobile inventory operation controls: keep the primary action reachable while scrolling. */
+/* Keep the inventory action in the page header and color it by movement type. */
+.movement-page-new-button {
+  background-color: var(--movement-accent, #0d4f62) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--movement-accent, #0d4f62) 24%, transparent);
+  transition: filter 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+.movement-page-new-button:hover { filter: brightness(1.08); }
+.movement-page-new-button:focus-visible { outline: 3px solid color-mix(in srgb, var(--movement-accent, #0d4f62) 42%, transparent); outline-offset: 2px; }
+.dark .movement-page-new-button {
+  color: #fff !important;
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--movement-accent, #0d4f62) 32%, transparent), 0 0 0 1px rgba(255,255,255,.12);
+}
+
+/* Mobile inventory operation controls stay in the header instead of covering page content. */
 @media (max-width: 767px) {
   .movement-page-new-button {
-    position: fixed;
-    right: 1rem;
-    bottom: calc(1rem + env(safe-area-inset-bottom));
-    z-index: 45;
     min-height: 3rem;
     border-radius: 999px;
     padding-inline: 1.1rem;
-    box-shadow: 0 12px 28px rgba(13, 79, 98, 0.28);
   }
 
   .movement-dialog-content {
