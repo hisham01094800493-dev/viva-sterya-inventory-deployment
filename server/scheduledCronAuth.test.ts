@@ -2,16 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   authenticateRequest: vi.fn(),
-  getReportSchedulerConfig: vi.fn(),
-  isScheduleDue: vi.fn(),
-  runDailyExecutiveReport: vi.fn(),
+  isReportHeartbeatTask: vi.fn(),
+  runDailyExecutiveReportIfDue: vi.fn(),
 }));
 
 vi.mock("./_core/sdk", () => ({ sdk: { authenticateRequest: mocks.authenticateRequest } }));
 vi.mock("./reportScheduler", () => ({
-  getReportSchedulerConfig: mocks.getReportSchedulerConfig,
-  isScheduleDue: mocks.isScheduleDue,
-  runDailyExecutiveReport: mocks.runDailyExecutiveReport,
+  isReportHeartbeatTask: mocks.isReportHeartbeatTask,
+  runDailyExecutiveReportIfDue: mocks.runDailyExecutiveReportIfDue,
 }));
 
 import { createDailyReportHeartbeatHandler } from "./scheduled";
@@ -36,9 +34,8 @@ describe("daily report heartbeat authentication", () => {
     vi.clearAllMocks();
     process.env.CRON_SECRET = "test-cron-secret-with-at-least-32-characters";
     mocks.authenticateRequest.mockResolvedValue({ isCron: false });
-    mocks.getReportSchedulerConfig.mockResolvedValue({ enabled: true, time: "17:00", timeZone: "Africa/Cairo", lastRun: null });
-    mocks.isScheduleDue.mockReturnValue(true);
-    mocks.runDailyExecutiveReport.mockResolvedValue({ status: "success", reportDate: "2026-10-31", runId: 12 });
+    mocks.isReportHeartbeatTask.mockResolvedValue(true);
+    mocks.runDailyExecutiveReportIfDue.mockResolvedValue({ status: "success", reportDate: "2026-10-31", runId: 12 });
   });
 
   afterEach(() => {
@@ -52,7 +49,7 @@ describe("daily report heartbeat authentication", () => {
     expect(state.statusCode).toBe(200);
     expect(state.body).toMatchObject({ ok: true, source: "external-cron", status: "success" });
     expect(mocks.authenticateRequest).not.toHaveBeenCalled();
-    expect(mocks.runDailyExecutiveReport).toHaveBeenCalledWith();
+    expect(mocks.runDailyExecutiveReportIfDue).toHaveBeenCalledWith();
   });
 
   it("rejects a wrong secret", async () => {
@@ -60,7 +57,7 @@ describe("daily report heartbeat authentication", () => {
     await createDailyReportHeartbeatHandler()(makeRequest("Bearer wrong-secret"), api as never);
     expect(state.statusCode).toBe(403);
     expect(state.body).toEqual({ error: "cron-only" });
-    expect(mocks.runDailyExecutiveReport).not.toHaveBeenCalled();
+    expect(mocks.runDailyExecutiveReportIfDue).not.toHaveBeenCalled();
   });
 
   it("rejects a missing authorization header", async () => {
