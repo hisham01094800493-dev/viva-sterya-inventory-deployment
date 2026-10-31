@@ -537,7 +537,7 @@ export function formatItemCardMovementDetail(movement: ItemCardMovementKind, row
   if (movement === "صرف") {
     const destination = row.destination || row.customer || row.store || "—";
     const building = String(row.buildingName || row.building || row.buildingCode || "").trim().replace(/^مبنى\s*/, "");
-    return `صرف إلى: ${destination}${building ? ` للمبنى ${building}` : ""}${permit}`;
+    return `صرف إلى جهة: ${destination}${building ? ` للمبنى ${building}` : ""}${permit}`;
   }
   if (movement === "مرتجع") {
     const from = row.fromStore || row.sourceStore || row.supplier || row.fromCustomer || row.customer;
