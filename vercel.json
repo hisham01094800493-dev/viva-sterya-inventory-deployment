@@ -8,6 +8,12 @@
       "memory": 1024
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/daily-inventory-report",
+      "schedule": "0 15 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",
