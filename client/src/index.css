@@ -1816,6 +1816,10 @@ body {
 }
 
 @layer components {
+  .quick-actions-launcher,
+  .quick-actions-mobile-launcher {
+    visibility: visible;
+  }
   .quick-actions-fab {
     border: 2px solid rgba(255,255,255,.82);
     background: linear-gradient(145deg, #2563eb, #1d4ed8) !important;
