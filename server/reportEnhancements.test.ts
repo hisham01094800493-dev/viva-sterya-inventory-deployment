@@ -282,7 +282,8 @@ describe("تحسينات تقارير المخزون", () => {
     expect(rows[0].openingStock).toBe(5);
     expect(rows.slice(1).every(row => row.openingStock === null)).toBe(true);
     expect(formatItemCardMovementDetail("إضافة", { supplier: "مورد النور" })).toBe("وارد من: مورد النور");
-    expect(formatItemCardMovementDetail("صرف", { destination: "شركة البناء" })).toBe("صادر إلى: شركة البناء");
+    expect(formatItemCardMovementDetail("صرف", { destination: "شركة البناء" })).toBe("صرف إلى: شركة البناء");
+    expect(formatItemCardMovementDetail("صرف", { destination: "شركة البناء", buildingName: "مبنى L2", eznNum: "D-12" })).toBe("صرف إلى: شركة البناء للمبنى L2 — رقم الإذن: D-12");
     expect(formatItemCardMovementDetail("مرتجع", { fromStore: "مخزن 1", toStore: "مخزن 2" })).toBe("مرتجع من: مخزن 1 إلى: مخزن 2");
     expect(rows[0].detail).toBe("وارد من: —");
     vi.mocked(autoTable).mockClear();
