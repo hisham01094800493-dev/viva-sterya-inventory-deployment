@@ -13,11 +13,31 @@ function hasValidCronSecret(req: Request) {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+function matchesCronSecret(req: Request) {
+  const configured = process.env.CRON_SECRET?.trim();
+  if (!configured) return false;
+  const authorization = typeof req.headers.authorization === "string" ? req.headers.authorization : "";
+  const supplied = authorization.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length).trim()
+    : typeof req.headers["x-cron-secret"] === "string"
+      ? req.headers["x-cron-secret"].trim()
+      : "";
+  if (!supplied) return false;
+  const expectedBytes = Buffer.from(configured);
+  const suppliedBytes = Buffer.from(supplied);
+  return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes);
+}
+
+async function authenticateScheduledRequest(req: Request) {
+  if (matchesCronSecret(req)) return { isCron: true, taskUid: req.headers["x-cron-task-uid"]?.toString() || "cron-job-org" };
+  return sdk.authenticateRequest(req);
+}
+
 export function createInventoryReportHandler(kind: "low_stock" | "daily" | "weekly") {
   return async (req: Request, res: Response) => {
     const context = { url: req.originalUrl, kind };
     try {
-      const user = await sdk.authenticateRequest(req);
+      const user = await authenticateScheduledRequest(req);
       if (!user.isCron || !user.taskUid) {
         return res.status(403).json({ error: "cron-only" });
       }
@@ -62,7 +82,7 @@ export function createBackupRestoreVerificationHandler() {
   return async (req: Request, res: Response) => {
     const context = { url: req.originalUrl, kind: "backup_restore_verification" };
     try {
-      const user = await sdk.authenticateRequest(req);
+      const user = await authenticateScheduledRequest(req);
       if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" });
       if (!(await isBackupVerificationScheduleTask(user.taskUid))) return res.json({ ok: true, skipped: "orphan_or_disabled" });
       const result = await runScheduledBackupVerification();
