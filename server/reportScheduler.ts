@@ -11,7 +11,8 @@ import {
 } from "../drizzle/schema";
 import { getInventoryRows, getSettingValue, upsertSetting } from "./db";
 import { requireDb, getPool } from "./db/connection";
-import { buildInventoryReportHtml, getLowStockItems } from "./inventoryReports";
+import { getItemsAtOrBelowMinimum, getLowStockItems, summarizeDailyDisbursements, type DailyDisbursementRow } from "./inventoryReports";
+import { buildDailyReportEmail } from "./reportEmailTemplate";
 import { sendConfiguredEmail } from "./email";
 import { sendWhatsAppNotification } from "./whatsapp";
 import { createHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
@@ -126,7 +127,7 @@ async function collectForecastAndBuildings(today: string, now: Date) {
   const fromDate = getCairoParts(shiftDate(now, -13)).date;
   const [inventory, movements, buildingsRows] = await Promise.all([
     db.select({ code: items.code, name: items.name, currentStock: items.currentStock, reorderLevel: items.reorderLevel, unit: items.unit }).from(items),
-    db.select({ itemCode: disbursements.itemCode, itemName: disbursements.itemName, quantity: disbursements.quantity, date: disbursements.date, buildingId: disbursements.buildingId, totalValue: disbursements.totalValue }).from(disbursements).where(gte(disbursements.date, fromDate)),
+    db.select({ eznNum: disbursements.eznNum, itemCode: disbursements.itemCode, itemName: disbursements.itemName, quantity: disbursements.quantity, date: disbursements.date, buildingId: disbursements.buildingId, totalValue: disbursements.totalValue, unit: items.unit }).from(disbursements).leftJoin(items, eq(disbursements.itemCode, items.code)).where(gte(disbursements.date, fromDate)),
     db.select({ id: buildings.id, name: buildings.name, budget: buildings.budget }).from(buildings).where(eq(buildings.status, "active")),
   ]);
   const quantities = new Map<string, number>();
@@ -149,14 +150,16 @@ async function collectForecastAndBuildings(today: string, now: Date) {
   }
   const buildingAlerts = buildingsRows.map(building => ({ name: building.name, quantity: buildingTotals.get(building.id)?.quantity ?? 0, value: buildingTotals.get(building.id)?.value ?? 0 }))
     .filter(row => row.quantity > 0).sort((a, b) => b.value - a.value);
-  return { forecasts, buildingAlerts, unassigned, totalTodayMovements: todayRows.length };
-}
-
-function buildCombinedHtml(today: string, currentHtml: string, forecasts: ForecastRow[], buildingAlerts: Array<{ name: string; quantity: number; value: number }>, unassigned: number, totalTodayMovements: number) {
-  const currentBody = currentHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i)?.[1] ?? currentHtml;
-  const visibleForecasts = forecasts.slice(0, 8).map(row => `<tr><td>${escapeHtml(row.code)}</td><td>${escapeHtml(row.name)}</td><td>${row.currentStock.toFixed(3)} ${escapeHtml(row.unit)}</td><td>${row.velocity.toFixed(3)}</td><td style="color:${row.daysToExhaust <= 7 ? "#b91c1c" : "#b45309"};font-weight:700">${Number.isFinite(row.daysToExhaust) ? row.daysToExhaust.toFixed(1) : "—"}</td></tr>`).join("");
-  const buildingsHtml = buildingAlerts.map(row => `<li><b>${escapeHtml(row.name)}</b>: ${row.quantity.toFixed(3)} وحدة بقيمة ${row.value.toFixed(2)}</li>`).join("") || "<li>لا توجد حركات صرف للمباني اليوم.</li>";
-  return `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#102a43"><div style="max-width:960px;margin:0 auto;padding:24px"><div style="background:#0d4f62;color:#fff;padding:24px;border-radius:18px"><div style="font-size:11px;letter-spacing:2px;color:#f1c27d">SMART INVENTORY · ${today}</div><h1 style="margin:10px 0 0">الملخص التنفيذي اليومي</h1><p style="margin:8px 0 0;color:#dceff2">صرف اليوم + توقعات النفاذ + تنبيهات المباني</p></div><section style="background:#fff;margin-top:16px;padding:20px;border-radius:16px"><h2 style="margin-top:0">ملخص الصرف اليومي</h2><p>عدد حركات الصرف اليوم: <b>${totalTodayMovements}</b></p><p>أصناف حرجة متوقعة: <b>${forecasts.length}</b> (يظهر أول 8، والباقي: <b>${Math.max(0, forecasts.length - 8)}</b>)</p><h2>أعلى الأصناف الحرجة المتوقعة</h2>${visibleForecasts ? `<table style="width:100%;border-collapse:collapse;text-align:right"><thead><tr style="background:#edf6f7"><th style="padding:10px">الكود</th><th style="padding:10px">الصنف</th><th style="padding:10px">الرصيد</th><th style="padding:10px">معدل/يوم</th><th style="padding:10px">أيام النفاذ</th></tr></thead><tbody>${visibleForecasts}</tbody></table>` : "<p>لا توجد أصناف حرجة متوقعة وفق بيانات آخر 14 يوماً.</p>"}<h2>تنبيهات المباني</h2><ul>${buildingsHtml}</ul>${unassigned ? `<p style="color:#b91c1c;font-weight:700">تنبيه: توجد ${unassigned} حركة صرف اليوم بدون مبنى مرتبط.</p>` : "<p style=\"color:#047857\">لا توجد حركات اليوم بدون مبنى.</p>"}</section><section style="margin-top:16px">${currentBody}</section></div></body></html>`;
+  const todayDisbursementRows: DailyDisbursementRow[] = todayRows.map(row => ({
+    date: row.date,
+    eznNum: row.eznNum ?? "",
+    itemCode: row.itemCode,
+    itemName: row.itemName,
+    quantity: row.quantity,
+    totalValue: row.totalValue,
+    unit: row.unit ?? null,
+  }));
+  return { forecasts, buildingAlerts, unassigned, totalTodayMovements: todayRows.length, todayDisbursementRows };
 }
 
 async function notifyManagers(title: string, content: string) {
@@ -235,8 +238,21 @@ export async function runDailyExecutiveReport(options: { force?: boolean } = {})
     const [rows, thresholdRaw, recipientsRaw, analysis] = await Promise.all([getInventoryRows(), getSettingValue("threshold_percentage", "20"), getSettingValue("report_recipients", process.env.INVENTORY_REPORT_EMAILS ?? process.env.ADMIN_EMAIL ?? ""), collectForecastAndBuildings(today, now)]);
     const threshold = Math.min(100, Math.max(0, Number(thresholdRaw) || 20));
     const lowStockCount = getLowStockItems(rows, threshold).length;
-    const currentHtml = buildInventoryReportHtml(rows as any, threshold, "التقرير اليومي للمخزون");
-    const html = buildCombinedHtml(today, currentHtml, analysis.forecasts, analysis.buildingAlerts, analysis.unassigned, analysis.totalTodayMovements);
+    const minimumStockItems = getItemsAtOrBelowMinimum(rows as any);
+    const severeCodes = new Set(getLowStockItems(rows as any, threshold).map(row => row.code));
+    const disbursementSummary = summarizeDailyDisbursements(analysis.todayDisbursementRows);
+    const html = buildDailyReportEmail({
+      reportDate: today,
+      thresholdPercentage: threshold,
+      inventoryTotal: rows.length,
+      minimumStockItems: minimumStockItems as any,
+      severeCodes,
+      forecasts: analysis.forecasts,
+      buildingAlerts: analysis.buildingAlerts,
+      unassigned: analysis.unassigned,
+      totalTodayMovements: analysis.totalTodayMovements,
+      summary: disbursementSummary,
+    });
     const recipients = recipientsRaw.split(/[;,\n]/).map(value => value.trim()).filter(Boolean);
     let sentEmail = false;
     let emailError: string | null = null;
