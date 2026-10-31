@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { Request, Response } from "express";
 import { sdk } from "./_core/sdk";
 import { runInventoryReport } from "./inventoryReports";
+import { runDailyExecutiveReport } from "./reportScheduler";
 import { isBackupVerificationScheduleTask, runScheduledBackupVerification } from "./db";
 import { isReportHeartbeatTask, runDailyExecutiveReportIfDue } from "./reportScheduler";
 
@@ -31,6 +32,29 @@ function matchesCronSecret(req: Request) {
 async function authenticateScheduledRequest(req: Request) {
   if (matchesCronSecret(req)) return { isCron: true, taskUid: req.headers["x-cron-task-uid"]?.toString() || "cron-job-org" };
   return sdk.authenticateRequest(req);
+}
+
+function hasCronSecret(req: Request) {
+  const configured = process.env.CRON_SECRET?.trim();
+  if (!configured) return false;
+  const authorization = typeof req.headers.authorization === "string" ? req.headers.authorization : "";
+  const bearer = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  const headerSecret = typeof req.headers["x-cron-secret"] === "string" ? req.headers["x-cron-secret"].trim() : "";
+  return bearer === configured || headerSecret === configured;
+}
+
+export function createCronJobDailyReportHandler() {
+  return async (req: Request, res: Response) => {
+    if (req.method !== "GET" && req.method !== "POST") return res.status(405).json({ error: "method-not-allowed" });
+    if (!hasCronSecret(req)) return res.status(401).json({ error: "invalid-cron-secret" });
+    try {
+      const result = await runDailyExecutiveReport();
+      return res.status(200).json({ ok: true, ...result });
+    } catch (error: any) {
+      console.error("[CronJob:daily_inventory_report] failed", error);
+      return res.status(500).json({ ok: false, error: "daily-report-failed", timestamp: new Date().toISOString() });
+    }
+  };
 }
 
 export function createInventoryReportHandler(kind: "low_stock" | "daily" | "weekly") {
