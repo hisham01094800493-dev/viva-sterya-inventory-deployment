@@ -1280,6 +1280,7 @@ export async function getItemCard(
       destination: row.destination || customerName || row.store || null,
       customer: customerName || null,
       buildingName: building?.name || building?.code || null,
+      buildingCode: building?.code || null,
     };
   });
   const enrichedTransfers = transferRows.map(row => ({
