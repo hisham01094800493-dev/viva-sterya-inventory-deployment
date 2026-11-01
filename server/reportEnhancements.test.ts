@@ -71,6 +71,15 @@ describe("تحسينات تقارير المخزون", () => {
     expect(filterMovementRowsBySearch(rows, "", "", "مرتجع من العميل").map(row => row.eznNum)).toEqual(["R-300"]);
   });
 
+  it("يعرض المرتجع القديم المسجل في الصرف كمرتجع مستقل في نتائج البحث", () => {
+    const rows = buildOutboundReturnRows([
+      { id: 18, date: "2026-08-01", eznNum: "18", itemCode: "A", quantity: -2, destination: "شركة البناء", disburseType: "مرتجع من العميل" },
+      { id: 20, date: "2026-08-02", eznNum: "D-20", itemCode: "A", quantity: 3, destination: "شركة البناء", disburseType: "تشغيل الموقع" },
+    ] as any, [], [{ code: "A", name: "حديد" }]);
+    expect(rows.map(row => row.type)).toEqual(["صرف", "مرتجع"]);
+    expect(rows.find(row => row.type === "مرتجع")?.returnPurpose).toBe("مرتجع من العميل");
+  });
+
   it("يفلتر لزوم الإضافة ولزوم الصرف ولزوم الارتجاع كلٌ بشكل مستقل", () => {
     const rows = [
       { type: "إضافة", additionPurpose: "استكمال أعمال الموقع", disbursementPurpose: null },

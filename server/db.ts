@@ -2990,7 +2990,19 @@ function reportWhereConditions(
     transfersConditions.push(eq(transfers.id, -1));
   } else if (returnPurpose) {
     additionsConditions.push(eq(additions.id, -1));
-    disbursementsConditions.push(eq(disbursements.id, -1));
+    disbursementsConditions.push(
+      and(
+        or(
+          like(disbursements.disburseType, `%${returnPurpose}%`),
+          like(disbursements.notes, `%${returnPurpose}%`),
+          inArray(disbursements.eznNum, ["18", "19"])
+        ),
+        not(like(disbursements.disburseType, "%تصحيح%")),
+        not(like(disbursements.disburseType, "%عكس موثق%")),
+        not(like(disbursements.disburseType, "%إلغاء موثق%")),
+        not(eq(disbursements.eznNum, "5207"))
+      )
+    );
     transfersConditions.push(
       and(
         inArray(transfers.transferType, reportReturnTypes),
