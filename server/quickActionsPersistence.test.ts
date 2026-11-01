@@ -44,14 +44,15 @@ describe("قائمة الإجراءات السريعة العائمة", () => {
 
   it("يبقي الأيقونة فوق القائمة السفلية وبشفافية كاملة عند الطي", () => {
     const source = readFileSync(resolve(process.cwd(), "client/src/components/DashboardLayout.tsx"), "utf8");
-    expect(source).toContain("fixed z-[55]");
-    expect(source).toContain("${mobileDockClass} ${compactMode ? \"w-12\" : \"w-auto\"} opacity-100");
+    expect(source).toContain("quick-actions-launcher hidden lg:flex fixed z-[55]");
+    expect(source).toContain("${mobileDockClass} ${compactMode ? \"w-14\" : \"w-auto\"} opacity-100");
+    expect(source).toContain("quick-actions-fab inline-flex h-14 w-14");
     expect(source).not.toContain('compactMode ? "opacity-50 hover:opacity-100"');
   });
 
   it("يحصر الحاوية في عرض الأيقونة عند الإغلاق حتى تعود للحافة ولا تختفي", () => {
     const source = readFileSync(resolve(process.cwd(), "client/src/components/DashboardLayout.tsx"), "utf8");
-    expect(source).toContain('${compactMode ? "w-12" : "w-auto"} opacity-100');
+    expect(source).toContain('${compactMode ? "w-14" : "w-auto"} opacity-100');
     expect(source).toContain('transition-[left,top,transform,opacity]');
   });
 });

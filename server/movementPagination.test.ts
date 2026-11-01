@@ -185,11 +185,10 @@ describe("حسابات ترقيم الحركات", () => {
     expect(warehousePage).toContain("items.warehouseCards.useQuery");
     expect(warehousePage).toContain("warehouseName: selected?.name");
     expect(warehousePage).toContain("معاينة تقرير {reportName}");
-    expect(homePage).toContain("WAREHOUSE OVERVIEW");
-    expect(homePage).toContain("عرض ${branchWarehouses.length} مخازن أخرى");
-    expect(homePage).toContain("تحويل داخلي");
-    expect(homePage).toContain("mainWarehouse");
-    expect(homePage).toContain("صنف تحت الحد");
+    expect(homePage).toContain("المخازن والفروع");
+    expect(homePage).toContain("عرض الفروع");
+    expect(homePage).toContain("تحويل / مرتجع");
+    expect(homePage).toContain("lowItems.length");
     expect(homePage).toContain("لا أصناف بعد");
     expect(homePage).toContain("مخزن هالك");
     expect(homePage).toContain("needsAttention");

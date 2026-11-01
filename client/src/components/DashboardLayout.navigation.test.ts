@@ -46,10 +46,10 @@ describe("buildMobileNavigationItems", () => {
     expect(items.map(({ mobileLabel, path }) => [mobileLabel, path])).toEqual([
       ["الرئيسية", "/"],
       ["الأصناف", "/items"],
-      ["المخازن", "/warehouses"],
-      ["التقارير", "/reports"],
-      ["الإعدادات", "/settings"],
+      ["إضافة", "/additions"],
+      ["صرف", "/disbursements"],
+      ["الجرد", "/inventory-audit"],
     ]);
-    expect(items.some(({ path }) => ["/additions", "/disbursements"].includes(path))).toBe(false);
+    expect(items.some(({ path }) => ["/warehouses", "/reports", "/settings"].includes(path))).toBe(false);
   });
 });

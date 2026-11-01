@@ -8,7 +8,7 @@ vi.mock("./documentImageUpload", () => ({ uploadDocumentImage: vi.fn() }));
 
 vi.mock("./db", async () => {
   const actual = await vi.importActual<typeof import("./db")>("./db");
-  return { ...actual, listWarehouses: vi.fn(), updateWarehouse: vi.fn(), listSuppliers: vi.fn(), createSupplier: vi.fn(), listCustomers: vi.fn(), createCustomer: vi.fn(), listSupplierAccount: vi.fn(), listCustomerAccount: vi.fn() };
+  return { ...actual, getUserPermissionSettings: vi.fn(async (userId: number, role: string) => ({ userId, allowedScreens: ["inventory", "suppliers", "customers", "additions", "disbursements"], allowedReports: ["supplier-account", "customer-account", "warehouse-financial-details"], allowedWarehouseIds: [], readOnly: ["viewer", "reviewer", "reports"].includes(role) })), getMovementWarehouseIds: vi.fn().mockResolvedValue([1]), listWarehousesForAccess: vi.fn(), listWarehouses: vi.fn(), updateWarehouse: vi.fn(), listSuppliers: vi.fn(), createSupplier: vi.fn(), listCustomers: vi.fn(), createCustomer: vi.fn(), listSupplierAccount: vi.fn(), listCustomerAccount: vi.fn() };
 });
 
 function context(role: "user" | "admin" = "admin"): TrpcContext {
@@ -19,6 +19,8 @@ function context(role: "user" | "admin" = "admin"): TrpcContext {
 describe("tRPC للمخازن والموردين", () => {
   it("يعرض المخازن الخمسة ويحدّث اسم المخزن عبر الإجراء الإداري", async () => {
     vi.mocked(listWarehouses).mockResolvedValue([1, 2, 3, 4, 5].map(slot => ({ id: slot, slot, name: `المخزن ${slot}` })) as never);
+    const mockedDb = await import("./db");
+    vi.mocked(mockedDb.listWarehousesForAccess).mockResolvedValue([1, 2, 3, 4, 5].map(slot => ({ id: slot, slot, name: `المخزن ${slot}` })) as never);
     vi.mocked(updateWarehouse).mockResolvedValue({ id: 2, slot: 2, name: "مخزن قطع الغيار" } as never);
     const caller = appRouter.createCaller(context());
     await expect(caller.warehouses.list()).resolves.toHaveLength(5);
@@ -32,8 +34,8 @@ describe("tRPC للمخازن والموردين", () => {
     const caller = appRouter.createCaller(context("user"));
     await expect(caller.additions.account({ supplierId: 3 })).resolves.toHaveLength(1);
     await expect(caller.disbursements.account({ customerId: 4 })).resolves.toHaveLength(1);
-    expect(listSupplierAccount).toHaveBeenCalledWith(3);
-    expect(listCustomerAccount).toHaveBeenCalledWith(4);
+    expect(listSupplierAccount).toHaveBeenCalledWith(3, []);
+    expect(listCustomerAccount).toHaveBeenCalledWith(4, []);
   });
 
   it("يربط مساري رفع صور الأذونات بنوع الحركة والرقم الصحيح", async () => {
