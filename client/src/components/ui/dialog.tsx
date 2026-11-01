@@ -124,7 +124,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-1rem)] max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-2xl border p-4 shadow-lg duration-200 sm:w-full sm:p-6 sm:max-w-lg",
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto overscroll-contain rounded-2xl border p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-lg duration-200 [scrollbar-gutter:stable] sm:max-h-[calc(100dvh-2rem)] sm:w-full sm:p-6 sm:max-w-lg",
           className
         )}
         onEscapeKeyDown={handleEscapeKeyDown}
@@ -160,7 +160,10 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col items-stretch gap-2 [&>button]:w-full sm:flex-row sm:items-center sm:justify-end sm:[&>button]:w-auto",
+        // On phones the footer sticks to the bottom of the scroll container so
+        // the primary action is always reachable without scrolling back.
+        "sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col items-stretch gap-2 border-t bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] [&>button]:w-full",
+        "sm:static sm:mx-0 sm:mb-0 sm:flex-row sm:items-center sm:justify-end sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:pb-0 sm:[&>button]:w-auto",
         className
       )}
       {...props}
