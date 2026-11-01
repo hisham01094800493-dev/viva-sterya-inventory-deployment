@@ -120,6 +120,7 @@
   html {
     font-family: "IBM Plex Sans Arabic", "Manrope", sans-serif;
     background: #eef4f8;
+    color-scheme: light;
   }
   body {
     @apply text-foreground;
@@ -131,8 +132,22 @@
       linear-gradient(135deg, #f7fafc 0%, #edf4f7 48%, #e8f1f4 100%);
     background-attachment: fixed;
   }
+  .dark {
+    color-scheme: dark;
+  }
+  .dark body {
+    background:
+      radial-gradient(circle at 9% 8%, rgba(38, 108, 123, 0.22), transparent 28rem),
+      radial-gradient(circle at 92% 18%, rgba(135, 94, 40, 0.18), transparent 24rem),
+      linear-gradient(135deg, #101c24 0%, #142630 48%, #182d36 100%);
+    background-attachment: fixed;
+  }
   button, a, input, textarea, select {
     font-family: inherit;
+  }
+  :where(button, a[href], input, textarea, select, [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 3px solid color-mix(in srgb, #0d7180 70%, transparent);
+    outline-offset: 3px;
   }
   ::selection {
     background: oklch(0.78 0.08 80 / 35%);
