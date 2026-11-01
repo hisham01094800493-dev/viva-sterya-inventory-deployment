@@ -27,6 +27,7 @@ import { buildStockVarianceRows, summarizeStockVariance, type StockVarianceRow }
 import { buildExcelFileBlob, buildStockVariancePdf, downloadStockVarianceExcel, downloadStockVariancePdf } from "@/lib/inventoryExportFiles";
 import { formatDisbursementPurpose } from "@/lib/movementPurpose";
 import { simplifyArabicForSearch } from "@/lib/globalVoiceSearch";
+import { PageHeader } from "@/components/patterns/PageHeader";
 
 type ReportType = "overview" | "inventory" | "movements" | "returns" | "variance" | "accounts" | "unlinked";
 type ExportFormat = "excel" | "pdf";
@@ -289,20 +290,6 @@ function printReport(title: string, subtitle: string, headers: string[], rows: u
   const table = `<table><thead><tr>${headers.map(header => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${renderCell(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   popup.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;color:#102a43;padding:32px}h1{margin:0 0 8px;font-size:24px}p{color:#64748b;margin:0 0 24px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #dce7ee;padding:9px;text-align:right}th{background:#e8f1f2;color:#0d4f62}@media print{body{padding:0}}</style></head><body><h1>${title}</h1><p>${subtitle}</p>${table}<script>window.onload=()=>window.print();</script></body></html>`);
   popup.document.close();
-}
-
-function PageHeader({ from, to, onRefresh, refreshing }: { from: string; to: string; onRefresh: () => void; refreshing: boolean }) {
-  return <div className="page-header-shell flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-    <div className="page-header-copy">
-      <p className="page-header-eyebrow mb-2 text-[10px] font-black uppercase tracking-[0.27em] text-[#d08a3b]">REPORTING / ANALYTICS</p>
-      <h2 className="page-header-title text-3xl font-black tracking-tight text-[#102a43]">تقارير المخزون</h2>
-      <p className="page-header-description mt-2 max-w-2xl text-sm leading-7 text-slate-500">حوّل بيانات المخزون والحركات إلى قراءة عملية قابلة للطباعة أو التصدير، مع الحفاظ على نفس منطق حد الطلب والتنبيهات.</p>
-    </div>
-    <div className="page-header-actions flex flex-wrap items-center gap-2">
-      <Badge variant="outline" className="rounded-full border-[#cfe1e5] bg-white px-3 py-2 text-xs font-bold text-[#0d4f62]">من {from || "البداية"} إلى {to || "اليوم"}</Badge>
-      <Button variant="outline" onClick={onRefresh} disabled={refreshing} className="rounded-xl border-[#dce7ee] bg-white font-bold text-[#0d4f62] hover:bg-[#e8f1f2]">{refreshing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="ml-2 h-4 w-4" />}تحديث</Button>
-    </div>
-  </div>;
 }
 
 export default function ReportsPage() {
@@ -635,7 +622,13 @@ export default function ReportsPage() {
 
   return <DashboardLayout><div className="mx-auto w-full min-w-0 max-w-[1500px] space-y-5">
     <OfflineDataNotice resource="التقارير" hasCachedData={Boolean(reportDataset.data || items.data || summary.data)} />
-    <PageHeader from={from} to={to} onRefresh={() => { void Promise.all([utils.items.list.invalidate(), utils.reports.dataset.invalidate(), utils.dashboard.summary.invalidate()]); }} refreshing={refreshing} />
+    <PageHeader
+      eyebrow="REPORTING / ANALYTICS"
+      title="تقارير المخزون"
+      description="حوّل بيانات المخزون والحركات إلى قراءة عملية قابلة للطباعة أو التصدير، مع الحفاظ على نفس منطق حد الطلب والتنبيهات."
+      meta={<Badge variant="outline" className="rounded-full border-border bg-card px-3 py-2 text-xs font-bold text-primary">من {from || "البداية"} إلى {to || "اليوم"}</Badge>}
+      actions={<Button variant="outline" onClick={() => { void Promise.all([utils.items.list.invalidate(), utils.reports.dataset.invalidate(), utils.dashboard.summary.invalidate()]); }} disabled={refreshing} className="rounded-xl border-border bg-card font-bold text-primary hover:bg-accent">{refreshing ? <Loader2 className="ml-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="ml-2 h-4 w-4" />}تحديث</Button>}
+    />
     <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#dce7ee] bg-white/80 px-3 py-2 shadow-[0_8px_24px_rgba(18,44,84,0.04)]">
       {statCards.map(({ label, value, Icon, tone }) => label === "الرصيد الحالي" ? <div key={label} className="min-w-[220px] flex-1 rounded-xl bg-[#f7fbfc] px-3 py-2"><div className="flex items-center gap-2"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}><Icon className="h-4 w-4" /></span><div className="min-w-0"><p className="truncate text-[10px] font-bold text-slate-400">الرصيد الحالي حسب المخزن</p><p className="text-base font-black text-[#102a43]">{balanceWarehouseId ? (warehouses.data?.find(warehouse => warehouse.id === balanceWarehouseId)?.name ?? value) : value}</p></div></div><select value={balanceWarehouseId ?? ""} onChange={event => setBalanceWarehouseId(Number(event.target.value) || null)} className="mt-2 h-8 w-full rounded-lg border border-[#b9d4d9] bg-white px-2 text-[11px] font-black text-[#0d4f62]" aria-label="اختيار مخزن لعرض رصيده"><option value="">كل المخازن</option>{(warehouses.data ?? []).map(warehouse => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select>{balanceWarehouseId ? <div className="mt-2 flex flex-wrap gap-1.5">{warehouseBalanceByUnit.length ? warehouseBalanceByUnit.map(item => <span key={item.unit} className="rounded-full bg-[#e8f7f6] px-2 py-1 text-[10px] font-black text-[#0d4f62]">{formatQuantity(item.quantity)} {item.unit}</span>) : <span className="text-[10px] text-slate-400">لا توجد أرصدة مسجلة</span>}</div> : <p className="mt-2 text-[10px] text-slate-400">اختر مخزنًا لعرض الرصيد حسب الوحدة</p>}</div> : <div key={label} className="flex min-w-[132px] flex-1 items-center gap-2 rounded-xl bg-[#f7fbfc] px-3 py-2"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone}`}><Icon className="h-4 w-4" /></span><div className="min-w-0"><p className="truncate text-[10px] font-bold text-slate-400">{label}</p><p className="text-base font-black text-[#102a43]">{value}</p></div></div>)}
     </div>
