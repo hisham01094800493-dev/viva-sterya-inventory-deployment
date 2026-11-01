@@ -40,6 +40,28 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ---- Unified design tokens (brand / surfaces / borders / text / shadows) ---- */
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-border-soft: var(--border-soft);
+  --color-border-strong: var(--border-strong);
+  --color-text-strong: var(--text-strong);
+  --color-text-muted: var(--text-muted);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-caution: var(--caution);
+
+  --radius-card: var(--radius-card);
+  --radius-control: var(--radius-control);
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
 }
 
 :root {
@@ -53,6 +75,34 @@
   --chart-4: var(--color-blue-700);
   --chart-5: var(--color-blue-800);
   --radius: 0.65rem;
+  /* Brand ramp */
+  --brand: #0d4f62;
+  --brand-strong: #0a3f4f;
+  --brand-soft: #e8f1f2;
+  --brand-contrast: #ffffff;
+  --brand-accent: #0d806c;
+  /* Surfaces */
+  --surface: #ffffff;
+  --surface-muted: #f7fbfc;
+  --surface-raised: #ffffff;
+  --surface-sunken: #eef4f8;
+  --surface-glass: rgba(255, 255, 255, 0.86);
+  /* Borders */
+  --border-soft: #eef3f5;
+  --border-strong: #dce7ee;
+  --border-brand: #b9d4d9;
+  /* Text */
+  --text-strong: #102a43;
+  --text-muted: #6a7e8b;
+  /* Semantic status */
+  --positive: #0d806c;
+  --negative: #bd5147;
+  --caution: #a96821;
+  /* Shape + depth */
+  --radius-card: 1.5rem;
+  --radius-control: 0.85rem;
+  --shadow-card: 0 10px 30px rgba(18, 44, 84, 0.055);
+  --shadow-raised: 0 18px 50px rgba(18, 44, 84, 0.09);
   --background: oklch(1 0 0);
   --foreground: oklch(0.235 0.015 65);
   --card: oklch(1 0 0);
@@ -111,6 +161,35 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 24%);
   --sidebar-ring: oklch(0.488 0.243 264.376);
+
+  /* Brand ramp — lifted for legibility on dark surfaces */
+  --brand: #7fd8d4;
+  --brand-strong: #a7ece7;
+  --brand-soft: #1b3b45;
+  --brand-contrast: #07222b;
+  --brand-accent: #6fdcc4;
+  /* Surfaces — layered so cards read against the page */
+  --surface: #16262f;
+  --surface-muted: #1b303b;
+  --surface-raised: #1f3945;
+  --surface-sunken: #0f1c23;
+  --surface-glass: rgba(22, 38, 47, 0.88);
+  /* Borders */
+  --border-soft: rgba(196, 225, 232, 0.16);
+  --border-strong: rgba(196, 225, 232, 0.28);
+  --border-brand: rgba(142, 211, 209, 0.4);
+  /* Text */
+  --text-strong: #eaf4f6;
+  --text-muted: #b6c9d1;
+  /* Semantic status */
+  --positive: #6fe0c2;
+  --negative: #ff9d94;
+  --caution: #f5c67f;
+  /* Shape + depth */
+  --radius-card: 1.5rem;
+  --radius-control: 0.85rem;
+  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.32);
+  --shadow-raised: 0 18px 50px rgba(0, 0, 0, 0.45);
 }
 
 @layer base {
@@ -129,6 +208,15 @@
       radial-gradient(circle at 9% 8%, rgba(64, 145, 157, 0.12), transparent 28rem),
       radial-gradient(circle at 92% 18%, rgba(216, 157, 75, 0.11), transparent 24rem),
       linear-gradient(135deg, #f7fafc 0%, #edf4f7 48%, #e8f1f4 100%);
+    background-attachment: fixed;
+  }
+  .dark html,
+  html.dark { background: #0c171d; }
+  .dark body {
+    background:
+      radial-gradient(circle at 9% 8%, rgba(64, 145, 157, 0.18), transparent 28rem),
+      radial-gradient(circle at 92% 18%, rgba(216, 157, 75, 0.1), transparent 24rem),
+      linear-gradient(135deg, #0d1a20 0%, #101f27 48%, #0b161c 100%);
     background-attachment: fixed;
   }
   button, a, input, textarea, select {
@@ -3326,3 +3414,354 @@ body {
 .settings-page.settings-view-user .settings-manager-card,
 .settings-page.settings-view-manager .settings-user-card { display: none; }
 @media (max-width: 640px) { .settings-section-switcher { position: sticky; top: 0.5rem; z-index: 25; } .settings-section-switcher button { min-height: 4.25rem; } }
+
+/* ==========================================================================
+   Unified design-token utilities
+   These replace the ad-hoc literal hex values scattered across the pages.
+   Every utility reads a semantic token, so light/dark stay in sync.
+   ========================================================================== */
+@layer components {
+  .page-shell {
+    margin-inline: auto;
+    width: 100%;
+    min-width: 0;
+    max-width: 1500px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .surface-card {
+    background-color: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .surface-card--raised {
+    box-shadow: var(--shadow-raised);
+  }
+
+  .surface-muted {
+    background-color: var(--surface-muted);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-control);
+  }
+
+  .surface-tile {
+    background-color: var(--surface-muted);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-control);
+    padding: 0.75rem;
+  }
+
+  .brand-text { color: var(--brand); }
+  .text-strong { color: var(--text-strong); }
+  .text-soft { color: var(--text-muted); }
+
+  .brand-surface {
+    background-color: var(--brand-soft);
+    color: var(--brand);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    border: 1px solid var(--border-brand);
+    background-color: var(--brand-soft);
+    color: var(--brand);
+    padding: 0.2rem 0.6rem;
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+
+  .chip--neutral {
+    border-color: var(--border-strong);
+    background-color: var(--surface-muted);
+    color: var(--text-muted);
+  }
+
+  .chip--positive { border-color: color-mix(in oklab, var(--positive) 35%, transparent); background-color: color-mix(in oklab, var(--positive) 12%, transparent); color: var(--positive); }
+  .chip--negative { border-color: color-mix(in oklab, var(--negative) 35%, transparent); background-color: color-mix(in oklab, var(--negative) 12%, transparent); color: var(--negative); }
+  .chip--caution  { border-color: color-mix(in oklab, var(--caution) 35%, transparent);  background-color: color-mix(in oklab, var(--caution) 12%, transparent);  color: var(--caution); }
+
+  .chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    padding: 0.1rem;
+    opacity: 0.7;
+    transition: opacity 140ms ease, background-color 140ms ease;
+  }
+  .chip-remove:hover { opacity: 1; background-color: color-mix(in oklab, currentColor 18%, transparent); }
+
+  .stat-tile {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 8.5rem;
+    flex: 1 1 0%;
+    border-radius: var(--radius-control);
+    background-color: var(--surface-muted);
+    border: 1px solid var(--border-soft);
+    padding: 0.5rem 0.75rem;
+  }
+
+  .stat-tile__icon {
+    display: flex;
+    height: 2rem;
+    width: 2rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.6rem;
+  }
+
+  .stat-tile__label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .stat-tile__value {
+    font-size: 1rem;
+    font-weight: 900;
+    color: var(--text-strong);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Results / active-filter bar */
+  .results-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--border-soft);
+    background-color: var(--surface-muted);
+    padding: 0.5rem 0.75rem;
+  }
+
+  .results-bar__count {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    font-weight: 900;
+    color: var(--text-strong);
+  }
+
+  .results-bar__count b {
+    font-size: 1.05rem;
+    color: var(--brand);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Mobile card list (replaces wide tables under md) */
+  .data-card {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-control);
+    background-color: var(--surface);
+    box-shadow: 0 2px 10px rgba(18, 44, 84, 0.05);
+    padding: 0.85rem;
+  }
+  .data-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .data-card__title {
+    font-size: 0.9rem;
+    font-weight: 900;
+    color: var(--text-strong);
+    line-height: 1.5;
+  }
+  .data-card__meta {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+  .data-card__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 0.6rem;
+    margin-top: 0.6rem;
+  }
+  .data-card__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    border-radius: 0.6rem;
+    background-color: var(--surface-muted);
+    padding: 0.35rem 0.5rem;
+    min-width: 0;
+  }
+  .data-card__field dt {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .data-card__field dd {
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--text-strong);
+    font-variant-numeric: tabular-nums lining-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .data-card__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    margin-top: 0.65rem;
+    border-top: 1px dashed var(--border-soft);
+    padding-top: 0.55rem;
+  }
+
+  /* Mobile-first dialog/sheet behaviour */
+  .mobile-sheet-content {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 1.5rem);
+    overflow: hidden;
+  }
+  .mobile-sheet-body {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mobile-sheet-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: auto;
+    border-top: 1px solid var(--border-soft);
+    background-color: var(--surface);
+    padding-top: 0.75rem;
+  }
+  @media (max-width: 767px) {
+    .mobile-sheet-content {
+      max-height: calc(100dvh - 1rem);
+      padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    }
+    .mobile-sheet-footer {
+      padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+    }
+    .mobile-sheet-footer > button { width: 100%; }
+  }
+
+  /* Token-based dark-mode normalisation: replaces literal-hex overrides */
+  .dark .surface-card,
+  .dark .surface-card--raised {
+    background-color: var(--surface);
+    border-color: var(--border-strong);
+  }
+  .dark .surface-muted,
+  .dark .stat-tile,
+  .dark .surface-tile,
+  .dark .results-bar,
+  .dark .data-card__field {
+    background-color: var(--surface-muted);
+    border-color: var(--border-soft);
+  }
+  .dark .data-card { background-color: var(--surface); border-color: var(--border-strong); }
+  .dark .mobile-sheet-footer { background-color: var(--surface); border-color: var(--border-soft); }
+  .dark .text-strong, .dark .stat-tile__value, .dark .data-card__title, .dark .data-card__field dd { color: var(--text-strong); }
+  .dark .text-soft, .dark .stat-tile__label, .dark .data-card__meta, .dark .data-card__field dt { color: var(--text-muted); }
+  .dark .brand-text, .dark .results-bar__count b { color: var(--brand); }
+
+  /* Table surfaces in dark mode */
+  .dark table thead { background-color: var(--surface-muted); }
+  .dark table tbody tr:hover { background-color: color-mix(in oklab, var(--brand) 14%, transparent); }
+  .dark table tbody tr:nth-child(odd) { background-color: color-mix(in oklab, var(--surface-muted) 55%, transparent); }
+}
+
+/* ---------------------------------------------------------------------------
+   Modern icon system
+   - one consistent optical weight for every Lucide icon
+   - rounded, softly tinted tiles instead of flat squares
+   - shared icon-button surface with hover / active / focus states
+   --------------------------------------------------------------------------- */
+@layer base {
+  svg.lucide { stroke-width: 1.9; }
+}
+
+@layer components {
+  .icon-tile {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-control);
+    background: var(--brand-soft);
+    color: var(--brand);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand) 16%, transparent);
+    transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  }
+  .icon-tile svg { stroke-width: 1.9; }
+  .icon-tile--xs { height: 1.75rem; width: 1.75rem; border-radius: 0.6rem; }
+  .icon-tile--sm { height: 2.25rem; width: 2.25rem; }
+  .icon-tile--md { height: 2.75rem; width: 2.75rem; border-radius: 1rem; }
+  .icon-tile--lg { height: 3rem; width: 3rem; border-radius: 1.1rem; }
+  .icon-tile--neutral {
+    background: var(--surface-muted);
+    color: var(--text-muted);
+    box-shadow: inset 0 0 0 1px var(--border-soft);
+  }
+  .icon-tile--positive {
+    background: color-mix(in oklab, var(--positive) 14%, transparent);
+    color: var(--positive);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--positive) 24%, transparent);
+  }
+  .icon-tile--negative {
+    background: color-mix(in oklab, var(--negative) 14%, transparent);
+    color: var(--negative);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--negative) 24%, transparent);
+  }
+  .icon-tile--caution {
+    background: color-mix(in oklab, var(--caution) 16%, transparent);
+    color: var(--caution);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--caution) 26%, transparent);
+  }
+  .icon-tile--solid {
+    background: var(--brand);
+    color: var(--brand-contrast);
+    box-shadow: 0 6px 16px color-mix(in oklab, var(--brand) 26%, transparent);
+  }
+
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.25rem;
+    width: 2.25rem;
+    border-radius: 0.85rem;
+    color: var(--text-muted);
+    background: transparent;
+    box-shadow: inset 0 0 0 1px transparent;
+    transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  }
+  .icon-btn:hover {
+    background: var(--brand-soft);
+    color: var(--brand);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--brand) 18%, transparent);
+  }
+  .icon-btn:active { transform: scale(0.94); }
+  .icon-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .icon-btn svg { stroke-width: 1.9; }
+}
