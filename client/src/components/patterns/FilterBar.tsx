@@ -9,6 +9,7 @@ export function FilterBar({
   title = "الفلاتر",
   description,
   resultCount,
+  actions,
   activeFilters = [],
   onClear,
   children,
@@ -17,6 +18,7 @@ export function FilterBar({
   title?: ReactNode;
   description?: ReactNode;
   resultCount?: ReactNode;
+  actions?: ReactNode;
   activeFilters?: ActiveFilter[];
   onClear?: () => void;
   children?: ReactNode;
@@ -30,7 +32,10 @@ export function FilterBar({
             <h2 className="text-sm font-black text-foreground">{title}</h2>
             {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
           </div>
-          {resultCount !== undefined ? <Badge variant="outline" className="rounded-full border-primary/25 bg-primary/5 px-3 py-1.5 text-xs font-black text-primary">{resultCount}</Badge> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            {actions}
+            {resultCount !== undefined ? <Badge variant="outline" className="rounded-full border-primary/25 bg-primary/5 px-3 py-1.5 text-xs font-black text-primary">{resultCount}</Badge> : null}
+          </div>
         </div>
         {activeFilters.length ? (
           <div className="flex flex-wrap items-center gap-2" aria-label="الفلاتر النشطة">
