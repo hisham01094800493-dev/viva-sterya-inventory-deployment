@@ -30,6 +30,8 @@ import { simplifyArabicForSearch } from "@/lib/globalVoiceSearch";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { FilterBar } from "@/components/patterns/FilterBar";
 import { ActionMenu } from "@/components/patterns/ActionMenu";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { clearReportFilterSnapshot, formatReportFilterSavedAt, readReportFilterSnapshot, writeReportFilterSnapshot, type ReportFilterSnapshot } from "@/lib/reportFilterPreferences";
 
 type ReportType = "overview" | "inventory" | "movements" | "returns" | "variance" | "accounts" | "unlinked";
 type ExportFormat = "excel" | "pdf";
@@ -296,6 +298,7 @@ function printReport(title: string, subtitle: string, headers: string[], rows: u
 
 export default function ReportsPage() {
   const [location] = useLocation();
+  const { user } = useAuth({ redirectOnUnauthenticated: false });
   const [reportType, setReportType] = useState<ReportType>("overview");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState(today());
@@ -316,6 +319,21 @@ export default function ReportsPage() {
   const [appliedReportFilters, setAppliedReportFilters] = useState({ from: "", to: today(), movement: "all" as MovementFilter, variance: "all" as VarianceFilter, unlinked: "", permit: "", itemCode: "", itemName: "", warehouse: "", incomingFrom: "", outgoingTo: "", additionPurpose: "", disbursementPurpose: "", returnPurpose: "" });
   const [selectedVarianceCode, setSelectedVarianceCode] = useState<string | null>(null);
   const [summaryItemCode, setSummaryItemCode] = useState<string | null>(null);
+  const [savedReportFilters, setSavedReportFilters] = useState<ReportFilterSnapshot | null>(null);
+  const [filtersRestored, setFiltersRestored] = useState(false);
+  const reportFilterUserId = user?.id ?? null;
+  const buildReportFilterSnapshot = (): Omit<ReportFilterSnapshot, "savedAt"> => ({ reportType, from, to, movement: movementFilter, variance: varianceFilter, unlinked: unlinkedSearch, permit: permitSearch, itemCode: itemCodeSearch, itemName: itemNameSearch, warehouse: warehouseSearch, incomingFrom: incomingFromSearch, outgoingTo: outgoingToSearch, additionPurpose: additionPurposeSearch, disbursementPurpose: disbursementPurposeSearch, returnPurpose: returnPurposeSearch });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setSavedReportFilters(readReportFilterSnapshot(window.localStorage, reportFilterUserId));
+    setFiltersRestored(false);
+  }, [reportFilterUserId]);
+  const restoreReportFilters = () => {
+    if (!savedReportFilters) return;
+    const snapshot = savedReportFilters;
+    setReportType((snapshot.reportType as ReportType) || "overview"); setFrom(snapshot.from); setTo(snapshot.to || today()); setMovementFilter((snapshot.movement as MovementFilter) || "all"); setVarianceFilter((snapshot.variance as VarianceFilter) || "all"); setUnlinkedSearch(snapshot.unlinked); setPermitSearch(snapshot.permit); setItemCodeSearch(snapshot.itemCode); setItemNameSearch(snapshot.itemName); setWarehouseSearch(snapshot.warehouse); setIncomingFromSearch(snapshot.incomingFrom); setOutgoingToSearch(snapshot.outgoingTo); setAdditionPurposeSearch(snapshot.additionPurpose); setDisbursementPurposeSearch(snapshot.disbursementPurpose); setReturnPurposeSearch(snapshot.returnPurpose);
+    setFiltersRestored(true);
+  };
   useEffect(() => {
     const params = new URLSearchParams(location.split("?")[1] ?? "");
     const incomingFrom = params.get("incomingFrom")?.trim();
@@ -508,8 +526,9 @@ export default function ReportsPage() {
   const exportReport = () => reportType === "inventory"
     ? void downloadInventoryExcelFile(inventoryExportData)
     : downloadCsv(reportType === "returns" ? "smart-inventory-returns-report.csv" : "smart-inventory-movements-report.csv", ["نوع الحركة", "التاريخ", "رقم الإذن", "كود الصنف", "الكمية", "البيان"], (reportType === "returns" ? filteredReturnsRows : movementSearchRows).map(row => [row.type, row.date, row.eznNum, row.itemCode, formatQuantity(row.quantity), row.detail]));
-  const applyReportFilters = () => { setAppliedReportFilters({ from, to, movement: movementFilter, variance: varianceFilter, unlinked: unlinkedSearch, permit: permitSearch, itemCode: itemCodeSearch, itemName: itemNameSearch, warehouse: warehouseSearch, incomingFrom: incomingFromSearch, outgoingTo: outgoingToSearch, additionPurpose: additionPurposeSearch, disbursementPurpose: disbursementPurposeSearch, returnPurpose: returnPurposeSearch }); setReportTypeBeforeSearch(reportType); setSearchResultView(true); setReportType("movements"); };
+  const applyReportFilters = () => { setAppliedReportFilters({ from, to, movement: movementFilter, variance: varianceFilter, unlinked: unlinkedSearch, permit: permitSearch, itemCode: itemCodeSearch, itemName: itemNameSearch, warehouse: warehouseSearch, incomingFrom: incomingFromSearch, outgoingTo: outgoingToSearch, additionPurpose: additionPurposeSearch, disbursementPurpose: disbursementPurposeSearch, returnPurpose: returnPurposeSearch }); setReportTypeBeforeSearch(reportType); setSearchResultView(true); setReportType("movements"); if (typeof window !== "undefined") { writeReportFilterSnapshot(window.localStorage, reportFilterUserId, buildReportFilterSnapshot()); setSavedReportFilters(readReportFilterSnapshot(window.localStorage, reportFilterUserId)); setFiltersRestored(false); } };
   const clearReportFilters = () => { setSearchResultView(false); setFrom(""); setTo(today()); setMovementFilter("all"); setVarianceFilter("all"); setUnlinkedSearch(""); setPermitSearch(""); setIncomingFromSearch(""); setOutgoingToSearch(""); setAdditionPurposeSearch(""); setDisbursementPurposeSearch(""); setReturnPurposeSearch(""); setItemCodeSearch(""); setItemNameSearch(""); setWarehouseSearch(""); setAppliedReportFilters({ from: "", to: today(), movement: "all", variance: "all", unlinked: "", permit: "", itemCode: "", itemName: "", warehouse: "", incomingFrom: "", outgoingTo: "", additionPurpose: "", disbursementPurpose: "", returnPurpose: "" }); };
+  const clearSavedReportFilters = () => { if (typeof window !== "undefined") clearReportFilterSnapshot(window.localStorage, reportFilterUserId); setSavedReportFilters(null); setFiltersRestored(false); };
   const hasActiveFilters = Boolean(from || movementFilter !== "all" || varianceFilter !== "all" || unlinkedSearch || permitSearch || itemCodeSearch || itemNameSearch || warehouseSearch || incomingFromSearch || outgoingToSearch || additionPurposeSearch || disbursementPurposeSearch || returnPurposeSearch || to !== today());
   const reportColumnOptions = reportType === "inventory" ? inventoryExportColumns : exportFormat === "pdf" ? movementPdfExportColumns : movementExportColumns;
   const saveReportColumnOrder = (order: ExportColumnKey[]) => { const currentOrders = preferences.data?.reportColumnOrder ?? {}; updatePreferences.mutate({ quickActions: preferences.data?.quickActions ?? ["/additions", "/disbursements", "/transfers"], hapticEnabled: preferences.data?.hapticEnabled ?? true, reportColumnOrder: { ...currentOrders, [reportColumnPreferenceKey]: order } }); };
@@ -646,6 +665,7 @@ export default function ReportsPage() {
       title="الفلاتر المطبقة"
       description="ملخص سريع للفلاتر الحالية. استخدم النموذج أدناه لتعديلها ثم اضغط بحث."
       resultCount={reportOutputDescription}
+      actions={savedReportFilters ? <div className="flex flex-wrap items-center gap-1.5"><Button type="button" variant="outline" onClick={restoreReportFilters} className="h-8 rounded-full border-primary/25 bg-background px-3 text-[11px] font-black text-primary hover:bg-primary/5">استعادة آخر فلاتر</Button><Button type="button" variant="ghost" onClick={clearSavedReportFilters} className="h-8 rounded-full px-2 text-[11px] font-bold text-muted-foreground hover:text-destructive">مسح المحفوظ</Button></div> : null}
       activeFilters={[
         ...(from ? [{ id: "from", label: `من ${from}`, onRemove: () => setFrom("") }] : []),
         ...(to !== today() ? [{ id: "to", label: `إلى ${to}`, onRemove: () => setTo(today()) }] : []),
@@ -660,6 +680,7 @@ export default function ReportsPage() {
       ]}
       onClear={hasActiveFilters ? clearReportFilters : undefined}
     />
+    {filtersRestored && savedReportFilters ? <p className="-mt-2 px-2 text-[11px] font-bold text-[#0d806c]">تمت استعادة الفلاتر المحفوظة من {formatReportFilterSavedAt(savedReportFilters.savedAt)}. اضغط «بحث» لتطبيقها.</p> : null}
 
     <Card className="report-output-card overflow-hidden rounded-[1.75rem] border-[#dce7ee] bg-white shadow-[0_18px_50px_rgba(18,44,84,0.06)]"><div className="flex flex-col gap-3 border-b border-[#e7eef3] p-4 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-lg font-black text-[#102a43]">{searchResultView ? "نتائج البحث في التقارير" : "مخرجات التقرير"}</p><p className="mt-1 text-xs text-slate-400">{reportOutputDescription}</p></div><div className="flex items-center gap-2 md:hidden"><ActionMenu
           label="إجراءات التقرير"
