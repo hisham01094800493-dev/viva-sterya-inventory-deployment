@@ -73,7 +73,7 @@ describe("تحسينات تقارير المخزون", () => {
 
   it("يعرض المرتجع القديم المسجل في الصرف كمرتجع مستقل في نتائج البحث", () => {
     const rows = buildOutboundReturnRows([
-      { id: 18, date: "2026-08-01", eznNum: "18", itemCode: "A", quantity: -2, destination: "شركة البناء", disburseType: "مرتجع من العميل" },
+      { id: 18, date: "2026-08-01", eznNum: "18", itemCode: "A", quantity: 2, destination: "شركة البناء", disburseType: "مرتجع من العميل" },
       { id: 20, date: "2026-08-02", eznNum: "D-20", itemCode: "A", quantity: 3, destination: "شركة البناء", disburseType: "تشغيل الموقع" },
     ] as any, [], [{ code: "A", name: "حديد" }]);
     expect(rows.map(row => row.type)).toEqual(["صرف", "مرتجع"]);
@@ -184,13 +184,14 @@ describe("تحسينات تقارير المخزون", () => {
 
   it("يحافظ على قيمة لزوم الإضافة والصرف عند تجهيز صفوف التقرير", () => {
     const rows = buildOutboundReturnRows(
-      [{ id: 21, date: "2026-08-08", eznNum: "D-21", itemCode: "A", quantity: 2, destination: "قسم الكهرباء", disburseType: "أعمال الكهرباء" }],
+      [{ id: 21, date: "2026-08-08", eznNum: "D-21", itemCode: "A", quantity: 2, customerName: "شركة البناء", buildingName: "B3-2", destination: "قسم الكهرباء", disburseType: "أعمال الكهرباء" }],
       [],
       [{ code: "A", name: "صنف اختبار", unitPrice: 10 }],
       [{ id: 22, date: "2026-08-07", eznNum: "A-22", itemCode: "A", quantity: 3, supplier: "المورد", purpose: "استكمال أعمال الموقع" }],
     );
     expect(rows.find(row => row.eznNum === "A-22")?.purpose).toBe("استكمال أعمال الموقع");
     expect(rows.find(row => row.eznNum === "D-21")?.purpose).toBe("أعمال الكهرباء");
+    expect(rows.find(row => row.eznNum === "D-21")?.detail).toContain("شركة البناء — المبنى: ‎B3-2‎");
   });
 
   it("يضع وسم التصحيح السالب على الحركة السالبة دون خلطها بتصنيف الصنف", () => {
