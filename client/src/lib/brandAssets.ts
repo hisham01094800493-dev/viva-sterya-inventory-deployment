@@ -8,5 +8,5 @@ export const RAILWAY_APP_ICON_OPTIONS = [
 
 export function resolveCompanyLogoUrl(value: string | null | undefined) {
   const url = value?.trim();
-  return !url || url.startsWith("/manus-storage/") ? DEFAULT_COMPANY_LOGO_URL : url;
+  return !url || url.startsWith("/manus-storage/") ? null : url;
 }
