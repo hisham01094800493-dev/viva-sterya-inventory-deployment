@@ -19,7 +19,7 @@ export function FilterBar({
   resultCount?: ReactNode;
   activeFilters?: ActiveFilter[];
   onClear?: () => void;
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
 }) {
   return (
@@ -44,7 +44,7 @@ export function FilterBar({
             {onClear ? <button type="button" onClick={onClear} className="text-[11px] font-black text-destructive underline-offset-4 hover:underline">مسح الكل</button> : null}
           </div>
         ) : null}
-        <div className="report-filter-grid grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{children}</div>
+        {children ? <div className="report-filter-grid grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{children}</div> : null}
       </div>
     </section>
   );
