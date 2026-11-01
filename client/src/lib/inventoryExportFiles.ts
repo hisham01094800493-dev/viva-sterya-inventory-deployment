@@ -549,6 +549,7 @@ export async function buildMovementPdf(rows: MovementExportItem[], options: { co
     rowPageBreak: "auto",
     didDrawCell: data => { const column = visualKeys[data.column.index]; const rawValue = data.section === "body" && ["additionPurpose", "disbursementPurpose", "returnPurpose", "detail"].includes(column) ? cellValue(enriched[data.row.index], column) : null; const mixed = splitMixedArabicLatinForPdf(rawValue); if (data.section === "body" && mixed) { const y = data.cell.y + data.cell.height / 2 + 3; doc.setTextColor(0, 0, 0); doc.setFont(getArabicPdfFont(doc), "bold"); doc.setFontSize(8.1); doc.text(shapeArabic(doc, mixed.arabic), data.cell.x + data.cell.width - 4, y, { align: "right" }); const arabicWidth = doc.getTextWidth(shapeArabic(doc, mixed.arabic)); doc.setFont("helvetica", "bold"); doc.setFontSize(8.8); doc.text(mixed.latin, data.cell.x + data.cell.width - arabicWidth - 9, y, { align: "right" }); doc.setFont(getArabicPdfFont(doc), "bold"); } if (data.section === "body" && column === "documentImage") { const image = enriched[data.row.index]?.documentImageDataUrl; if (image) { try { doc.addImage(image, getPdfImageFormat(image), data.cell.x + 3, data.cell.y + 3, Math.min(40, data.cell.width - 6), Math.min(40, data.cell.height - 6)); } catch { /* Ignore one invalid image; keep the PDF usable. */ } } } }
   });
+  drawPdfPageFooter(doc, { title: options.title ?? "تقرير حركات المخزون - Smart Inventory", date: options.date });
   return doc;
 }
 
@@ -797,6 +798,7 @@ export async function buildCompanyInventoryAuditPdf(report: CompanyInventoryAudi
     didParseCell: data => { if (data.section === "body" && columns[data.column.index]?.key !== "name") { data.cell.styles.fontStyle = "bold"; data.cell.styles.textColor = [0, 0, 0]; } },
     willDrawPage: data => { if (data.pageNumber > 1) drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat); },
   });
+  drawPdfPageFooter(doc, { title: "جرد المخزون المجمع - Smart Inventory", date: options.date });
   return doc;
 }
 
