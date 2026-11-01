@@ -564,16 +564,6 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   const [showBackToTop, setShowBackToTop] = useState(false);
   const { state, toggleSidebar } = useSidebar();
   useEffect(() => { document.documentElement.classList.toggle("dark", darkMode); window.localStorage.setItem("smart-inventory-theme", darkMode ? "dark" : "light"); }, [darkMode]);
-  useEffect(() => {
-    // مزامنة الوضع الليلي عند تغييره من صفحة الإعدادات (نفس المفتاح، بدون نظام ثيم جديد)
-    const syncTheme = (event: Event) => {
-      const detail = (event as CustomEvent<{ dark?: boolean }>).detail;
-      const next = typeof detail?.dark === "boolean" ? detail.dark : window.localStorage.getItem("smart-inventory-theme") === "dark";
-      setDarkMode(next);
-    };
-    window.addEventListener("smart-inventory-theme", syncTheme);
-    return () => window.removeEventListener("smart-inventory-theme", syncTheme);
-  }, []);
   useEffect(() => { const applyNumberScale = () => { document.documentElement.dataset.numberScale = window.localStorage.getItem("smart-inventory-number-scale") || "normal"; }; applyNumberScale(); window.addEventListener("smart-inventory-number-scale", applyNumberScale); return () => window.removeEventListener("smart-inventory-number-scale", applyNumberScale); }, []);
   const permissionQuery = trpc.permissions.mine.useQuery(undefined, inventoryQueryOptions);
   const onboardingPreferences = trpc.preferences.get.useQuery(undefined, inventoryQueryOptions);
