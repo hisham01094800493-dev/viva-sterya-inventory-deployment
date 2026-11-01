@@ -3321,3 +3321,8 @@ body {
   .mobile-form-step small { flex-basis: 100%; margin-right: 2.15rem; margin-top: -.3rem; }
   .movement-dialog-content .grid { gap: .65rem; }
 }
+
+/* Settings are split into two focused workspaces; keep the mobile view short and scannable. */
+.settings-page.settings-view-user .settings-manager-card,
+.settings-page.settings-view-manager .settings-user-card { display: none; }
+@media (max-width: 640px) { .settings-section-switcher { position: sticky; top: 0.5rem; z-index: 25; } .settings-section-switcher button { min-height: 4.25rem; } }
