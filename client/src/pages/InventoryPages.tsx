@@ -242,6 +242,12 @@ export function ItemCardPreviewDialog({ itemId, open, onOpenChange }: { itemId?:
 }
 
 
+function formatDisbursementParty(row: any) {
+  const customer = String(row.customer || row.customerName || row.destination || row.store || "غير محدد").trim() || "غير محدد";
+  const building = String(row.buildingName || row.building || row.buildingCode || "").trim().replace(/^مبنى\s*/, "");
+  return building ? `${customer} — المبنى: ‎${building}‎` : customer;
+}
+
 function ItemMovementHistoryDialog({ itemId, open, onOpenChange }: { itemId?: number; open: boolean; onOpenChange: (open: boolean) => void }) {
   const cardQuery = trpc.items.card.useQuery({ id: itemId as number }, { enabled: open && Boolean(itemId) });
   const [historyZoom, setHistoryZoom] = useState(0.85);
@@ -258,7 +264,7 @@ function ItemMovementHistoryDialog({ itemId, open, onOpenChange }: { itemId?: nu
     if (!data) return [];
     const raw = [
       ...(data.additions ?? []).map((row: any) => ({ ...row, movement: "إضافة", party: row.supplier || row.store || "—", detail: formatItemCardMovementDetail("إضافة", row), signedQuantity: Number(row.quantity ?? 0) })),
-      ...(data.disbursements ?? []).map((row: any) => ({ ...row, movement: "صرف", party: row.buildingName || row.building || row.destination || row.customer || row.store || "—", detail: formatItemCardMovementDetail("صرف", row), signedQuantity: -Number(row.quantity ?? 0) })),
+      ...(data.disbursements ?? []).map((row: any) => ({ ...row, movement: "صرف", party: formatDisbursementParty(row), detail: formatItemCardMovementDetail("صرف", row), signedQuantity: -Number(row.quantity ?? 0) })),
       ...(data.returns ?? []).map((row: any) => { const customerToCustomer = String(row.transferType ?? "").toLowerCase() === "customer_transfer" || String(row.transferType ?? "").includes("عميل إلى عميل"); const movement = customerToCustomer ? "تحويل" : "مرتجع"; return { ...row, movement, party: customerToCustomer ? "تحويل من عميل إلى عميل" : row.fromStore || row.toStore || "—", detail: customerToCustomer ? formatItemCardMovementDetail("تحويل", row) : formatItemCardMovementDetail("مرتجع", row), signedQuantity: customerToCustomer ? 0 : Number(row.quantity ?? 0) }; }),
       ...(data.transfers ?? []).filter((row: any) => !(data.returns ?? []).some((returned: any) => returned.id === row.id)).map((row: any) => ({ ...row, movement: "تحويل", party: [row.fromStore, row.toStore].filter(Boolean).join(" ← ") || "—", detail: formatItemCardMovementDetail("تحويل", row), signedQuantity: 0 })),
     ].sort((left, right) => String(left.date).localeCompare(String(right.date)) || Number(left.id ?? 0) - Number(right.id ?? 0));
