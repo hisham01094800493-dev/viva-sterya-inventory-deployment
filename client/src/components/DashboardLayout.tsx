@@ -63,6 +63,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command";
 import { trpc } from "@/lib/trpc";
 import { inventoryQueryOptions } from "@/lib/queryOptions";
 import { findNewUnreadNotification, formatIncomingNotification, getNotificationTone, getSeenNotificationIds, rememberUnreadNotificationIds } from "@/lib/notificationCenter";
@@ -113,6 +114,28 @@ export function GoogleSearchButton() {
     <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)} className="inline-flex gap-1.5 rounded-xl border-[#b8dce2] bg-white/80 px-2 text-[10px] font-black text-[#075b68] sm:px-3 sm:text-xs" title="البحث في Google"><Search className="h-4 w-4" /><span className="hidden sm:inline">بحث Google</span></Button>
     <Dialog open={open} onOpenChange={setOpen}><DialogContent dir="rtl" className="flex min-h-[100dvh] w-screen max-w-none flex-col items-center justify-center rounded-none border-0 bg-white p-5 sm:min-h-0 sm:h-[560px] sm:w-[min(92vw,920px)] sm:rounded-[2rem] sm:border sm:border-[#e2e8f0] sm:p-12"><div className="absolute right-4 top-4 flex items-center gap-2 sm:right-6 sm:top-6"><Button type="button" variant="outline" size="icon" onClick={close} className="h-9 w-9 rounded-xl border-[#efb8b8] text-red-700" aria-label="إغلاق البحث"><X className="h-4 w-4" /></Button></div><div className="w-full max-w-3xl text-center"><div className="mb-8 select-none text-5xl font-medium tracking-[-0.08em] text-[#4285f4] sm:text-7xl"><span>G</span><span className="text-[#ea4335]">o</span><span className="text-[#fbbc05]">o</span><span className="text-[#4285f4]">g</span><span className="text-[#34a853]">l</span><span className="text-[#ea4335]">e</span></div><div className="flex h-14 items-center gap-3 rounded-full border border-[#dfe1e5] bg-white px-5 shadow-[0_1px_6px_rgba(32,33,36,.18)] transition focus-within:shadow-[0_1px_10px_rgba(32,33,36,.28)]"><Search className="h-5 w-5 shrink-0 text-slate-400" /><input autoFocus value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === "Enter") submit(); }} placeholder="ابحث في Google" className="min-w-0 flex-1 bg-transparent text-base text-slate-700 outline-none placeholder:text-slate-400" aria-label="البحث في Google" /></div><div className="mt-7 flex flex-wrap justify-center gap-3"><Button type="button" onClick={submit} className="h-11 rounded-lg bg-[#f8f9fa] px-6 text-sm font-medium text-[#202124] shadow-sm hover:border-[#dadce0] hover:bg-[#f8f9fa]">بحث Google</Button><Button type="button" onClick={() => { setQuery(""); window.localStorage.removeItem("smart-inventory-google-search-query"); }} className="h-11 rounded-lg bg-[#f8f9fa] px-6 text-sm font-medium text-[#202124] shadow-sm hover:border-[#dadce0] hover:bg-[#f8f9fa]">مسح</Button></div><p className="mt-8 text-xs text-slate-400">اضغط Enter أو زر بحث Google لفتح صفحة Google الطبيعية.</p></div></DialogContent></Dialog>
   </>;
+}
+
+function CommandPalette({ onNavigate, canCreateItems }: { onNavigate: (path: string) => void; canCreateItems: boolean }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); setOpen(value => !value); } };
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  }, []);
+  const commands = [
+    { label: "الرئيسية", hint: "لوحة المتابعة اليومية", path: "/", icon: LayoutDashboard },
+    { label: "الأصناف والمخزون", hint: "دليل الأصناف والأرصدة", path: "/items", icon: Boxes },
+    { label: "المخازن", hint: "الأرصدة حسب المخزن", path: "/warehouses", icon: Warehouse },
+    { label: "أذونات الإضافة", hint: "تسجيل أو مراجعة التوريدات", path: "/additions", icon: ArrowDownToLine },
+    { label: "أذونات الصرف", hint: "تسجيل أو مراجعة المنصرف", path: "/disbursements", icon: ArrowUpFromLine },
+    { label: "التحويلات والمرتجعات", hint: "نقل الأصناف بين المخازن والجهات", path: "/transfers", icon: ArrowLeftRight },
+    { label: "التقارير", hint: "تقارير الحركة والأرصدة", path: "/reports", icon: FileBarChart },
+    { label: "التنبيهات", hint: "الأصناف منخفضة المخزون", path: "/alerts", icon: BellRing },
+    ...(canCreateItems ? [{ label: "إضافة صنف جديد", hint: "فتح دليل الأصناف", path: "/items?new=1", icon: Plus }] : []),
+  ];
+  const go = (path: string) => { setOpen(false); onNavigate(path); };
+  return <><Button type="button" variant="outline" onClick={() => setOpen(true)} className="hidden h-9 items-center gap-2 rounded-xl border-[#b9d4d9] bg-white/80 px-3 text-xs font-black text-[#0d4f62] shadow-sm sm:inline-flex" aria-label="فتح لوحة الأوامر" title="لوحة الأوامر — Ctrl+K"><Command className="h-4 w-4" /><span>لوحة الأوامر</span><CommandShortcut className="mr-1 hidden text-[10px] sm:inline">Ctrl K</CommandShortcut></Button><CommandDialog open={open} onOpenChange={setOpen} title="لوحة أوامر Smart Inventory" description="ابحث عن شاشة أو إجراء بسرعة" className="max-w-xl rounded-2xl border-[#b9d4d9]"><CommandInput placeholder="اكتب اسم الشاشة أو الإجراء..." /><CommandList dir="rtl" className="max-h-[min(60vh,420px)] p-2"><CommandEmpty className="py-10 text-sm text-slate-500">لا توجد نتيجة مطابقة.</CommandEmpty><CommandGroup heading="الوصول السريع">{commands.map(item => { const Icon = item.icon; return <CommandItem key={item.path} value={`${item.label} ${item.hint}`} onSelect={() => go(item.path)} className="rounded-xl py-3 text-right"><Icon className="h-4 w-4 text-[#0d7180]" /><span className="min-w-0 flex-1"><strong className="block font-black text-[#102a43]">{item.label}</strong><small className="mt-0.5 block text-xs text-slate-500">{item.hint}</small></span><CommandShortcut>↵</CommandShortcut></CommandItem>; })}</CommandGroup></CommandList></CommandDialog></>;
 }
 
 type NavigationItem = { icon: React.ComponentType<{ className?: string }>; label: string; path: string; mobileLabel?: string; mobileHint?: string };
@@ -700,7 +723,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
             </div>
           </div>
             <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
-            <div className="flex shrink-0 items-center rounded-xl border border-red-200 bg-red-50/80 p-0.5 shadow-sm sm:rounded-2xl sm:p-1" aria-label="البحث الصوتي"><div className="rounded-lg bg-red-50 [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg [&_button]:border-red-200 [&_button]:bg-red-50 [&_button]:text-red-600 [&_button]:hover:bg-red-100 sm:rounded-xl sm:[&_button]:h-9 sm:[&_button]:w-9"><GlobalVoiceSearch /></div></div>
+            <CommandPalette canCreateItems={canCreateItems} onNavigate={path => { window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} /><div className="flex shrink-0 items-center rounded-xl border border-red-200 bg-red-50/80 p-0.5 shadow-sm sm:rounded-2xl sm:p-1" aria-label="البحث الصوتي"><div className="rounded-lg bg-red-50 [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg [&_button]:border-red-200 [&_button]:bg-red-50 [&_button]:text-red-600 [&_button]:hover:bg-red-100 sm:rounded-xl sm:[&_button]:h-9 sm:[&_button]:w-9"><GlobalVoiceSearch /></div></div>
             <NotificationBell chatEnabled={chatEnabled} />
             {isMovementPage && canViewMovementFinancialDetails ? <Button type="button" variant="outline" size="sm" onClick={() => void toggleMovementFinancialDetails()} disabled={updatePreferences.isPending || onboardingPreferences.isLoading} aria-pressed={showMovementFinancialDetails} className="movement-financial-toggle inline-flex rounded-xl px-2 text-[10px] font-black sm:px-3 sm:text-xs">{showMovementFinancialDetails ? "إخفاء التفاصيل المالية" : "إظهار التفاصيل المالية"}</Button> : null}
             <div className="smart-topbar-status hidden rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500 sm:block">نظام Smart Inventory • البيانات محفوظة</div>
