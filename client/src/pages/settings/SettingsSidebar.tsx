@@ -56,9 +56,14 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
 type Props = {
   active: SettingsSectionId;
   onSelect: (id: SettingsSectionId) => void;
+  /** قائمة الأقسام المعروضة (تُستخدم عند البحث للتصفية). الافتراضي: كل الأقسام. */
+  sections?: SettingsSectionMeta[];
+  /** رسالة تظهر عند عدم وجود نتائج مطابقة للبحث. */
+  emptyLabel?: string;
 };
 
-export function SettingsSidebar({ active, onSelect }: Props) {
+export function SettingsSidebar({ active, onSelect, sections, emptyLabel }: Props) {
+  const visibleSections = sections ?? SETTINGS_SECTIONS;
   return (
     <nav
       aria-label="أقسام الإعدادات"
@@ -68,7 +73,12 @@ export function SettingsSidebar({ active, onSelect }: Props) {
         الأقسام
       </p>
       <div className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
-        {SETTINGS_SECTIONS.map(section => {
+        {visibleSections.length === 0 && emptyLabel ? (
+          <p className="px-3 py-4 text-center text-xs font-semibold leading-6 text-slate-400">
+            {emptyLabel}
+          </p>
+        ) : null}
+        {visibleSections.map(section => {
           const Icon = section.icon;
           const isActive = section.id === active;
           return (

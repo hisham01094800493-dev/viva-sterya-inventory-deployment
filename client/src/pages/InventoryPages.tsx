@@ -45,6 +45,8 @@ import {
   Download,
   Mail,
   Monitor,
+  Moon,
+  Sun,
   Share2,
   ArrowRight,
   ChevronDown,
@@ -1114,6 +1116,9 @@ function parseReportRunSummary(value?: string | null): Record<string, any> {
 export function SettingsPage() {
   const { user } = useAuth();
   const [activeSection, setActiveSection] = useState<SettingsSectionId>("branding");
+  const [sectionQuery, setSectionQuery] = useState("");
+  const [darkMode, setDarkMode] = useState(() => typeof window !== "undefined" && window.localStorage.getItem("smart-inventory-theme") === "dark");
+  const [savingAll, setSavingAll] = useState(false);
   const settings = trpc.settings.list.useQuery();
   const preferences = trpc.preferences.get.useQuery();
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "synced" | "error">("idle");
@@ -1212,13 +1217,13 @@ export function SettingsPage() {
       setWhatsappPhone(whatsappConfig.data.phone);
     }
   }, [whatsappConfig.data]);
-  async function saveThreshold(event: React.FormEvent) {
-    event.preventDefault();
+  async function saveThreshold(event?: React.FormEvent) {
+    event?.preventDefault();
     try { await update.mutateAsync({ percentage: Number(percentage) }); await settings.refetch(); toast.success("تم حفظ نسبة التنبيه"); }
     catch (error: any) { toast.error(error?.message || "تعذر حفظ الإعداد"); }
   }
-  async function saveReports(event: React.FormEvent) {
-    event.preventDefault();
+  async function saveReports(event?: React.FormEvent) {
+    event?.preventDefault();
     try { await updateReports.mutateAsync({ recipients, enabled, defaultSupplier, defaultCustomer, watermarkEnabled, watermarkOpacity: Number(watermarkOpacity), watermarkScale: Number(watermarkScale), watermarkPosition, watermarkRepeat, scheduleEnabled, scheduleTime }); await Promise.all([updateForecastSetting.mutateAsync({ key: "forecast_lead_time_days", value: forecastLeadTime, description: "مدة التوريد المستخدمة في التوقع الذكي بالأيام" }), updateForecastSetting.mutateAsync({ key: "forecast_safety_stock_days", value: forecastSafetyStock, description: "مخزون الأمان المستخدم في التوقع الذكي بالأيام" })]); await settings.refetch(); toast.success("تم حفظ إعدادات التقارير والأسماء الافتراضية"); }
     catch (error: any) { toast.error(error?.message || "تعذر حفظ إعدادات التقارير"); }
   }
@@ -1270,8 +1275,8 @@ export function SettingsPage() {
       toast.error(error?.message || "تعذر إنشاء التقرير التنفيذي PDF");
     } finally { setExecutivePdfBuilding(false); }
   }
-  async function saveWhatsApp(event: React.FormEvent) {
-    event.preventDefault();
+  async function saveWhatsApp(event?: React.FormEvent) {
+    event?.preventDefault();
     try {
       await saveWhatsAppPhone.mutateAsync({ phone: whatsappPhone });
       await whatsappConfig.refetch();
@@ -1320,13 +1325,163 @@ export function SettingsPage() {
       toast.error(error?.message || "فشل اختبار SMTP. راجع أسرار البريد في إعدادات المشروع.");
     }
   }
+  // ── القيم المحفوظة على الخادم (مرجع لكشف التغييرات غير المحفوظة) ──────────────
+  const serverValues = useMemo(() => {
+    const rows = settings.data ?? [];
+    const get = (key: string) => rows.find(item => item.key === key)?.value;
+    return {
+      percentage: get("threshold_percentage") ?? "20",
+      recipients: get("report_recipients") ?? "",
+      enabled: (get("reports_enabled") ?? "true") !== "false",
+      defaultSupplier: get("report_default_supplier") ?? "",
+      defaultCustomer: get("report_default_customer") ?? "",
+      watermarkEnabled: (get("report_watermark_enabled") ?? "true") !== "false",
+      watermarkOpacity: get("report_watermark_opacity") ?? "0.08",
+      watermarkScale: get("report_watermark_scale") ?? "0.42",
+      watermarkPosition: get("report_watermark_position") ?? "center",
+      watermarkRepeat: (get("report_watermark_repeat") ?? "false") === "true",
+      scheduleEnabled: (get("report_schedule_enabled") ?? "true") !== "false",
+      scheduleTime: get("report_schedule_time") ?? "17:00",
+      forecastLeadTime: get("forecast_lead_time_days") ?? "7",
+      forecastSafetyStock: get("forecast_safety_stock_days") ?? "3",
+      whatsappPhone: whatsappConfig.data?.phone ?? "",
+    };
+  }, [settings.data, whatsappConfig.data]);
+
+  const dirtyFields = useMemo(() => {
+    const alerts = percentage !== serverValues.percentage;
+    const reports =
+      recipients !== serverValues.recipients ||
+      enabled !== serverValues.enabled ||
+      defaultSupplier !== serverValues.defaultSupplier ||
+      defaultCustomer !== serverValues.defaultCustomer ||
+      watermarkEnabled !== serverValues.watermarkEnabled ||
+      watermarkOpacity !== serverValues.watermarkOpacity ||
+      watermarkScale !== serverValues.watermarkScale ||
+      watermarkPosition !== serverValues.watermarkPosition ||
+      watermarkRepeat !== serverValues.watermarkRepeat ||
+      scheduleEnabled !== serverValues.scheduleEnabled ||
+      scheduleTime !== serverValues.scheduleTime ||
+      forecastLeadTime !== serverValues.forecastLeadTime ||
+      forecastSafetyStock !== serverValues.forecastSafetyStock;
+    const channels = whatsappPhone !== serverValues.whatsappPhone;
+    return { alerts, reports, channels };
+  }, [percentage, recipients, enabled, defaultSupplier, defaultCustomer, watermarkEnabled, watermarkOpacity, watermarkScale, watermarkPosition, watermarkRepeat, scheduleEnabled, scheduleTime, forecastLeadTime, forecastSafetyStock, whatsappPhone, serverValues]);
+
+  const dirtySectionIds = useMemo(
+    () => (["alerts", "reports", "channels"] as SettingsSectionId[]).filter(id => dirtyFields[id as "alerts" | "reports" | "channels"]),
+    [dirtyFields],
+  );
+  const isDirty = dirtySectionIds.length > 0;
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const guard = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [isDirty]);
+
+  const discardChanges = () => {
+    setPercentage(serverValues.percentage);
+    setRecipients(serverValues.recipients);
+    setEnabled(serverValues.enabled);
+    setDefaultSupplier(serverValues.defaultSupplier);
+    setDefaultCustomer(serverValues.defaultCustomer);
+    setWatermarkEnabled(serverValues.watermarkEnabled);
+    setWatermarkOpacity(serverValues.watermarkOpacity);
+    setWatermarkScale(serverValues.watermarkScale);
+    setWatermarkPosition(serverValues.watermarkPosition as "center" | "top" | "bottom");
+    setWatermarkRepeat(serverValues.watermarkRepeat);
+    setScheduleEnabled(serverValues.scheduleEnabled);
+    setScheduleTime(serverValues.scheduleTime);
+    setForecastLeadTime(serverValues.forecastLeadTime);
+    setForecastSafetyStock(serverValues.forecastSafetyStock);
+    setWhatsappPhone(serverValues.whatsappPhone);
+    toast.info("تم تجاهل التغييرات غير المحفوظة");
+  };
+
+  async function saveAllDirty() {
+    if (!isDirty || savingAll) return;
+    setSavingAll(true);
+    try {
+      if (dirtyFields.alerts) await saveThreshold();
+      if (dirtyFields.reports) await saveReports();
+      if (dirtyFields.channels) await saveWhatsApp();
+    } finally {
+      setSavingAll(false);
+    }
+  }
+
+  // ── الوضع الليلي: يستخدم نفس مفتاح DashboardLayout (بدون نظام ثيم جديد) ──────
+  const applyDarkMode = (next: boolean) => {
+    setDarkMode(next);
+    document.documentElement.classList.toggle("dark", next);
+    window.localStorage.setItem("smart-inventory-theme", next ? "dark" : "light");
+    window.dispatchEvent(new CustomEvent("smart-inventory-theme", { detail: { dark: next } }));
+  };
+  useEffect(() => {
+    const syncTheme = (event: Event) => {
+      const detail = (event as CustomEvent<{ dark?: boolean }>).detail;
+      const next = typeof detail?.dark === "boolean" ? detail.dark : window.localStorage.getItem("smart-inventory-theme") === "dark";
+      setDarkMode(next);
+    };
+    window.addEventListener("smart-inventory-theme", syncTheme);
+    return () => window.removeEventListener("smart-inventory-theme", syncTheme);
+  }, []);
+
+  // ── البحث داخل الإعدادات ────────────────────────────────────────────────────
+  const normalizedQuery = sectionQuery.trim().toLowerCase();
+  const filteredSections = useMemo(
+    () => (normalizedQuery ? SETTINGS_SECTIONS.filter(section => `${section.label} ${section.description}`.toLowerCase().includes(normalizedQuery)) : SETTINGS_SECTIONS),
+    [normalizedQuery],
+  );
+  useEffect(() => {
+    if (!normalizedQuery) return;
+    if (filteredSections.length && !filteredSections.some(section => section.id === activeSection)) {
+      setActiveSection(filteredSections[0].id);
+    }
+  }, [normalizedQuery, filteredSections, activeSection]);
+
   const activeSectionMeta = SETTINGS_SECTIONS.find(section => section.id === activeSection) ?? SETTINGS_SECTIONS[0];
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-[1400px] space-y-6">
         <PageHeader eyebrow="SYSTEM / CONFIGURATION" title="إعدادات النظام" description="اضبط التنبيهات والتقارير والتخصيص من مكان واحد. تبقى بيانات SMTP سرية، وتُضاف من إعدادات المشروع." />
+        <div className="rounded-2xl border border-[#dce7ee] bg-white/95 p-2 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-md">
+          <div className="relative">
+            <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8aa6ad]" />
+            <input
+              type="search"
+              value={sectionQuery}
+              onChange={event => setSectionQuery(event.target.value)}
+              placeholder="ابحث في الإعدادات… مثال: الشعار، التقارير، واتساب، الوضع الليلي"
+              aria-label="بحث داخل الإعدادات"
+              className="h-11 w-full rounded-xl border border-[#dce7ee] bg-[#f8fcfc] pr-11 pl-10 text-sm font-semibold text-[#102a43] outline-none transition-colors placeholder:font-normal placeholder:text-slate-400 focus:border-[#0d7180] focus:bg-white"
+            />
+            {sectionQuery ? (
+              <button
+                type="button"
+                onClick={() => setSectionQuery("")}
+                aria-label="مسح البحث"
+                className="absolute left-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-[#eef4f6] hover:text-[#0d4f62]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
+          {normalizedQuery ? (
+            <p className="px-2 pt-2 text-[11px] font-bold text-[#0d7180]">
+              {filteredSections.length ? `${filteredSections.length} قسم مطابق لـ «${sectionQuery.trim()}»` : "لا يوجد قسم مطابق لبحثك"}
+            </p>
+          ) : null}
+        </div>
         <div className="grid items-start gap-6 lg:grid-cols-[268px_minmax(0,1fr)]">
-          <SettingsSidebar active={activeSection} onSelect={setActiveSection} />
+          <SettingsSidebar
+            active={activeSection}
+            onSelect={setActiveSection}
+            sections={filteredSections}
+            emptyLabel="لا يوجد قسم مطابق. جرّب كلمة أخرى."
+          />
           <div className="min-w-0 space-y-6">
             <div className="rounded-2xl border border-[#dce7ee] bg-[#f8fcfc] px-4 py-3">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#0d7180]">
@@ -1341,6 +1496,7 @@ export function SettingsPage() {
             )}
             {activeSection === "appearance" && (
               <div className="space-y-6">
+<Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm" id="settings-theme"><CardContent className="p-6 md:p-8"><div className="flex flex-wrap items-center justify-between gap-5"><div className="flex items-center gap-4"><div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${darkMode ? "bg-[#1e293b] text-[#f5c27b]" : "bg-[#fff4df] text-[#a96821]"}`}>{darkMode ? <Moon className="h-6 w-6" /> : <Sun className="h-6 w-6" />}</div><div><p className="text-lg font-black text-[#102a43]">الوضع الليلي</p><p className="mt-1 text-xs leading-6 text-slate-400">يبدّل مظهر التطبيق بالكامل إلى ألوان داكنة مريحة للعين. يُحفظ على هذا الجهاز فقط، ولا يغيّر أي بيانات.</p></div></div><div className="flex items-center gap-3"><span className="text-xs font-black text-[#0d7180]">{darkMode ? "مُفعّل" : "متوقف"}</span><button type="button" role="switch" aria-checked={darkMode} aria-label="تبديل الوضع الليلي" onClick={() => applyDarkMode(!darkMode)} className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors ${darkMode ? "bg-[#0d4f62]" : "bg-[#cddbe1]"}`}><span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-md transition-all ${darkMode ? "left-1" : "right-1"}`} /></button></div></div><div className="mt-5 flex items-start gap-3 rounded-2xl border border-[#dcebee] bg-[#f4fafb] p-4 text-xs leading-6 text-[#386672]"><Monitor className="mt-0.5 h-4 w-4 shrink-0 text-[#0d7180]" /><span>هذا نفس زر الوضع الليلي الموجود في الشريط العلوي — أي تغيير من هنا أو من هناك يظهر فوراً في الاثنين.</span></div></CardContent></Card>
 <Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm" id="settings-display"><CardContent className="p-6 md:p-8"><div className="mb-6 flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff4df] text-[#a96821]"><Settings2 className="h-6 w-6" /></div><div><p className="text-lg font-black text-[#102a43]">حجم أرقام الجداول</p><p className="mt-1 text-xs leading-6 text-slate-400">اختر الحجم الذي يوضح الكميات والأكواد والتواريخ، مع حفظ الإعداد لهذا الجهاز.</p></div></div><div className="flex flex-col gap-4 sm:flex-row sm:items-center"><select value={numberScale} onChange={event => setNumberScale(event.target.value as "small" | "normal" | "large")} className="h-11 rounded-xl border border-[#b9d4d9] bg-white px-4 font-bold text-[#102a43] sm:w-64"><option value="small">صغير</option><option value="normal">متوسط</option><option value="large">كبير وواضح</option></select><p className="text-xs text-slate-400">يُطبّق فوراً على الجداول وحقول الأرقام دون تغيير البيانات.</p></div></CardContent></Card>
 <Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm" id="settings-app"><CardContent className="p-6 md:p-8"><div className="mb-6 flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e8f1f2] text-[#0d4f62]"><ImageIcon className="h-6 w-6" /></div><div><p className="text-lg font-black text-[#102a43]">أيقونة التطبيق</p><p className="mt-1 text-xs leading-6 text-slate-400">اختر مظهراً جاهزاً لأيقونة Smart Inventory على هذا الجهاز.</p></div></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{iconOptions.map(icon => <button key={icon.id} type="button" onClick={() => setSelectedIconId(icon.id)} className={`rounded-2xl border p-2 text-center transition-all ${selectedIconId === icon.id ? "border-[#0d4f62] bg-[#eef8f8] shadow-md" : "border-[#e5eef1] bg-white hover:border-[#8ebac1]"}`}><img src={icon.url} alt={icon.label} className="mx-auto h-16 w-16 rounded-xl object-cover" /><span className="mt-2 block text-xs font-bold text-[#102a43]">{icon.label}</span></button>)}<button type="button" onClick={() => customIconUrl && setSelectedIconId("custom")} disabled={!customIconUrl} className={`rounded-2xl border p-2 text-center transition-all ${selectedIconId === "custom" ? "border-[#0d4f62] bg-[#eef8f8] shadow-md" : "border-dashed border-[#b9d4d9] bg-white hover:border-[#8ebac1]"}`}><span className="mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-[#f4fafb]">{customIconUrl ? <img src={customIconUrl} alt="الأيقونة المخصصة" className="h-full w-full object-cover" /> : <ImageIcon className="h-7 w-7 text-slate-300" />}</span><span className="mt-2 block text-xs font-bold text-[#102a43]">أيقونتي المخصصة</span></button></div><div className="mt-4 flex flex-wrap justify-between gap-3"><label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-[#b9d4d9] px-4 py-2.5 text-xs font-bold text-[#0d4f62] hover:border-[#0d4f62]"><input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={chooseCustomAppIcon} /><Upload className="h-4 w-4" />رفع صورة مخصصة</label><Button type="button" variant="outline" onClick={restorePersonalizationDefaults} className="rounded-xl border-[#b9d4d9] text-[#0d4f62]">استعادة الأيقونة والقائمة</Button></div><p className="mt-3 text-xs leading-6 text-slate-400">يتم حفظ الصورة المخصصة على هذا الجهاز فقط، بحد أقصى 2 ميجابايت. استخدم صورة مربعة واضحة للحصول على أفضل نتيجة.</p></CardContent></Card>
 <Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm" id="settings-quick"><CardContent className="p-6 md:p-8"><div className="mb-6 flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e8f1f2] text-[#0d4f62]"><Settings2 className="h-6 w-6" /></div><div><div className="flex flex-wrap items-center gap-3"><p className="text-lg font-black text-[#102a43]">إجراءات القائمة السريعة</p><span role="status" aria-live="polite" className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-black ${syncStatus === "synced" ? "bg-emerald-50 text-emerald-700" : syncStatus === "syncing" ? "bg-amber-50 text-amber-700" : syncStatus === "error" ? "bg-red-50 text-red-700" : "bg-slate-100 text-slate-500"}`}>{syncStatus === "synced" ? "✓ تمت المزامنة" : syncStatus === "syncing" ? "جارٍ حفظ التغييرات..." : syncStatus === "error" ? "تعذر حفظ التغييرات" : "في انتظار المزامنة"}</span></div><p className="mt-1 text-xs leading-6 text-slate-400">اختر الإجراءات الأكثر استخداماً لتظهر داخل الزر العائم. يجب إبقاء إجراء واحد على الأقل مفعلاً.</p></div></div><div className="grid gap-3 sm:grid-cols-3">{quickActionPaths.map(path => quickActionOptions.find(option => option.path === path)).filter(Boolean).map(option => <label key={option!.path} draggable onDragStart={() => { setDraggedQuickAction(option!.path); triggerHaptic(12, hapticEnabled); }} onDragOver={event => event.preventDefault()} onDrop={() => { if (!draggedQuickAction || draggedQuickAction === option!.path) return; setQuickActionPaths(current => { const next = [...current]; const from = next.indexOf(draggedQuickAction); const to = next.indexOf(option!.path); next.splice(from, 1); next.splice(to, 0, draggedQuickAction); return next; }); triggerHaptic(18, hapticEnabled); setDraggedQuickAction(null); }} onPointerDown={() => { setDraggedQuickAction(option!.path); triggerHaptic(12, hapticEnabled); }} onPointerEnter={() => { setDropTargetQuickAction(option!.path); if (!draggedQuickAction || draggedQuickAction === option!.path) return; setQuickActionPaths(current => { const next = [...current]; const from = next.indexOf(draggedQuickAction); const to = next.indexOf(option!.path); next.splice(from, 1); next.splice(to, 0, draggedQuickAction); return next; }); }} onPointerUp={() => { triggerHaptic(18, hapticEnabled); setDropTargetQuickAction(null); setDraggedQuickAction(null); }} className={dropTargetQuickAction === option!.path && draggedQuickAction ? "touch-none flex cursor-grab items-center gap-3 rounded-2xl border border-[#d08a3b] bg-[#fff4df] p-4 shadow-md ring-2 ring-[#d08a3b]/25 transition-all active:cursor-grabbing" : "touch-none flex cursor-grab items-center gap-3 rounded-2xl border border-[#e5eef1] bg-[#fbfdff] p-4 transition-all hover:border-[#8ebac1] active:cursor-grabbing"}><GripVertical className="h-5 w-5 shrink-0 text-slate-300" /><input type="checkbox" checked readOnly className="h-5 w-5 accent-[#0d4f62]" /><span><span className="block font-bold text-[#102a43]">{option!.label}</span><span className="mt-1 block text-xs text-slate-400">{option!.description}</span></span></label>)}{quickActionOptions.filter(option => !quickActionPaths.includes(option.path)).map(option => <label key={option.path} className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-[#d8e6e9] bg-white p-4 opacity-75 hover:border-[#8ebac1]"><input type="checkbox" checked={false} onChange={() => setQuickActionPaths(current => [...current, option.path])} className="h-5 w-5 accent-[#0d4f62]" /><span><span className="block font-bold text-[#102a43]">{option.label}</span><span className="mt-1 block text-xs text-slate-400">إضافة إلى القائمة السريعة</span></span></label>)}</div><div className="mt-5 grid gap-4 rounded-2xl border border-[#e5eef1] bg-[#fbfdff] p-4 sm:grid-cols-2"><label className="space-y-2 text-xs font-bold text-[#102a43]"><span className="block">شكل الزر المصغّر</span><select value={compactButtonShape} onChange={event => setCompactButtonShape(event.target.value as "circle" | "rounded" | "square")} className="h-10 w-full rounded-xl border border-[#b9d4d9] bg-white px-3"><option value="circle">دائري</option><option value="rounded">مستدير</option><option value="square">مربع بحواف ناعمة</option></select></label><label className="space-y-2 text-xs font-bold text-[#102a43]"><span className="block">لون الزر المصغّر</span><select value={compactButtonColor} onChange={event => setCompactButtonColor(event.target.value as "status" | "teal" | "purple" | "orange")} className="h-10 w-full rounded-xl border border-[#b9d4d9] bg-white px-3"><option value="status">حسب حالة الاتصال: أخضر / أحمر</option><option value="teal">تركوازي</option><option value="purple">بنفسجي</option><option value="orange">برتقالي</option></select></label><label className="space-y-2 text-xs font-bold text-[#102a43]"><span className="block">موضع الزر المصغّر</span><select value={compactButtonEdge} onChange={event => setCompactButtonEdge(event.target.value as "right" | "left")} className="h-10 w-full rounded-xl border border-[#b9d4d9] bg-white px-3"><option value="right">الحافة اليمنى</option><option value="left">الحافة اليسرى</option></select></label><p className="text-xs leading-5 text-slate-400 sm:col-span-2">عند اختيار «حسب حالة الاتصال» يتغير لون الزر تلقائياً إلى الأخضر عند الاتصال والأحمر عند انقطاع الإنترنت.</p></div><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-4"><p className="text-xs text-slate-400">اسحب البطاقات لإعادة ترتيبها، ويمكنك تفعيل إجراء غير ظاهر من البطاقات المنقطة.</p><label className="flex cursor-pointer items-center gap-2 text-xs font-bold text-[#0d4f62]"><input type="checkbox" checked={hapticEnabled} onChange={event => setHapticEnabled(event.target.checked)} className="h-4 w-4 accent-[#0d4f62]" />اهتزاز عند السحب والإفلات</label></div><Button type="button" variant="outline" onClick={restorePersonalizationDefaults} className="rounded-xl border-[#b9d4d9] text-[#0d4f62]">استعادة الإعدادات الافتراضية</Button></div></CardContent></Card>
@@ -1364,6 +1520,31 @@ export function SettingsPage() {
             )}
           </div>
         </div>
+
+        {isDirty && (
+          <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-3">
+            <div className="pointer-events-auto flex w-full max-w-3xl flex-wrap items-center gap-3 rounded-2xl border border-[#f0d9a8] bg-[#fffaf0]/98 px-4 py-3 shadow-[0_18px_40px_rgba(18,44,84,0.18)] backdrop-blur-md">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#fff0d1] text-[#a96821]">
+                <AlertTriangle className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-[#8a5a17]">لديك تغييرات غير محفوظة</p>
+                <p className="mt-0.5 truncate text-[11px] font-semibold text-[#a9865a]">
+                  {dirtySectionIds.map(id => SETTINGS_SECTIONS.find(section => section.id === id)?.label ?? id).join(" · ")}
+                </p>
+              </div>
+              <div className="flex flex-1 items-center justify-end gap-2 sm:flex-none">
+                <Button type="button" variant="outline" onClick={discardChanges} disabled={savingAll} className="h-10 rounded-xl border-[#d8c7a4] px-4 font-bold text-[#8a5a17] hover:bg-[#fff4df]">
+                  تجاهل
+                </Button>
+                <Button type="button" onClick={() => void saveAllDirty()} disabled={savingAll} className="h-10 gap-2 rounded-xl bg-[#0d4f62] px-5 font-bold text-white hover:bg-[#0a4150]">
+                  {savingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  حفظ التغييرات
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

@@ -1,7 +1,6 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
-import { ThemeProvider } from "./contexts/ThemeContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 const Home = lazy(() => import("./pages/Home"));
 const AdditionsPage = lazy(() => import("./pages/InventoryPages").then(module => ({ default: module.AdditionsPage })));
@@ -91,23 +90,21 @@ function Router() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Toaster position="top-left" richColors />
-          <PwaInstallPrompt />
-          <PwaUpdatePrompt />
-          <Suspense fallback={null}>
-            <OfflineSyncManager />
-            <NetworkStatusIndicator />
-            <IframePdfCanvasOverlays />
-            <MobilePdfToolbarCollapser />
-            <TableColumnPinning />
-            <AccountStatementTableZoom />
-            <WarehouseMovementAssistant />
-          </Suspense>
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
+      <TooltipProvider>
+        <Toaster position="top-left" richColors />
+        <PwaInstallPrompt />
+        <PwaUpdatePrompt />
+        <Suspense fallback={null}>
+          <OfflineSyncManager />
+          <NetworkStatusIndicator />
+          <IframePdfCanvasOverlays />
+          <MobilePdfToolbarCollapser />
+          <TableColumnPinning />
+          <AccountStatementTableZoom />
+          <WarehouseMovementAssistant />
+        </Suspense>
+        <Router />
+      </TooltipProvider>
     </ErrorBoundary>
   );
 }
