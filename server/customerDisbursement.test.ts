@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
-import { createDisbursement } from "./db";
+import { createAuditLog, createDisbursement, getUserPermissionSettings } from "./db";
 
 vi.mock("./db", async () => {
   const actual = await vi.importActual<typeof import("./db")>("./db");
-  return { ...actual, createDisbursement: vi.fn() };
+  return {
+    ...actual,
+    createAuditLog: vi.fn(),
+    createDisbursement: vi.fn(),
+    getUserPermissionSettings: vi.fn(),
+  };
 });
 
 function context(): TrpcContext {
@@ -15,9 +20,17 @@ function context(): TrpcContext {
 
 describe("ربط العملاء بأذونات الصرف", () => {
   it("يمرر customerId إلى دالة إنشاء إذن الصرف", async () => {
+    vi.mocked(getUserPermissionSettings).mockResolvedValue({
+      userId: 1,
+      allowedScreens: ["disbursements"],
+      allowedReports: [],
+      allowedWarehouseIds: [],
+      readOnly: false,
+    });
     vi.mocked(createDisbursement).mockResolvedValue({ id: 11 } as never);
+    vi.mocked(createAuditLog).mockResolvedValue(undefined as never);
     const caller = appRouter.createCaller(context());
-    await caller.disbursements.create({ date: "2026-08-15", eznNum: "D-11", itemCode: "SI-000001", quantity: 2, customerId: 4, destination: "شركة العميل" });
+    await caller.disbursements.create({ date: "2026-08-15", eznNum: "D-11", itemCode: "SI-000001", buildingId: 1, quantity: 2, customerId: 4, destination: "شركة العميل" });
     expect(createDisbursement).toHaveBeenCalledWith(expect.objectContaining({ customerId: 4, destination: "شركة العميل" }));
   });
 });

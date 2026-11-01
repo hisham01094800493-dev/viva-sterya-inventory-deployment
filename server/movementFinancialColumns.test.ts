@@ -11,14 +11,14 @@ describe("التفاصيل المالية في جداول الحركات", () =>
     expect(page).toContain('const showMovementFinancialDetails = canViewMovementFinancialDetails && movementFinancialPreferenceVisible');
     expect(page).toContain('showMovementFinancialDetails ? <><th className="px-4 py-4">سعر الوحدة</th><th className="px-4 py-4">الإجمالي</th></> : null');
     expect(page).toContain('showMovementFinancialDetails ? <><td className="px-4 py-4 text-sm font-bold text-[#0d4f62]">');
-    expect(page).toContain('showMovementFinancialDetails ? <Card className="border-0 bg-white shadow-sm">');
-    expect(page).toContain('showMovementFinancialDetails ? "sm:grid-cols-3" : "sm:grid-cols-2"');
+    expect(page).toMatch(/showMovementFinancialDetails \? <Card className="border-\[#dce7ee\] bg-white shadow-sm"><CardContent className="flex items-center gap-4 p-4">[\s\S]*?إجمالي القيمة[\s\S]*?\{formatQuantity\(totalValue\)\} ج\.م<\/p>[\s\S]*?<\/Card> : null/);
+    expect(layout).toContain('aria-pressed={showMovementFinancialDetails}');
     expect(page).toContain('[totalQuantity, totalValue, totalRows, totalScopeLabel, showMovementFinancialDetails]');
     expect(layout).toContain('MOVEMENT_FINANCIAL_PREFERENCE_KEY');
     expect(layout).toContain('إظهار التفاصيل المالية');
     expect(layout).toContain('إخفاء التفاصيل المالية');
     expect(layout).toContain('smart-inventory-movement-financial-details');
-    expect(layout).not.toContain('data-movement-financial-hidden');
+    expect(layout).toContain('{showMovementFinancialDetails ? "إخفاء التفاصيل المالية" : "إظهار التفاصيل المالية"}');
     expect(layout).toContain('movement-financial-toggle');
     expect(styles).toContain('.movement-data-table thead tr');
     expect(styles).toContain('.dark .movement-data-table thead tr');

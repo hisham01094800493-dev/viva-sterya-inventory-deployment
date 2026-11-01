@@ -2,32 +2,56 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import {
+  createAuditLog,
   createDisbursement,
   createTransfer,
+  getItemById,
   getItemByCode,
   getItemCard,
+  getMovementAnalytics,
+  getMovementSnapshot,
+  getMovementWarehouseIds,
   suggestNextItemCode,
   getInventoryRows,
   getLatestPermitSummaries,
   getRecentMovements,
   getSettingValue,
+  getUserPermissionSettings,
   listItems,
   updateTransfer,
 } from "./db";
+
+vi.mock("./db/connection", () => ({
+  checkDatabaseReadiness: vi.fn(async () => false),
+  closeDatabasePool: vi.fn(async () => undefined),
+  getDb: vi.fn(async () => null),
+  getPool: vi.fn(async () => {
+    throw new Error("Unexpected database pool access in inventory router test");
+  }),
+  requireDb: vi.fn(async () => {
+    throw new Error("Unexpected database access in inventory router test");
+  }),
+}));
 
 vi.mock("./db", async () => {
   const actual = await vi.importActual<typeof import("./db")>("./db");
   return {
     ...actual,
+    createAuditLog: vi.fn(),
     createDisbursement: vi.fn(),
     createTransfer: vi.fn(),
+    getItemById: vi.fn(),
     getItemByCode: vi.fn(),
     getItemCard: vi.fn(),
+    getMovementAnalytics: vi.fn(),
+    getMovementSnapshot: vi.fn(),
+    getMovementWarehouseIds: vi.fn(),
     suggestNextItemCode: vi.fn(),
     getInventoryRows: vi.fn(),
     getLatestPermitSummaries: vi.fn(),
     getRecentMovements: vi.fn(),
     getSettingValue: vi.fn(),
+    getUserPermissionSettings: vi.fn(),
     listItems: vi.fn(),
     updateTransfer: vi.fn(),
   };
@@ -56,7 +80,25 @@ function createContext(role: "user" | "admin" = "user"): TrpcContext {
 }
 
 describe("inventory tRPC routers", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getUserPermissionSettings).mockResolvedValue({
+      userId: 1,
+      allowedScreens: ["inventory", "dashboard", "disbursements", "transfers"],
+      allowedReports: ["item-card"],
+      allowedWarehouseIds: [],
+      readOnly: false,
+    });
+    vi.mocked(getItemById).mockResolvedValue(null as any);
+    vi.mocked(getMovementAnalytics).mockResolvedValue({
+      series: [],
+      status: { safe: 0, watch: 1, low: 1, empty: 0 },
+      totals: { additions: 0, disbursements: 0, transfers: 0 },
+    } as any);
+    vi.mocked(getMovementWarehouseIds).mockResolvedValue([3, 4] as any);
+    vi.mocked(getMovementSnapshot).mockResolvedValue({ id: 12 } as any);
+    vi.mocked(createAuditLog).mockResolvedValue(19 as any);
+  });
 
   it("requires authentication for inventory queries", async () => {
     const ctx = { user: null, req: {} as any, res: {} as any } satisfies TrpcContext;
@@ -71,6 +113,7 @@ describe("inventory tRPC routers", () => {
         date: "2026-08-15",
         eznNum: "DIS-1",
         itemCode: "A-1",
+        buildingId: 3,
         quantity: 0,
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -84,6 +127,7 @@ describe("inventory tRPC routers", () => {
       date: "2026-08-15",
       eznNum: "DIS-2",
       itemCode: "A-2",
+      buildingId: 3,
       quantity: 3,
       destination: "التشغيل",
     });
@@ -92,6 +136,7 @@ describe("inventory tRPC routers", () => {
       date: "2026-08-15",
       eznNum: "DIS-2",
       itemCode: "A-2",
+      buildingId: 3,
       quantity: 3,
       destination: "التشغيل",
     });
@@ -100,7 +145,7 @@ describe("inventory tRPC routers", () => {
   it("passes the offline idempotency key to the disbursement service", async () => {
     vi.mocked(createDisbursement).mockResolvedValue({ id: 8, clientRequestId: "offline-1234567890" } as any);
     const caller = appRouter.createCaller(createContext());
-    await caller.disbursements.create({ date: "2026-08-15", eznNum: "DIS-OFFLINE", itemCode: "A-3", quantity: 2, clientRequestId: "offline-1234567890" });
+    await caller.disbursements.create({ date: "2026-08-15", eznNum: "DIS-OFFLINE", itemCode: "A-3", buildingId: 3, quantity: 2, clientRequestId: "offline-1234567890" });
     expect(createDisbursement).toHaveBeenCalledWith(expect.objectContaining({ clientRequestId: "offline-1234567890" }));
   });
 
@@ -113,10 +158,11 @@ describe("inventory tRPC routers", () => {
   });
 
   it("returns the complete item card with movement groups", async () => {
+    vi.mocked(getItemById).mockResolvedValue({ id: 3, code: "10001", name: "صنف تجريبي", warehouseId: null } as any);
     vi.mocked(getItemCard).mockResolvedValue({ item: { id: 3, code: "10001", name: "صنف تجريبي", initialStock: "5.000", currentStock: "8.000" }, additions: [{ id: 1 }], disbursements: [{ id: 2 }], returns: [{ id: 3 }] } as any);
     const caller = appRouter.createCaller(createContext());
     await expect(caller.items.card({ id: 3 })).resolves.toMatchObject({ item: { code: "10001" }, additions: [{ id: 1 }], disbursements: [{ id: 2 }], returns: [{ id: 3 }] });
-    expect(getItemCard).toHaveBeenCalledWith(3);
+    expect(getItemCard).toHaveBeenCalledWith(3, []);
   });
 
   it("previews the next warehouse-scoped code before item creation", async () => {
@@ -170,7 +216,7 @@ describe("inventory tRPC routers", () => {
     vi.mocked(updateTransfer).mockResolvedValue({ id: 12, quantity: "4.000" } as any);
     const caller = appRouter.createCaller(createContext());
     const result = await caller.transfers.update({ id: 12, quantity: 4, transferType: "مرتجع" });
-    expect(result).toEqual({ id: 12, quantity: "4.000" });
+    expect(result).toEqual({ id: 12, quantity: "4.000", undoAuditLogId: 19 });
     expect(updateTransfer).toHaveBeenCalledWith({ id: 12, quantity: 4, transferType: "مرتجع" });
     expect(createTransfer).not.toHaveBeenCalled();
   });
