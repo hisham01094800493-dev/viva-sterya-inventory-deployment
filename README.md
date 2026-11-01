@@ -23,10 +23,10 @@
 لأن خطة Vercel Hobby لا تشغّل Cron أكثر من مرة يوميًا، يمكن استخدام cron-job.org لإرسال طلب `POST` كل 5 دقائق إلى:
 
 ```text
-https://YOUR-DOMAIN/api/scheduled/daily-report-heartbeat
+https://viva-sterya-inventory.vercel.app/api/scheduled/daily-report-heartbeat
 ```
 
-أضف رأس الطلب التالي، مع استخدام نفس قيمة `CRON_SECRET` في Vercel وRender:
+أضف رأس الطلب التالي في إعدادات HTTP Headers في cron-job.org، مع استخدام نفس قيمة `CRON_SECRET` المحفوظة في Vercel:
 
 ```text
 Authorization: Bearer YOUR_CRON_SECRET
