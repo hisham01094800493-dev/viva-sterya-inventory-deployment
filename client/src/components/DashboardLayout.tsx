@@ -39,6 +39,7 @@ import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { canCreateInventoryItems } from "@/lib/itemCreatePermission";
+import { dashboardQueryOptions } from "@/lib/queryOptions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import OfflineDataNotice from "@/components/OfflineDataNotice";
 import {
@@ -349,8 +350,8 @@ function NotificationBell({ chatEnabled = true }: { chatEnabled?: boolean }) {
   const [incomingChatNotice, setIncomingChatNotice] = useState<string | null>(null);
   const lastChatMessageId = useRef<number | null>(null);
   const { user } = useAuth();
-  const notifications = trpc.notifications.list.useQuery(undefined, { refetchInterval: 5000, refetchOnWindowFocus: true });
-  const chatConversations = trpc.chat.conversations.useQuery(undefined, { enabled: chatEnabled, refetchInterval: 15000 });
+  const notifications = trpc.notifications.list.useQuery(undefined, { ...dashboardQueryOptions, refetchInterval: 30_000, enabled: open || chatEnabled });
+  const chatConversations = trpc.chat.conversations.useQuery(undefined, { ...dashboardQueryOptions, enabled: chatEnabled });
   const markRead = trpc.notifications.markRead.useMutation({ onSuccess: () => void notifications.refetch() });
   const markAllRead = trpc.notifications.markAllRead.useMutation({ onSuccess: () => void notifications.refetch() });
   const clearRead = trpc.notifications.clearRead.useMutation({ onSuccess: result => { void notifications.refetch(); toast.success(result.deleted ? `تم مسح ${result.deleted} إشعار مقروء` : "لا توجد إشعارات مقروءة للمسح"); }, onError: error => toast.error(error.message || "تعذر مسح الإشعارات المقروءة") });

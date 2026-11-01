@@ -16,7 +16,9 @@ function readSavedPosition(): Position | null {
 
 export default function ChatFloatingBubble() {
   const [, setLocation] = useLocation();
-  const conversations = trpc.chat.conversations.useQuery(undefined, { refetchInterval: 15000 });
+  // NotificationBell owns the periodic refresh for this shared query. The bubble
+  // observes the same cache without starting a second polling timer.
+  const conversations = trpc.chat.conversations.useQuery();
   const previousUnread = useRef<number | null>(null);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -3243,6 +3243,30 @@ body {
 }
 @media (prefers-reduced-motion: reduce) { .inventory-audit-page .report-warehouse-card { transition: none !important; } }
 
+/* جداول الحركات: تمرير مستقل على الشاشات الكبيرة مع رأس ثابت واحتفاظ بمساحة الجدول. */
+@layer components {
+  .movement-table-scroller {
+    max-height: min(70vh, 780px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable both-edges;
+  }
+  .movement-table-scroller .movement-data-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .movement-table-scroller .movement-data-table tbody tr {
+    content-visibility: auto;
+    contain-intrinsic-size: 58px;
+  }
+  @media (max-width: 640px) {
+    .movement-table-scroller { max-height: 62vh; }
+    .movement-table-scroller .movement-data-table th,
+    .movement-table-scroller .movement-data-table td { white-space: nowrap; }
+  }
+}
+
 .directory-mobile-list { display: none; }
 @media (max-width: 767px) {
   .directory-table-desktop { display: none; }

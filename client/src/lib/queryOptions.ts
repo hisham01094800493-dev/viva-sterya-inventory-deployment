@@ -1,15 +1,15 @@
 export const inventoryQueryOptions = {
-  staleTime: 15_000,
+  staleTime: 30_000,
   gcTime: 5 * 60_000,
-  refetchOnWindowFocus: true,
-  refetchOnReconnect: true,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
   networkMode: "offlineFirst",
 } as const;
 
 export const dashboardQueryOptions = {
   ...inventoryQueryOptions,
-  staleTime: 10_000,
-  refetchInterval: 15_000,
+  staleTime: 45_000,
+  refetchInterval: 45_000,
   refetchIntervalInBackground: false,
 } as const;
 

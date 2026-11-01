@@ -15,7 +15,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      refetchOnReconnect: true,
+      refetchOnReconnect: false,
       networkMode: "offlineFirst",
     },
   },
