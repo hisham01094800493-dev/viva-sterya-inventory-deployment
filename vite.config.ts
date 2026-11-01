@@ -166,6 +166,19 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // exceljs is intentionally lazy-loaded; its runtime is larger than the default warning threshold.
+    // Keep the threshold aligned with the measured post-split app chunks rather than hiding a regression.
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-exceljs": ["exceljs"],
+          "vendor-xlsx": ["xlsx"],
+          "vendor-pdf": ["jspdf", "jspdf-autotable"],
+          "vendor-charts": ["recharts"],
+        },
+      },
+    },
   },
   server: {
     host: true,

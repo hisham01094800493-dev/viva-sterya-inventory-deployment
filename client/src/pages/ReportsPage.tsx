@@ -1,5 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import ExcelJS from "exceljs";
+const loadExcelJs = () => import("exceljs").then(module => module.default);
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -118,7 +118,7 @@ function escapeCsv(value: unknown) {
 type AccountSummaryData = { suppliers: { name: string; quantity: number; value: number; movements: number }[]; customers: { name: string; quantity: number; value: number; movements: number; returns: number; returnMovements?: number }[] };
 
 async function downloadAccountExcel(summary: AccountSummaryData, from: string, to: string) {
-  const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet("إجمالي الجهات", { views: [{ rightToLeft: true }] });
+  const ExcelJS = await loadExcelJs(); const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet("إجمالي الجهات", { views: [{ rightToLeft: true }] });
   sheet.columns = [{ header: "النوع", key: "type", width: 18 }, { header: "المورد/العميل", key: "name", width: 30 }, { header: "عدد الحركات", key: "movements", width: 16 }, { header: "الكمية", key: "quantity", width: 16 }, { header: "المرتجعات", key: "returns", width: 16 }, { header: "القيمة", key: "value", width: 18 }];
   sheet.addRow(["الفترة", `${from || "البداية"} - ${to || "اليوم"}`]);
   for (const row of summary.suppliers) sheet.addRow({ type: "مورد", ...row });
@@ -155,7 +155,7 @@ async function previewAccountPdfExternally(summary: AccountSummaryData) {
 }
 
 async function downloadUnlinkedPartiesExcel(rows: UnlinkedPartySummary[], from: string, to: string) {
-  const workbook = new ExcelJS.Workbook();
+  const ExcelJS = await loadExcelJs(); const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("جهات غير مرتبطة", { views: [{ rightToLeft: true }] });
   sheet.columns = [{ header: "الجهة النصية", key: "name", width: 30 }, { header: "عدد الحركات", key: "movements", width: 16 }, { header: "الكمية", key: "quantity", width: 16 }, { header: "القيمة", key: "value", width: 16 }, { header: "أول حركة", key: "firstDate", width: 16 }, { header: "آخر حركة", key: "lastDate", width: 16 }];
   sheet.addRow(["الفترة", `${from || "البداية"} - ${to || "اليوم"}`]);
@@ -232,7 +232,7 @@ async function fetchImageAsset(url?: string | null) {
 }
 
 async function downloadInventoryExcel(rows: InventoryExportItem[]) {
-  const workbook = new ExcelJS.Workbook();
+  const ExcelJS = await loadExcelJs(); const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("المخزون الحالي", { views: [{ rightToLeft: true }] });
   worksheet.columns = [
     { header: "كود الصنف", key: "code", width: 16 }, { header: "اسم الصنف", key: "name", width: 28 },
