@@ -43,7 +43,7 @@ describe("inventory quantity rules", () => {
         { code: "A-1", incomingStock: "10.000", outgoingStock: "1.000", currentStock: "9.000" },
         { incoming: 0, outgoing: -1001, current: 1001 },
       ),
-    ).toThrow("لا يمكن أن تصبح حركة المخزون سالبة");
+    ).toThrow("لا يمكن أن تصبح حركة المنصرف سالبة");
   });
 
   it("starts automatic warehouse codes at 10001 and fills skipped unused codes", () => {

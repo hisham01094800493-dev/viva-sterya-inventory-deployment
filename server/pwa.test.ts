@@ -31,9 +31,9 @@ describe("Smart Inventory PWA shell", () => {
 
   it("waits for user confirmation before activating a new cache version", () => {
     const serviceWorker = readFileSync(resolve(publicDir, "sw.js"), "utf8");
-    expect(serviceWorker).toContain('const CACHE_NAME = "smart-inventory-shell-v7"');
+    expect(serviceWorker).toMatch(/const CACHE_NAME = "smart-inventory-shell-v\d+"/);
     expect(serviceWorker).toContain('event.data?.type === "SKIP_WAITING"');
-    expect(serviceWorker).toContain('const APP_SHELL = ["/", "/index.html"');
+    expect(serviceWorker).toContain("const APP_SHELL = __OFFLINE_PRECACHE_ASSETS__");
     expect(serviceWorker).toContain('request.destination === "document"');
     expect(serviceWorker).toContain('caches.match("/index.html")');
     expect(serviceWorker).not.toMatch(/install[\s\S]{0,180}self\.skipWaiting\(\)/);

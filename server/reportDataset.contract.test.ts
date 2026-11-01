@@ -8,11 +8,10 @@ const reportsPageSource = readFileSync(new URL("../client/src/pages/ReportsPage.
 describe("قابلية توسع بيانات التقارير", () => {
   it("يجلب جميع صفوف الحركات المطابقة من الخادم دون حد 500 سجل", () => {
     expect(databaseSource).toContain("export async function getReportDataset");
-    expect(databaseSource).toContain("input.includeRows ? db.select().from(additions)");
-    expect(databaseSource).toContain("db.select().from(additions).where(additionsWhere).orderBy(desc(additions.id))");
-    expect(databaseSource).toContain("db.select().from(disbursements).where(disbursementsWhere).orderBy(desc(disbursements.id))");
-    expect(databaseSource).toContain("db.select().from(transfers).where(transfersWhere).orderBy(desc(transfers.id))");
     const reportDatasetSection = databaseSource.slice(databaseSource.indexOf("export async function getReportDataset"), databaseSource.indexOf("export function isReturnTransfer"));
+    expect(reportDatasetSection).toMatch(/input\.includeRows[\s\S]*?\.from\(additions\)[\s\S]*?\.where\(additionsWhere\)[\s\S]*?\.orderBy\(desc\(additions\.id\)\)/);
+    expect(reportDatasetSection).toMatch(/input\.includeRows[\s\S]*?\.from\(disbursements\)[\s\S]*?\.where\(disbursementsWhere\)[\s\S]*?\.orderBy\(desc\(disbursements\.id\)\)/);
+    expect(reportDatasetSection).toMatch(/input\.includeRows[\s\S]*?\.from\(transfers\)[\s\S]*?\.where\(transfersWhere\)[\s\S]*?\.orderBy\(desc\(transfers\.id\)\)/);
     expect(reportDatasetSection).not.toContain(".limit(500)");
   });
 

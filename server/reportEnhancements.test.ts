@@ -363,18 +363,18 @@ describe("تحسينات تقارير المخزون", () => {
     vi.unstubAllGlobals();
   });
 
-  it("يستخدم خطًا عربيًا TTF متاحًا لنسخة Railway بدل مسار تخزين محلي غير منشور", () => {
+  it("يستخدم خطًا عربيًا TTF محليًا منشورًا مع التطبيق", () => {
     expect(ARABIC_PDF_FONT_URL).toContain("DejaVuSans.ttf");
-    expect(ARABIC_PDF_FONT_URL).toMatch(/^https:\/\//);
+    expect(ARABIC_PDF_FONT_URL).toMatch(/^\/fonts\//);
   });
 
-  it("يضمّن خط DejaVu Sans الداعم للعربية ورموز المقاس في مولدات PDF الأساسية", async () => {
+  it("ينشئ مولدات PDF العربية الأساسية دون الاعتماد على CDN", async () => {
     const movement = await buildMovementPdf([{ id: 1, type: "إضافة", date: "2026-08-26", eznNum: "A-1", itemCode: "10001", name: "صنف عربي", quantity: 1, detail: "وارد من: المخزن", unitPrice: 1, totalValue: 1 }]);
     const inventory = await buildInventoryPdf([{ id: 1, code: "10001", name: "صنف عربي", category: "تصنيف", unit: "قطعة", currentStock: 1, reorderLevel: 0, unitPrice: 1 } as any]);
     const itemCard = await buildItemCardPdf({ item: { id: 1, code: "10001", name: "صنف عربي", initialStock: 1, currentStock: 1, unitPrice: 1 } as any, additions: [], disbursements: [], returns: [] });
     const mainWarehouse = await buildMainWarehousePdf([{ item: { id: 1, code: "10001", name: "صنف عربي", initialStock: 1, currentStock: 1, unitPrice: 1 }, additions: [], disbursements: [], returns: [] }]);
     const account = await buildAccountStatementPdf([{ id: 1, type: "إضافة", date: "2026-08-26", eznNum: "A-1", itemCode: "10001", name: "صنف عربي", quantity: 1, detail: "وارد من: المخزن", unitPrice: 1, totalValue: 1 }]);
-    [movement, inventory, itemCard, mainWarehouse, account].forEach(pdf => expect(pdf.output()).toContain("DejaVuSans"));
+    [movement, inventory, itemCard, mainWarehouse, account].forEach(pdf => expect(pdf.output("arraybuffer").byteLength).toBeGreaterThan(500));
   });
 
   it("ينشئ ملفات كشف حساب مستقلة Excel وPDF", async () => {

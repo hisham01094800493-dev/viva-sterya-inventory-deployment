@@ -50,6 +50,9 @@ export function calculateStockDelta(
   if (nextIncoming < 0) {
     throw new InventoryError("CONFLICT", "لا يمكن أن تصبح حركة الوارد سالبة");
   }
+  if (nextOutgoing < 0) {
+    throw new InventoryError("CONFLICT", "لا يمكن أن تصبح حركة المنصرف سالبة");
+  }
   if (nextCurrent < 0 && !options.allowNegativeCurrent) {
     throw new InventoryError(
       "CONFLICT",
