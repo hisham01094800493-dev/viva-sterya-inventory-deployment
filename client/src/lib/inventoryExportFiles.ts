@@ -185,16 +185,16 @@ export async function buildItemCardExcel(card: ItemCardPdfData, options: { movem
   sheet.addRow(["الرصيد الأولي", Number(card.item.initialStock ?? 0), "سعر الوحدة", Number(card.item.unitPrice ?? 0)]);
   const allRows = buildItemCardMovementRows(card);
   const rows = options.movementFilter && options.movementFilter !== "all" ? allRows.filter(row => row.movement === options.movementFilter) : allRows;
-  const columns = ["date", "detail", ...(options.includePermitColumn ? ["permitNumber"] : []), "movement", "openingStock", "addition", "returned", "disbursement", "runningStock", ...(options.includeUnitPrice !== false ? ["unitPrice"] : []), ...(options.includeTotalValue !== false ? ["totalValue"] : [])] as const;
-  const labels: Record<typeof columns[number], string> = { date: "التاريخ", detail: "البيان", permitNumber: "رقم الإذن", movement: "الحركة", openingStock: "الرصيد الأول", addition: "الإضافة", returned: "المرتجع", disbursement: "الصرف", runningStock: "الرصيد الإجمالي", unitPrice: "السعر", totalValue: "إجمالي السعر" };
-  const values: Record<typeof columns[number], (row: ItemCardMovementPdfRow) => string | number> = { date: row => row.date, detail: row => row.detail, permitNumber: row => row.permitNumber, movement: row => row.movement, openingStock: row => row.openingStock === null ? "—" : row.openingStock, addition: row => row.addition || "—", returned: row => row.returned || "—", disbursement: row => row.disbursement || "—", runningStock: row => row.runningStock === null ? "—" : row.runningStock, unitPrice: row => row.unitPrice, totalValue: row => row.totalValue };
+  const columns = ["date", "detail", "purpose", ...(options.includePermitColumn ? ["permitNumber"] : []), "movement", "openingStock", "addition", "returned", "disbursement", "runningStock", ...(options.includeUnitPrice !== false ? ["unitPrice"] : []), ...(options.includeTotalValue !== false ? ["totalValue"] : [])] as const;
+  const labels: Record<typeof columns[number], string> = { date: "التاريخ", detail: "البيان", purpose: "اللُّزوم", permitNumber: "رقم الإذن", movement: "الحركة", openingStock: "الرصيد الأول", addition: "الإضافة", returned: "المرتجع", disbursement: "الصرف", runningStock: "الرصيد الإجمالي", unitPrice: "السعر", totalValue: "إجمالي السعر" };
+  const values: Record<typeof columns[number], (row: ItemCardMovementPdfRow) => string | number> = { date: row => row.date, detail: row => row.detail, purpose: row => row.purpose || "—", permitNumber: row => row.permitNumber, movement: row => row.movement, openingStock: row => row.openingStock === null ? "—" : row.openingStock, addition: row => row.addition || "—", returned: row => row.returned || "—", disbursement: row => row.disbursement || "—", runningStock: row => row.runningStock === null ? "—" : row.runningStock, unitPrice: row => row.unitPrice, totalValue: row => row.totalValue };
   const headerRow = sheet.addRow(columns.map(key => labels[key]));
   headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
   headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D4F62" } };
   sheet.columns = columns.map(key => ({ header: labels[key], key, width: key === "date" ? 14 : key === "detail" ? 34 : key === "permitNumber" ? 16 : key === "movement" ? 14 : 16 }));
   rows.forEach(row => { const excelRow = sheet.addRow(columns.map(key => values[key](row))); excelRow.alignment = { vertical: "middle", horizontal: "right", wrapText: true }; excelRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: row.movement === "إضافة" ? "FFE8F7EF" : row.movement === "صرف" ? "FFFFE8ED" : row.movement === "مرتجع" ? "FFFFF7E0" : "FFE8F2FA" } }; });
   const excelTotals = { addition: rows.reduce((sum, row) => sum + row.addition, 0), returned: rows.reduce((sum, row) => sum + row.returned, 0), disbursement: rows.reduce((sum, row) => sum + row.disbursement, 0), totalValue: rows.reduce((sum, row) => sum + row.totalValue, 0) };
-  const excelFinalStock = Number(card.item.currentStock ?? rows.at(-1)?.runningStock ?? card.item.initialStock ?? 0); const excelTotalRow = { date: "", detail: "الإجمالي", movement: "", openingStock: null, addition: Number(excelTotals.addition.toFixed(3)), returned: Number(excelTotals.returned.toFixed(3)), disbursement: Number(excelTotals.disbursement.toFixed(3)), runningStock: Number(excelFinalStock.toFixed(3)), unitPrice: 0, totalValue: Number(excelTotals.totalValue.toFixed(2)), permitNumber: "" } as unknown as ItemCardMovementPdfRow;
+  const excelFinalStock = Number(card.item.currentStock ?? rows.at(-1)?.runningStock ?? card.item.initialStock ?? 0); const excelTotalRow = { date: "", detail: "الإجمالي", purpose: "", movement: "", openingStock: null, addition: Number(excelTotals.addition.toFixed(3)), returned: Number(excelTotals.returned.toFixed(3)), disbursement: Number(excelTotals.disbursement.toFixed(3)), runningStock: Number(excelFinalStock.toFixed(3)), unitPrice: 0, totalValue: Number(excelTotals.totalValue.toFixed(2)), permitNumber: "" } as unknown as ItemCardMovementPdfRow;
   const totalExcelRow = sheet.addRow(columns.map(key => values[key](excelTotalRow))); totalExcelRow.font = { bold: true, color: { argb: "FF102A43" } }; totalExcelRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEBF0" } }; totalExcelRow.alignment = { vertical: "middle", horizontal: "right", wrapText: true };
   sheet.getRow(1).font = { bold: true, size: 15, color: { argb: "FF0D4F62" } };
   sheet.mergeCells(1, 1, 1, columns.length);
@@ -518,6 +518,7 @@ export function formatItemCardPdfDate(value: unknown) { return formatInventoryDa
 export type ItemCardMovementPdfRow = {
   date: string;
   detail: string;
+  purpose: string;
   movement: ItemCardMovementKind;
   openingStock: number | null;
   addition: number;
@@ -532,8 +533,7 @@ export type ItemCardMovementPdfRow = {
 };
 
 export function formatItemCardMovementDetail(movement: ItemCardMovementKind, row: Record<string, any>) {
-  const permit = row.eznNum ? ` — رقم الإذن: ${row.eznNum}` : "";
-  if (movement === "إضافة") return `وارد من: ${row.supplier || row.supplierName || row.store || "—"}${permit}`;
+  if (movement === "إضافة") return `توريد من: ${row.supplier || row.supplierName || row.store || "—"}`;
   if (movement === "صرف") {
     const building = String(row.buildingName || row.building || row.buildingCode || "").trim().replace(/^مبنى\s*/, "");
     const destination = String(row.destination || row.customer || row.store || "").trim();
@@ -541,25 +541,25 @@ export function formatItemCardMovementDetail(movement: ItemCardMovementKind, row
     const client = customer || (destination && destination !== building ? destination : "—");
     // عزل الأكواد اللاتينية يمنع خوارزمية RTL من نقل B2-L2-L4 إلى بداية البيان.
     const buildingText = building ? ` — المبنى: \u200E${building}\u200E` : "";
-    return `رقم الإذن: ${row.eznNum || "—"} — صرف للعميل: ${client}${buildingText}`;
+    return `صرف إلى: ${client}${buildingText}`;
   }
   if (movement === "مرتجع") {
     const from = row.fromStore || row.sourceStore || row.supplier || row.fromCustomer || row.customer;
     const to = row.toStore || row.destination || row.toCustomer || row.store;
     const description = from && to ? `مرتجع من: ${from} إلى: ${to}` : from ? `مرتجع من: ${from}` : to ? `مرتجع إلى: ${to}` : "مرتجع";
-    return `${description}${permit}`;
+    return description;
   }
   const from = row.fromStore || row.sourceStore || row.fromCustomer || row.supplier || "—";
   const to = row.toStore || row.destination || row.toCustomer || row.customer || "—";
-  return `تحويل من: ${from} إلى: ${to}${permit}`;
+  return `تحويل من: ${from} إلى: ${to}`;
 }
 
 export function buildItemCardMovementRows(card: ItemCardPdfData): ItemCardMovementPdfRow[] {
   const initialStock = Number(card.item.initialStock ?? 0);
   const movements = [
-    ...card.additions.map(row => ({ movement: "إضافة" as const, date: row.date, eznNum: row.eznNum, quantity: Number(row.quantity ?? 0), unitPrice: Number(row.unitPrice ?? card.item.unitPrice ?? 0), detail: formatItemCardMovementDetail("إضافة", row) })),
-    ...card.returns.map(row => { const customerToCustomer = String(row.transferType ?? "").toLowerCase() === "customer_transfer" || String(row.transferType ?? "").includes("عميل إلى عميل"); const movement: ItemCardMovementKind = customerToCustomer || String(row.transferType ?? "").includes("تحويل") ? "تحويل" : "مرتجع"; return { movement, stockNeutral: customerToCustomer, date: row.date, eznNum: row.eznNum, quantity: Number(row.quantity ?? 0), unitPrice: Number(row.unitPrice ?? card.item.unitPrice ?? 0), detail: customerToCustomer ? `مرتجع من عميل إلى عميل${row.eznNum ? ` — رقم الإذن: ${row.eznNum}` : ""}` : formatItemCardMovementDetail(movement, row) }; }),
-    ...card.disbursements.map(row => ({ movement: "صرف" as const, date: row.date, eznNum: row.eznNum, quantity: Number(row.quantity ?? 0), unitPrice: Number(row.unitPrice ?? card.item.unitPrice ?? 0), detail: formatItemCardMovementDetail("صرف", row) })),
+    ...card.additions.map(row => ({ movement: "إضافة" as const, date: row.date, eznNum: row.eznNum, quantity: Number(row.quantity ?? 0), unitPrice: Number(row.unitPrice ?? card.item.unitPrice ?? 0), detail: formatItemCardMovementDetail("إضافة", row), purpose: row.purpose || "" })),
+    ...card.returns.map(row => { const customerToCustomer = String(row.transferType ?? "").toLowerCase() === "customer_transfer" || String(row.transferType ?? "").includes("عميل إلى عميل"); const movement: ItemCardMovementKind = customerToCustomer || String(row.transferType ?? "").includes("تحويل") ? "تحويل" : "مرتجع"; return { movement, stockNeutral: customerToCustomer, date: row.date, eznNum: row.eznNum, quantity: Number(row.quantity ?? 0), unitPrice: Number(row.unitPrice ?? card.item.unitPrice ?? 0), detail: formatItemCardMovementDetail(movement, row), purpose: row.notes || row.disburseType || "" }; }),
+    ...card.disbursements.map(row => ({ movement: "صرف" as const, date: row.date, eznNum: row.eznNum, quantity: Number(row.quantity ?? 0), unitPrice: Number(row.unitPrice ?? card.item.unitPrice ?? 0), detail: formatItemCardMovementDetail("صرف", row), purpose: row.disburseType || "" })),
   ].sort((a, b) => inventoryDateKey(a.date ?? "").localeCompare(inventoryDateKey(b.date ?? "")));
   let runningStock = initialStock;
   return movements.map((row, index) => {
@@ -568,7 +568,7 @@ export function buildItemCardMovementRows(card: ItemCardPdfData): ItemCardMoveme
     // يحافظ كارت الصنف على الإشارة المدخلة: الصرف الموجب يخصم، والصرف السالب يعكس الخصم.
     const disbursement = row.movement === "صرف" ? row.quantity : 0;
     runningStock = Number((runningStock + addition + returned - disbursement).toFixed(3));
-    return { date: formatItemCardPdfDate(row.date ?? ""), rawDate: row.date, detail: String(row.detail ?? "—"), movement: row.movement, openingStock: index === 0 ? initialStock : null, addition, returned, disbursement, runningStock, unitPrice: row.unitPrice, totalValue: Number((Math.abs(row.quantity) * row.unitPrice).toFixed(2)), permitNumber: String(row.eznNum ?? "—") };
+    return { date: formatItemCardPdfDate(row.date ?? ""), rawDate: row.date, detail: String(row.detail ?? "—"), purpose: String(row.purpose ?? ""), movement: row.movement, openingStock: index === 0 ? initialStock : null, addition, returned, disbursement, runningStock, unitPrice: row.unitPrice, totalValue: Number((Math.abs(row.quantity) * row.unitPrice).toFixed(2)), permitNumber: String(row.eznNum ?? "—") };
   });
 }
 
@@ -584,12 +584,12 @@ export async function buildItemCardPdf(card: ItemCardPdfData, options: { logo?: 
   autoTable(doc, { startY: 82, margin: { left: 42, right: 205 }, head: [[shapeArabic(doc, "البيان"), shapeArabic(doc, "القيمة")]], body: [[shapeArabic(doc, "اسم الصنف"), shapeArabic(doc, String(card.item.name ?? "—"))], [shapeArabic(doc, "الكود"), String(card.item.code ?? "—")], [shapeArabic(doc, "التصنيف"), shapeArabic(doc, String(card.item.category ?? "—"))], [shapeArabic(doc, "الوحدة"), shapeArabic(doc, String(card.item.unit ?? "—"))], [shapeArabic(doc, "الرصيد الأولي"), String(card.item.initialStock ?? "0")], [shapeArabic(doc, "الرصيد الحالي"), String(card.item.currentStock ?? "0")], [shapeArabic(doc, "سعر الوحدة"), String(card.item.unitPrice ?? "0")]], columnStyles: { 1: { cellWidth: 260, overflow: "linebreak" } }, styles: { font: getArabicPdfFont(doc), fontSize: 10, halign: "right", cellPadding: 5, overflow: "linebreak" , lineColor: [137, 162, 172], lineWidth: 0.55}, headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.6, font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: 9, halign: "center" }, willDrawPage: data => { if (data.pageNumber > 1) drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat); } });
   const allRows = buildItemCardMovementRows(card);
   const rows = options.movementFilter && options.movementFilter !== "all" ? allRows.filter(row => row.movement === options.movementFilter) : allRows;
-  const columns = ["date", "detail", ...(options.includePermitColumn ? ["permitNumber"] : []), "movement", "openingStock", "addition", "returned", "disbursement", "runningStock", ...(options.includeUnitPrice !== false ? ["unitPrice"] : []), ...(options.includeTotalValue !== false ? ["totalValue"] : [])] as const;
+  const columns = ["date", "detail", "purpose", ...(options.includePermitColumn ? ["permitNumber"] : []), "movement", "openingStock", "addition", "returned", "disbursement", "runningStock", ...(options.includeUnitPrice !== false ? ["unitPrice"] : []), ...(options.includeTotalValue !== false ? ["totalValue"] : [])] as const;
   const totals = { addition: rows.reduce((sum, row) => sum + row.addition, 0), returned: rows.reduce((sum, row) => sum + row.returned, 0), disbursement: rows.reduce((sum, row) => sum + row.disbursement, 0), totalValue: rows.reduce((sum, row) => sum + row.totalValue, 0) };
   const finalStock = Number(card.item.currentStock ?? rows.at(-1)?.runningStock ?? card.item.initialStock ?? 0); const totalRow = { date: "", rawDate: "", detail: "الإجمالي", movement: "", openingStock: null, addition: Number(totals.addition.toFixed(3)), returned: Number(totals.returned.toFixed(3)), disbursement: Number(totals.disbursement.toFixed(3)), runningStock: Number(finalStock.toFixed(3)), unitPrice: 0, totalValue: Number(totals.totalValue.toFixed(2)), permitNumber: "" } as unknown as ItemCardMovementPdfRow;
-  const columnLabels: Record<typeof columns[number], string> = { date: "التاريخ", detail: "البيان", permitNumber: "رقم الإذن", movement: "الحركة", openingStock: "الرصيد الأول", addition: "الإضافة", returned: "المرتجع", disbursement: "الصرف", runningStock: "الرصيد الإجمالي", unitPrice: "السعر", totalValue: "إجمالي السعر" };
+  const columnLabels: Record<typeof columns[number], string> = { date: "التاريخ", detail: "البيان", purpose: "اللُّزوم", permitNumber: "رقم الإذن", movement: "الحركة", openingStock: "الرصيد الأول", addition: "الإضافة", returned: "المرتجع", disbursement: "الصرف", runningStock: "الرصيد الإجمالي", unitPrice: "السعر", totalValue: "إجمالي السعر" };
   const visualColumns = [...columns].reverse();
-  const values: Record<typeof columns[number], (row: ItemCardMovementPdfRow) => string> = { date: row => row.date, detail: row => row.detail, permitNumber: row => row.permitNumber, movement: row => row.movement, openingStock: row => row.openingStock === null ? "—" : row.openingStock.toFixed(3), addition: row => row.addition ? row.addition.toFixed(3) : "—", returned: row => row.returned ? row.returned.toFixed(3) : "—", disbursement: row => row.disbursement ? row.disbursement.toFixed(3) : "—", runningStock: row => row.runningStock === null ? "—" : row.runningStock.toFixed(3), unitPrice: row => row.unitPrice ? row.unitPrice.toFixed(2) : "—", totalValue: row => row.totalValue ? row.totalValue.toFixed(2) : "—" };
+  const values: Record<typeof columns[number], (row: ItemCardMovementPdfRow) => string> = { date: row => row.date, detail: row => row.detail, purpose: row => row.purpose || "—", permitNumber: row => row.permitNumber, movement: row => row.movement, openingStock: row => row.openingStock === null ? "—" : row.openingStock.toFixed(3), addition: row => row.addition ? row.addition.toFixed(3) : "—", returned: row => row.returned ? row.returned.toFixed(3) : "—", disbursement: row => row.disbursement ? row.disbursement.toFixed(3) : "—", runningStock: row => row.runningStock === null ? "—" : row.runningStock.toFixed(3), unitPrice: row => row.unitPrice ? row.unitPrice.toFixed(2) : "—", totalValue: row => row.totalValue ? row.totalValue.toFixed(2) : "—" };
   const startY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 48 : 274;
   const movementColors: Record<ItemCardMovementKind, [number, number, number]> = { "إضافة": [255, 255, 255], "صرف": [255, 255, 255], "مرتجع": [255, 255, 255], "تحويل": [255, 255, 255] };
   const legend = [{ label: "وارد", kind: "إضافة" as const }, { label: "صادر", kind: "صرف" as const }, { label: "مرتجع", kind: "مرتجع" as const }, { label: "تحويل", kind: "تحويل" as const }];
@@ -597,7 +597,7 @@ export async function buildItemCardPdf(card: ItemCardPdfData, options: { logo?: 
   const dateColumnIndex = visualColumns.indexOf("date");
   const detailColumnIndex = visualColumns.indexOf("detail");
   const quantityColumnIndices = visualColumns.map((key, index) => [key, index] as const).filter(([key]) => ["openingStock", "addition", "returned", "disbursement", "runningStock"].includes(key)).map(([, index]) => index);
-  const rawColumnWidths: Record<typeof columns[number], number> = { date: 100, detail: 200, permitNumber: 60, movement: 55, openingStock: 55, addition: 55, returned: 55, disbursement: 55, runningStock: 75, unitPrice: 50, totalValue: 65 };
+  const rawColumnWidths: Record<typeof columns[number], number> = { date: 100, detail: 180, purpose: 130, permitNumber: 60, movement: 55, openingStock: 55, addition: 55, returned: 55, disbursement: 55, runningStock: 75, unitPrice: 50, totalValue: 65 };
   const contentWidth = doc.internal.pageSize.getWidth() - 48;
   const rawTableWidth = visualColumns.reduce((sum, key) => sum + rawColumnWidths[key], 0);
   const widthScale = contentWidth / rawTableWidth;
