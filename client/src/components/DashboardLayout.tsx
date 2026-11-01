@@ -713,6 +713,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
       {showBackToTop && <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="العودة إلى أعلى الصفحة" title="العودة للأعلى" className="back-to-top fixed bottom-24 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-2xl border border-[#8fd7ef] bg-[#e8f8ff] text-[#197da7] shadow-lg transition hover:-translate-y-0.5 md:bottom-8 md:left-8"><ArrowUpFromLine className="h-5 w-5" /></button>}
       {!previewPermissions && chatEnabled && <ChatFloatingBubble />}
       {!previewPermissions && effectivePermissions?.allowedScreens.includes("inventory") && <VoiceStockQuery />}
+      {!previewPermissions && !readOnlyRole && <FloatingQuickActions canCreateItems={canCreateItems} onNavigate={(path) => { window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} />}
       <MobileBottomNavigation items={mobileNavigationItems} activePath={activeMenuItem.path} onNavigate={(path) => { window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} darkMode={darkMode} />
       <OnboardingTour show={showOnboarding} onComplete={completeOnboarding} />
     </div>
