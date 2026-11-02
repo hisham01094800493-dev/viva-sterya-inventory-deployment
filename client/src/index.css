@@ -121,11 +121,14 @@
     font-family: "IBM Plex Sans Arabic", "Manrope", sans-serif;
     background: #eef4f8;
     color-scheme: light;
+    min-height: 100%;
   }
   body {
     @apply text-foreground;
     direction: rtl;
     min-width: 320px;
+    min-height: 100%;
+    overflow-x: hidden;
     background:
       radial-gradient(circle at 9% 8%, rgba(64, 145, 157, 0.12), transparent 28rem),
       radial-gradient(circle at 92% 18%, rgba(216, 157, 75, 0.11), transparent 24rem),
@@ -163,6 +166,18 @@
   input[type="radio"]:not(:disabled) {
     @apply cursor-pointer;
   }
+  #root { min-height: 100%; width: 100%; }
+}
+
+@media (max-width: 1023px) and (orientation: landscape) {
+  html, body, #root { min-height: 100dvh; }
+  .smart-topbar { min-height: 3rem !important; padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+  .smart-topbar-eyebrow { display: none; }
+  .smart-topbar-title { font-size: 0.95rem; }
+  main.page-transition { min-height: calc(100dvh - 3rem); padding-top: 0.5rem; padding-bottom: 5rem; }
+  .quick-actions-mobile-launcher { bottom: max(0.5rem, env(safe-area-inset-bottom)) !important; }
+  [data-radix-dialog-content] { max-height: calc(100dvh - 0.75rem); overflow-y: auto; }
+  .pdf-action-toolbar { max-height: 40dvh; overflow-y: auto; }
 }
 
 @keyframes voiceButtonPulse {
