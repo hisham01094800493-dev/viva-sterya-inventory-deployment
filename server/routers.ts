@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { parse as parseCookie } from "cookie";
 import { z } from "zod";
-import { getForecastRows, invalidateForecastCache } from "./stockForecast";
+import { getDisbursementAnalysis, getForecastRows, invalidateForecastCache } from "./stockForecast";
 import { buildActivityCleanupAuditDetails } from "./activityCleanup";
 import {
   createAddition,
@@ -600,6 +600,9 @@ export const appRouter = router({
       const rows = await getForecastRows(ctx.permissions.allowedWarehouseIds, { leadTimeDays: Math.max(0, Number(leadTime) || 7), safetyStockDays: Math.max(0, Number(safetyStock) || 3), analysisDays: input?.analysisDays ?? 30 });
       return { critical: rows.filter(row => row.severity === "critical").length, warning: rows.filter(row => row.severity === "warning").length, watch: rows.filter(row => row.severity === "watch").length, ok: rows.filter(row => row.severity === "ok").length, stagnant: rows.filter(row => row.stagnant).length, suggestedValue: rows.reduce((sum, row) => sum + row.suggestedOrderQty * row.consumptionValue90 / Math.max(1, row.dailyRate90 * 90), 0) };
     })),
+    disbursementAnalysis: permissionProcedure("alerts")
+      .input(z.object({ historyDays: z.number().int().min(1).max(3650).default(30), forecastDays: z.number().int().min(1).max(3650).default(30) }))
+      .query(({ input, ctx }) => safe(() => getDisbursementAnalysis(ctx.permissions.allowedWarehouseIds, input.historyDays, input.forecastDays))),
   }),
 
   notifications: router({

@@ -1119,21 +1119,47 @@ export function AdditionsPage() { return <MovementPage kind="additions" />; }
 export function DisbursementsPage() { return <MovementPage kind="disbursements" />; }
 export function TransfersPage() { return <MovementPage kind="transfers" />; }
 
+function DisbursementAnalysisView() {
+  const [historyDays, setHistoryDays] = useState(30);
+  const [forecastDays, setForecastDays] = useState(30);
+  const input = useMemo(() => ({ historyDays, forecastDays }), [historyDays, forecastDays]);
+  const analysis = trpc.alerts.disbursementAnalysis.useQuery(input);
+  const setDays = (setter: (value: number) => void, value: string) => setter(Math.min(3650, Math.max(1, Number(value) || 1)));
+
+  return <div className="space-y-4">
+    <div className="rounded-2xl border border-[#f0dfbe] bg-[#fffaf0] p-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div><p className="text-sm font-black text-[#8c5c1d]">تحليل الصرف حسب المقاول / المبنى</p><p className="mt-1 text-xs leading-6 text-[#a96821]">هذا التحليل مستقل تماماً عن حرج وتحذير ومراقبة، ولا يغيّر حسابات إنذار المخزون.</p></div>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs font-bold text-[#8c5c1d]">عدد أيام التحليل<input type="number" min={1} max={3650} value={historyDays} onChange={event => setDays(setHistoryDays, event.target.value)} className="mt-1 h-9 w-28 rounded-lg border border-[#e4c98f] bg-white px-2 text-center font-black text-[#102a43]" /></label>
+          <label className="text-xs font-bold text-[#8c5c1d]">أيام التوقع<input type="number" min={1} max={3650} value={forecastDays} onChange={event => setDays(setForecastDays, event.target.value)} className="mt-1 h-9 w-28 rounded-lg border border-[#e4c98f] bg-white px-2 text-center font-black text-[#102a43]" /></label>
+        </div>
+      </div>
+    </div>
+    {analysis.isLoading ? <LoadingRows columns={5} /> : analysis.error ? <p className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">تعذر تحميل تحليل الصرف.</p> : !analysis.data?.length ? <EmptyTable title="لا توجد حركات صرف في الفترة المحددة" description="جرّب زيادة فترة التحليل أو أضف حركات مرتبطة بمبنى أو مقاول." icon={Activity} /> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {analysis.data.map(row => <article key={row.key} className="rounded-2xl border border-[#e5eef1] bg-[#fbfdff] p-4">
+        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h4 className="truncate font-black text-[#102a43]">{row.itemName}</h4><p className="mt-1 font-mono text-xs text-slate-400">{row.itemCode} · {row.unit || "وحدة"}</p></div><span className="max-w-[48%] truncate rounded-full bg-[#fff8e9] px-2.5 py-1 text-xs font-black text-[#8c5c1d]">{row.buildingName}</span></div>
+        <div className="mt-4 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-[#f7fbfc] p-3"><p className="text-slate-500">إجمالي الصرف</p><p className="mt-1 text-lg font-black text-[#bd5147]">{formatQuantity(row.totalQuantity)}</p></div><div className="rounded-xl bg-[#f7fbfc] p-3"><p className="text-slate-500">مرات الصرف</p><p className="mt-1 text-lg font-black text-[#0d4f62]">{row.movementCount}</p></div><div className="rounded-xl bg-[#f7fbfc] p-3"><p className="text-slate-500">المتوسط اليومي</p><p className="mt-1 font-black text-[#0d7180]">{formatQuantity(row.averageDaily)} / يوم</p></div><div className="rounded-xl bg-[#f7fbfc] p-3"><p className="text-slate-500">المتوقع خلال {row.forecastDays} يوم</p><p className="mt-1 font-black text-[#a96821]">{formatQuantity(row.projectedQuantity)}</p></div></div>
+        <div className="mt-3 flex items-center justify-between border-t border-[#e5eef1] pt-3 text-xs"><span className="font-bold text-slate-500">الرصيد الحالي</span><span className="font-black text-[#0d4f62]">{formatQuantity(row.currentStock)} {row.unit || "وحدة"}</span></div><p className="mt-2 text-[11px] text-slate-400">القيمة: {formatQuantity(row.totalValue)} ج.م · {row.buildingType === "subcontractor" ? "مقاول" : row.buildingType === "owned_building" ? "مبنى مملوك" : "جهة غير محددة"}</p>
+      </article>)}
+    </div>}
+  </div>;
+}
+
+
 function SmartForecastCard() {
   const [severity, setSeverity] = useState<"critical" | "warning" | "watch" | "stagnant">("critical");
+  const [activeTab, setActiveTab] = useState<"forecast" | "analysis">("forecast");
   const [search, setSearch] = useState("");
   const [abcClass, setAbcClass] = useState<"" | "A" | "B" | "C">("");
-  const [analysisDaysInput, setAnalysisDaysInput] = useState("30");
-  const analysisDays = Math.min(365, Math.max(1, Number(analysisDaysInput) || 30));
   const [page, setPage] = useState(1);
   const pageSize = 8;
-  const summary = trpc.alerts.forecastSummary.useQuery({ analysisDays }, { refetchInterval: 60_000, refetchOnWindowFocus: true });
+  const summary = trpc.alerts.forecastSummary.useQuery(undefined, { refetchInterval: 60_000, refetchOnWindowFocus: true });
   const forecast = trpc.alerts.smartForecast.useQuery({
     severity: severity === "stagnant" ? undefined : severity,
     stagnant: severity === "stagnant" ? true : undefined,
     abcClass: abcClass || undefined,
     search: search || undefined,
-    analysisDays,
     page,
     pageSize,
   });
@@ -1157,7 +1183,7 @@ function SmartForecastCard() {
             <h3 className="mt-1 text-xl font-black text-[#102a43] dark:text-white">التوقع الذكي للنقص</h3>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">تابع الأصناف حسب درجة الخطورة، مع عرض محدود يسهل مراجعته.</p>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="تصفية التوقع حسب الحالة">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="group" aria-label="تصفية التوقع حسب الحالة">
             {tabs.map(tab => (
               <button
                 key={tab.key}
@@ -1169,15 +1195,16 @@ function SmartForecastCard() {
                 {tab.value}<span className="block text-[10px]">{tab.label}</span>
               </button>
             ))}
+            <button type="button" onClick={() => setActiveTab("analysis")} className={`min-w-[82px] rounded-xl px-3 py-2 text-center text-xs font-black transition ${activeTab === "analysis" ? "bg-[#a96821] text-white shadow-sm" : "bg-[#fff8e9] text-[#a96821] hover:bg-[#fff0d4] dark:bg-amber-950/40 dark:text-amber-200"}`}>تحليل<span className="block text-[10px]">الصرف</span></button>
           </div>
         </div>
 
+        {activeTab === "analysis" ? <DisbursementAnalysisView /> : <>
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
           <Input value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="ابحث بالاسم أو الكود" aria-label="ابحث في التوقع الذكي" className="rounded-xl dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
           <select onChange={event => { setAbcClass(event.target.value as typeof abcClass); setPage(1); }} value={abcClass} aria-label="فلترة حسب تصنيف ABC" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
             <option value="">كل تصنيفات ABC</option><option value="A">ABC - A</option><option value="B">ABC - B</option><option value="C">ABC - C</option>
           </select>
-          <label className="space-y-1 text-xs font-bold text-slate-500 dark:text-slate-400">عدد أيام التحليل<Input type="number" min="1" max="365" value={analysisDaysInput} onChange={event => { setAnalysisDaysInput(event.target.value); setPage(1); }} className="h-10 rounded-xl text-center font-black dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
         </div>
 
         {forecast.isLoading ? <LoadingRows columns={4} /> : forecast.error ? <p className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-200">تعذر تحميل التوقع الذكي.</p> : !forecast.data?.rows.length ? <EmptyTable title="لا توجد أصناف ضمن هذا التصنيف" description="جرّب تغيير الحالة أو البحث أو تصنيف ABC." icon={Activity} /> : (
@@ -1210,6 +1237,7 @@ function SmartForecastCard() {
             )}
           </>
         )}
+        </>}
       </CardContent>
     </Card>
   );

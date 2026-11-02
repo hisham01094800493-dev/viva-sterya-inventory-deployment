@@ -1,6 +1,6 @@
 import { getDb } from "./db/connection";
-import { asc, inArray } from "drizzle-orm";
-import { disbursements, items } from "../drizzle/schema";
+import { and, asc, gte, inArray, lte } from "drizzle-orm";
+import { buildings, disbursements, items } from "../drizzle/schema";
 
 type ItemRow = { id: number; code: string; name: string; currentStock: unknown; unit?: string | null; unitPrice?: unknown; warehouseId?: number | null; createdAt?: Date | null };
 type DisbursementRow = { itemCode: string; quantity: unknown; unitPrice?: unknown; totalValue?: unknown; date: string; warehouseId?: number | null };
@@ -78,4 +78,84 @@ export async function getForecastRows(allowedWarehouseIds: number[] = [], settin
   const rows = buildForecast(itemRows, movementRows, new Date(), settings);
   if (!allowedWarehouseIds.length) cached = { at: Date.now(), key: cacheKey, rows };
   return rows;
+}
+
+
+export type DisbursementAnalysisRow = {
+  key: string;
+  itemCode: string;
+  itemName: string;
+  unit: string | null;
+  buildingId: number | null;
+  buildingName: string;
+  buildingCode: string;
+  buildingType: "owned_building" | "subcontractor" | "unknown";
+  totalQuantity: number;
+  totalValue: number;
+  movementCount: number;
+  averageDaily: number;
+  forecastDays: number;
+  projectedQuantity: number;
+  currentStock: number;
+};
+
+export async function getDisbursementAnalysis(
+  allowedWarehouseIds: number[] = [],
+  historyDays = 30,
+  forecastDays = 30,
+): Promise<DisbursementAnalysisRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const safeHistoryDays = Math.min(3650, Math.max(1, Math.floor(historyDays)));
+  const safeForecastDays = Math.min(3650, Math.max(1, Math.floor(forecastDays)));
+  const end = new Date();
+  const endKey = dateKey(new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate())));
+  const start = new Date(`${endKey}T00:00:00.000Z`);
+  start.setUTCDate(start.getUTCDate() - safeHistoryDays + 1);
+  const startKey = dateKey(start);
+  const movementWhere = and(
+    gte(disbursements.date, startKey),
+    lte(disbursements.date, endKey),
+    ...(allowedWarehouseIds.length ? [inArray(disbursements.warehouseId, allowedWarehouseIds)] : []),
+  );
+  const [movementRows, itemRows, buildingRows] = await Promise.all([
+    db.select({ itemCode: disbursements.itemCode, itemName: disbursements.itemName, quantity: disbursements.quantity, totalValue: disbursements.totalValue, date: disbursements.date, buildingId: disbursements.buildingId }).from(disbursements).where(movementWhere),
+    db.select({ code: items.code, name: items.name, currentStock: items.currentStock, unit: items.unit }).from(items),
+    db.select({ id: buildings.id, name: buildings.name, code: buildings.code, type: buildings.type }).from(buildings),
+  ]);
+  const itemByCode = new Map(itemRows.map(item => [item.code, item]));
+  const buildingById = new Map(buildingRows.map(building => [building.id, building]));
+  const grouped = new Map<string, DisbursementAnalysisRow>();
+  for (const movement of movementRows) {
+    const item = itemByCode.get(movement.itemCode);
+    const building = movement.buildingId ? buildingById.get(movement.buildingId) : undefined;
+    const buildingId = movement.buildingId ?? null;
+    const key = `${buildingId ?? "unknown"}:${movement.itemCode}`;
+    const quantity = asNumber(movement.quantity);
+    const value = asNumber(movement.totalValue);
+    const existing = grouped.get(key) ?? {
+      key,
+      itemCode: movement.itemCode,
+      itemName: String(item?.name ?? movement.itemName ?? movement.itemCode),
+      unit: item?.unit ?? null,
+      buildingId,
+      buildingName: building?.name ?? "جهة غير محددة",
+      buildingCode: building?.code ?? "—",
+      buildingType: building?.type ?? "unknown",
+      totalQuantity: 0,
+      totalValue: 0,
+      movementCount: 0,
+      averageDaily: 0,
+      forecastDays: safeForecastDays,
+      projectedQuantity: 0,
+      currentStock: asNumber(item?.currentStock),
+    };
+    existing.totalQuantity += quantity;
+    existing.totalValue += value;
+    existing.movementCount += 1;
+    grouped.set(key, existing);
+  }
+  return Array.from(grouped.values())
+    .map(row => ({ ...row, averageDaily: row.totalQuantity / safeHistoryDays, projectedQuantity: Math.max(0, row.totalQuantity / safeHistoryDays * safeForecastDays) }))
+    .sort((a, b) => b.totalQuantity - a.totalQuantity || a.itemName.localeCompare(b.itemName, "ar"));
 }
