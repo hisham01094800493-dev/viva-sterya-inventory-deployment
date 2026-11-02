@@ -18,11 +18,12 @@ type LocalDraft = DraftForm & { id: string; createdAt: string; updatedAt: string
 const emptyDraft: DraftForm = { kind: "note", title: "", body: "", movementType: "addition", itemCode: "", quantity: "", counterparty: "", warehouse: "", handwriting: "", image: "", imageName: "" };
 const storagePrefix = "viva-sterya-local-drafts";
 function formatDraftDate(value: Date | string | null | undefined) { if (!value) return ""; const date = new Date(value); return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" }); }
+function createDraftId() { return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`; }
 function readLocalDrafts(key: string): LocalDraft[] {
   if (typeof window === "undefined") return [];
   try {
     const parsed = JSON.parse(window.localStorage.getItem(key) || "[]");
-    return Array.isArray(parsed) ? parsed.filter((draft): draft is Partial<LocalDraft> => Boolean(draft && typeof draft === "object")).map((draft: Partial<LocalDraft>) => ({ ...emptyDraft, ...draft, id: String(draft.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`), createdAt: draft.createdAt ?? new Date().toISOString(), updatedAt: draft.updatedAt ?? draft.createdAt ?? new Date().toISOString() })) : [];
+    return Array.isArray(parsed) ? parsed.filter((draft): draft is Partial<LocalDraft> => Boolean(draft && typeof draft === "object" && typeof draft.id === "string")).map((draft: Partial<LocalDraft>) => ({ ...emptyDraft, ...draft, id: String(draft.id), createdAt: draft.createdAt ?? new Date().toISOString(), updatedAt: draft.updatedAt ?? draft.createdAt ?? new Date().toISOString() })) : [];
   } catch { return []; }
 }
 
@@ -166,9 +167,10 @@ export default function DraftsPage() {
   useEffect(() => { if (!form.title) setForm(current => ({ ...current, title: current.kind === "note" ? "ملاحظة جديدة" : "مسودة إذن مخزني" })); }, [form.kind, form.title]);
 
   function persist(next: LocalDraft[]) {
+    const normalized = next.filter(Boolean);
     try {
-      window.localStorage.setItem(storageKey, JSON.stringify(next));
-      setDrafts(next);
+      window.localStorage.setItem(storageKey, JSON.stringify(normalized));
+      setDrafts(normalized);
       return true;
     } catch {
       toast.error("تعذر الحفظ المحلي؛ قد تكون مساحة المتصفح ممتلئة. قلّل حجم الصورة أو احذف ملاحظة قديمة.");
@@ -179,7 +181,8 @@ export default function DraftsPage() {
     setEditingId(draft.id);
     setForm({ ...emptyDraft, ...draft });
   }
-  function reset() { setEditingId(null); setForm(emptyDraft); if (imageInputRef.current) imageInputRef.current.value = ""; }
+  function startNewDraft() { setEditingId(null); setForm({ ...emptyDraft }); if (imageInputRef.current) imageInputRef.current.value = ""; }
+  function reset() { startNewDraft(); }
   function editDraft(draft: LocalDraft) { setPreviewDraft(null); selectDraft(draft); window.scrollTo({ top: 0, behavior: "smooth" }); }
   function downloadBlob(blob: Blob, filename: string) { const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
   function loadImage(dataUrl: string) { return new Promise<HTMLImageElement>((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = dataUrl; }); }
@@ -230,8 +233,8 @@ export default function DraftsPage() {
     const body = form.body.trim();
     if (!title || (!body && !form.handwriting && !form.image)) { toast.error("اكتب عنوان الملاحظة وأضف نصًا أو كتابة بالقلم أو صورة"); return; }
     const now = new Date().toISOString();
-    const nextDraft: LocalDraft = { ...form, title, body, id: editingId ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: editingId ? (drafts.find(item => item.id === editingId)?.createdAt ?? now) : now, updatedAt: now };
-    if (persist(editingId ? drafts.map(item => item.id === editingId ? nextDraft : item) : [nextDraft, ...drafts])) {
+    const nextDraft: LocalDraft = { ...form, title, body, id: editingId ?? createDraftId(), createdAt: editingId ? (drafts.find(item => item.id === editingId)?.createdAt ?? now) : now, updatedAt: now };
+    if (persist(editingId ? drafts.map(item => item.id === editingId ? nextDraft : item) : [nextDraft, ...drafts.filter(item => item.id !== nextDraft.id)])) {
       toast.success(editingId ? "تم تحديث الملاحظة محليًا" : "تم حفظ الملاحظة محليًا");
       reset();
     }
@@ -241,7 +244,7 @@ export default function DraftsPage() {
   return <DashboardLayout><div className="mx-auto w-full max-w-[1450px] space-y-6" dir="rtl">
     <div><p className="mb-2 text-[10px] font-black uppercase tracking-[0.27em] text-[#d08a3b]">WORKSPACE / NOTES</p><h1 className="text-3xl font-black text-[#102a43] dark:text-white">الملاحظات والمسودات</h1><p className="mt-2 text-sm leading-7 text-slate-500 dark:text-slate-300">ملاحظات شخصية محفوظة على هذا المتصفح فقط، ولا تؤثر على المخزون أو قاعدة البيانات. اكتب بالقلم أو أرفق صورة عند الحاجة.</p></div>
     <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-      <Card className="border-0 bg-white/85 shadow-sm dark:bg-[#172b35]"><CardHeader><CardTitle className="flex items-center justify-between text-lg dark:text-white">الملاحظات المحفوظة <Button type="button" size="icon" onClick={reset} className="rounded-xl bg-[#0d7180] text-white" aria-label="ملاحظة جديدة"><Plus className="h-4 w-4" /></Button></CardTitle></CardHeader><CardContent className="space-y-3">{drafts.length === 0 ? <p className="text-sm text-slate-500 dark:text-slate-300">لا توجد ملاحظات محفوظة بعد.</p> : drafts.map(draft => <div key={draft.id} className={`rounded-2xl border p-3 ${editingId === draft.id ? "border-[#0d7180] bg-[#e8f8f8] dark:bg-teal-950/30" : "border-slate-200 bg-white dark:border-slate-600 dark:bg-[#203d47]"}`}><div className="flex items-start gap-2"><button type="button" onClick={() => setPreviewDraft(draft)} className="min-w-0 flex-1 text-right"><p className="truncate text-sm font-black text-[#102a43] dark:text-white">{draft.title}</p><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-300">{draft.body || (draft.handwriting ? "ملاحظة مكتوبة بالقلم" : draft.image ? "ملاحظة مرفقة بصورة" : "مسودة")}</p><div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-400"><span>{formatDraftDate(draft.updatedAt)}</span><span>· اضغط للمعاينة</span>{draft.handwriting && <span>· كتابة بالقلم</span>}{draft.image && <span>· صورة مرفقة</span>}</div></button><Button type="button" variant="outline" size="icon" onClick={() => deleteDraft(draft.id)} className="h-9 w-9 shrink-0 rounded-xl border-red-200 text-red-600 hover:bg-red-50" aria-label={`حذف ${draft.title}`}><Trash2 className="h-4 w-4" /></Button></div></div>)}</CardContent></Card>
+      <Card className="border-0 bg-white/85 shadow-sm dark:bg-[#172b35]"><CardHeader><CardTitle className="flex items-center justify-between text-lg dark:text-white">الملاحظات المحفوظة <span className="rounded-full bg-[#e8f8f8] px-2.5 py-1 text-xs font-black text-[#0d7180]">{drafts.length}</span><Button type="button" size="icon" onClick={startNewDraft} className="rounded-xl bg-[#0d7180] text-white" aria-label="ملاحظة جديدة"><Plus className="h-4 w-4" /></Button></CardTitle></CardHeader><CardContent className="space-y-3">{drafts.length === 0 ? <p className="text-sm text-slate-500 dark:text-slate-300">لا توجد ملاحظات محفوظة بعد.</p> : drafts.map(draft => <div key={draft.id} className={`rounded-2xl border p-3 ${editingId === draft.id ? "border-[#0d7180] bg-[#e8f8f8] dark:bg-teal-950/30" : "border-slate-200 bg-white dark:border-slate-600 dark:bg-[#203d47]"}`}><div className="flex items-start gap-2"><button type="button" onClick={() => setPreviewDraft(draft)} className="min-w-0 flex-1 text-right"><p className="truncate text-sm font-black text-[#102a43] dark:text-white">{draft.title}</p><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-300">{draft.body || (draft.handwriting ? "ملاحظة مكتوبة بالقلم" : draft.image ? "ملاحظة مرفقة بصورة" : "مسودة")}</p><div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-400"><span>{formatDraftDate(draft.updatedAt)}</span><span>· اضغط للمعاينة</span>{draft.handwriting && <span>· كتابة بالقلم</span>}{draft.image && <span>· صورة مرفقة</span>}</div></button><Button type="button" variant="outline" size="icon" onClick={() => deleteDraft(draft.id)} className="h-9 w-9 shrink-0 rounded-xl border-red-200 text-red-600 hover:bg-red-50" aria-label={`حذف ${draft.title}`}><Trash2 className="h-4 w-4" /></Button></div></div>)}</CardContent></Card>
       <Card className="border-0 bg-white/85 shadow-sm dark:bg-[#172b35]"><CardHeader><CardTitle className="flex items-center gap-2 text-lg dark:text-white"><FilePenLine className="h-5 w-5 text-[#0d7180]" />{editingId ? "تعديل الملاحظة" : "ملاحظة جديدة"}</CardTitle></CardHeader><CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2"><Button type="button" variant={form.kind === "note" ? "default" : "outline"} onClick={() => setForm(current => ({ ...current, kind: "note", title: current.title || "ملاحظة جديدة" }))} className="rounded-xl">ملاحظة عامة</Button><Button type="button" variant={form.kind === "movement" ? "default" : "outline"} onClick={() => setForm(current => ({ ...current, kind: "movement", title: current.title || "مسودة إذن مخزني" }))} className="rounded-xl">مسودة إذن مخزني</Button></div>
         <Input value={form.title} onChange={event => setForm(current => ({ ...current, title: event.target.value }))} placeholder="عنوان الملاحظة" className="h-12 rounded-xl dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
