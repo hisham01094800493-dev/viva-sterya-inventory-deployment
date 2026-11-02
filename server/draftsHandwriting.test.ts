@@ -27,10 +27,18 @@ describe("الكتابة بالقلم ومرفقات الملاحظات", () => 
   it("يحفظ صورة الكتابة مع الملاحظة ويعيد تحميل المسودات القديمة دون فقدها", () => {
     expect(source).toContain("handwriting: string; image: string; imageName: string");
     expect(source).toContain("handwriting: \"\", image: \"\", imageName: \"\"");
-    expect(source).toContain("window.localStorage.setItem(storageKey, JSON.stringify(next))");
-    expect(source).toContain("id: String(draft.id ??");
+    expect(source).toContain("window.localStorage.setItem(storageKey, JSON.stringify(normalized))");
+    expect(source).toContain("function createDraftId()");
+    expect(source).toContain("id: String(draft.id)");
     expect(source).toContain("createdAt: draft.createdAt ?? new Date().toISOString()");
     expect(source).toContain("ملاحظة مكتوبة بالقلم");
+  });
+
+  it("يفصل بين إنشاء ملاحظة جديدة وتعديل ملاحظة محفوظة", () => {
+    expect(source).toContain("function startNewDraft()");
+    expect(source).toContain("editingId ? drafts.map(item => item.id === editingId ? nextDraft : item)");
+    expect(source).toContain("[nextDraft, ...drafts.filter(item => item.id !== nextDraft.id)]");
+    expect(source).toContain("{drafts.length}");
   });
 
   it("يسمح باختيار صورة من الهاتف ويضغطها قبل حفظها محليًا", () => {

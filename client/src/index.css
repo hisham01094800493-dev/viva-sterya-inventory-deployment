@@ -121,6 +121,7 @@
     font-family: "IBM Plex Sans Arabic", "Manrope", sans-serif;
     background: #eef4f8;
     color-scheme: light;
+    height: 100%;
     min-height: 100%;
   }
   body {
@@ -170,14 +171,29 @@
 }
 
 @media (max-width: 1023px) and (orientation: landscape) {
-  html, body, #root { min-height: 100dvh; }
-  .smart-topbar { min-height: 3rem !important; padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+  html, body, #root { height: 100%; min-height: 100dvh; }
+  body { overflow-x: hidden; overflow-y: auto; }
+  .smart-topbar { min-height: 3rem !important; height: auto; padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
   .smart-topbar-eyebrow { display: none; }
   .smart-topbar-title { font-size: 0.95rem; }
-  main.page-transition { min-height: calc(100dvh - 3rem); padding-top: 0.5rem; padding-bottom: 5rem; }
+  main.page-transition { min-height: calc(100dvh - 3rem); padding-top: 0.5rem; padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
   .quick-actions-mobile-launcher { bottom: max(0.5rem, env(safe-area-inset-bottom)) !important; }
-  [data-radix-dialog-content] { max-height: calc(100dvh - 0.75rem); overflow-y: auto; }
+  [data-radix-dialog-content] { max-height: calc(100dvh - 0.75rem); overflow-x: hidden; overflow-y: auto; }
   .pdf-action-toolbar { max-height: 40dvh; overflow-y: auto; }
+}
+
+@media (max-width: 767px) and (orientation: landscape) and (max-height: 520px) {
+  .smart-topbar { min-height: 2.75rem !important; padding-inline: 0.5rem !important; }
+  .smart-topbar-title { font-size: 0.875rem; }
+  .smart-topbar-action { height: 2rem !important; width: 2rem !important; }
+  .smart-topbar-status, .smart-topbar > div:last-child > .h-9 { display: none; }
+  main.page-transition { padding-inline: 0.5rem; padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)); }
+  .quick-actions-mobile-launcher { transform: scale(0.86); transform-origin: bottom right; }
+  [data-radix-dialog-content] { max-height: calc(100dvh - 0.25rem); }
+}
+
+@media (max-width: 1023px) and (orientation: portrait) {
+  main.page-transition { min-height: calc(100dvh - 4rem); padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
 }
 
 @keyframes voiceButtonPulse {
