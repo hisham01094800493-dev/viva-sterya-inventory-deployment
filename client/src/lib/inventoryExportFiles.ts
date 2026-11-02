@@ -12,7 +12,7 @@ import { formatDisbursementPurpose, splitMixedArabicLatinForPdf } from "./moveme
 import type { StockVarianceRow } from "./stockVariance";
 import type { AccountItemSummary } from "./accountStatementGrouping";
 
-export type MovementExportItem = { id?: number; currentStock?: number; unit?: string | null; type: string; date: string; eznNum: string; itemCode: string; name?: string; quantity: number; detail: string; purpose?: string | null; additionPurpose?: string | null; disbursementPurpose?: string | null; returnPurpose?: string | null; unitPrice: number; totalValue: number; imageUrl?: string | null; documentImageUrl?: string | null; isNegativeCorrection?: boolean };
+export type MovementExportItem = { id?: number; buildingId?: number | null; currentStock?: number; unit?: string | null; type: string; date: string; eznNum: string; itemCode: string; name?: string; quantity: number; detail: string; purpose?: string | null; additionPurpose?: string | null; disbursementPurpose?: string | null; returnPurpose?: string | null; unitPrice: number; totalValue: number; imageUrl?: string | null; documentImageUrl?: string | null; isNegativeCorrection?: boolean };
 export const inventoryExportColumns = ["code", "name", "category", "unit", "currentStock", "reorderLevel", "unitPrice", "totalValue", "image"] as const;
 export const movementExportColumns = ["name", "type", "date", "eznNum", "itemCode", "quantity", "additionPurpose", "disbursementPurpose", "returnPurpose", "unitPrice", "totalValue", "image", "documentImage", "detail"] as const;
 export type ExportColumnKey = typeof inventoryExportColumns[number] | typeof movementExportColumns[number];
