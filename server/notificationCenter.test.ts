@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   findNewUnreadNotification,
   formatIncomingNotification,
+  getNotificationDestination,
   getNotificationTone,
   getSeenNotificationIds,
   rememberUnreadNotificationIds,
@@ -43,5 +44,11 @@ describe("notification center", () => {
   it("formats help requests and assigns a stronger tone to critical alerts", () => {
     expect(formatIncomingNotification({ id: 1, title: "طلب مساعدة: مشكلة في المزامنة", notificationType: "help_request", isRead: false })).toBe("طلب مساعدة جديد: مشكلة في المزامنة");
     expect(getNotificationTone("critical").frequency).toBeGreaterThan(getNotificationTone("normal").frequency);
+  });
+
+  it("opens daily report notifications in Smart Alerts, including notifications saved with the old settings link", () => {
+    expect(getNotificationDestination({ title: "التقرير اليومي للمخزون", notificationType: "daily_report", link: "/settings" })).toBe("/alerts");
+    expect(getNotificationDestination({ title: "تقرير يومي", notificationType: "daily_report", link: "/?workCenter=movement" })).toBe("/alerts");
+    expect(getNotificationDestination({ title: "إشعار إداري", notificationType: "custom", link: "/settings" })).toBe("/settings");
   });
 });

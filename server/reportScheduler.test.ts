@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { buildDailyReportNotificationLink, computeNextRunAt, getCairoParts, isScheduleDue } from "./reportScheduler";
 
 describe("رابط إشعار التقرير اليومي", () => {
-  it("يفتح مركز العمل اليومي على قسم الحركة", () => {
-    expect(buildDailyReportNotificationLink()).toBe("/?workCenter=movement");
+  it("يفتح صفحة التنبيهات الذكية", () => {
+    expect(buildDailyReportNotificationLink()).toBe("/alerts");
   });
 });
 

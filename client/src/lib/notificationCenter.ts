@@ -47,6 +47,14 @@ export function formatIncomingNotification(row: NotificationSummary) {
   return row.title;
 }
 
+export function getNotificationDestination(row: Pick<NotificationSummary, "title" | "notificationType"> & { link?: string | null }) {
+  const title = row.title.trim().toLocaleLowerCase();
+  const type = row.notificationType?.trim().toLocaleLowerCase() ?? "";
+  const isDailyReport = type.includes("daily") || /التقرير\s+اليومي|تقرير\s+يومي|daily\s+inventory\s+report/.test(title);
+  if (isDailyReport) return "/alerts";
+  return row.link || "/alerts";
+}
+
 export function getNotificationTone(priority?: string | null): NotificationTone {
   if (priority === "critical") return { frequency: 880, duration: 0.28 };
   if (priority === "high") return { frequency: 780, duration: 0.24 };
