@@ -199,8 +199,10 @@ export default function DraftsPage() {
   function reset() { startNewDraft(); }
   function editDraft(draft: LocalDraft) {
     selectDraft(draft);
-    setPreviewDraft(null);
-    window.setTimeout(() => editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    window.setTimeout(() => {
+      editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setPreviewDraft(null);
+    }, 120);
   }
   function downloadBlob(blob: Blob, filename: string) { const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
   function loadImage(dataUrl: string) { return new Promise<HTMLImageElement>((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = dataUrl; }); }

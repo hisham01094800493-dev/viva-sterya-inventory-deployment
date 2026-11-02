@@ -40,7 +40,9 @@ describe("الكتابة بالقلم ومرفقات الملاحظات", () => 
     expect(source).toContain("[nextDraft, ...drafts.filter(item => item.id !== nextDraft.id)]");
     expect(source).toContain("{drafts.length}");
     expect(source).toContain("const selectedDraft = drafts.find(item => item.id === draft.id) ?? draft");
-    expect(source).toContain("window.setTimeout(() => editorRef.current?.scrollIntoView");
+    expect(source).toContain("window.setTimeout(() => {");
+    expect(source).toContain("editorRef.current?.scrollIntoView({ behavior: \"smooth\", block: \"start\" });");
+    expect(source).toContain("}, 120);");
   });
 
   it("يسمح باختيار صورة من الهاتف ويضغطها قبل حفظها محليًا", () => {
