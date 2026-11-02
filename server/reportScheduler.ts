@@ -71,7 +71,7 @@ export function getCairoParts(date: Date): CairoParts {
 }
 
 export function buildDailyReportNotificationLink() {
-  return "/?workCenter=movement";
+  return "/alerts";
 }
 
 export function isScheduleDue(now: Date, scheduleTime: string, lastSuccessfulDate?: string | null): boolean {
