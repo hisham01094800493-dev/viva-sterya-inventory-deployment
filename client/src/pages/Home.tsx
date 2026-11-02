@@ -14,6 +14,7 @@ import {
   ArrowLeftRight,
   ArrowUpFromLine,
   Boxes,
+  Building2,
   ClipboardList,
   Calculator,
   CalendarDays,
@@ -517,7 +518,7 @@ export default function Home() {
                 <CardContent className="p-0">
                   <div className="flex items-center justify-between border-b border-[#edf2f5] px-6 py-5">
                     <div><p className="text-lg font-black text-[#102a43]">الأصناف التي تحتاج متابعة</p><p className="mt-1 text-xs text-slate-400">تنبيه تلقائي حسب نسبة حد الطلب الحالية</p></div>
-                    <Button variant="ghost" onClick={() => setLocation("/alerts")} className="rounded-lg text-xs font-bold text-[#0d4f62] hover:bg-[#e8f1f2]">عرض الكل<ChevronLeft className="mr-1 h-4 w-4" /></Button>
+                    <div className="flex items-center gap-1"><Button variant="ghost" onClick={() => setLocation("/building-costs")} className="rounded-lg px-2 text-[11px] font-bold text-[#0d7180] hover:bg-[#e8f1f2]"><Building2 className="ml-1 h-3.5 w-3.5" />مقارنة المباني</Button><Button variant="ghost" onClick={() => setLocation("/alerts")} className="rounded-lg text-xs font-bold text-[#0d4f62] hover:bg-[#e8f1f2]">عرض الكل<ChevronLeft className="mr-1 h-4 w-4" /></Button></div>
                   </div>
                   <div className="p-4 md:p-6">
                     {!summary.data?.lowStock.length ? <EmptyState label="لا توجد أصناف منخفضة المخزون حالياً. الوضع مستقر." /> : (
