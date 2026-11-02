@@ -44,7 +44,6 @@ import {
   Printer,
   Download,
   Mail,
-  Monitor,
   Share2,
   ArrowRight,
   ChevronDown,
@@ -1216,25 +1215,9 @@ export function AlertsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const summary = trpc.dashboard.summary.useQuery();
-  const securityNotifications = trpc.governance.securityNotifications.useQuery(undefined, { enabled: isAdmin });
   const managementUsers = trpc.governance.users.useQuery(undefined, { enabled: isAdmin });
   const sentNotifications = trpc.notifications.sent.useQuery(undefined, { enabled: isAdmin });
   const sentRows = sentNotifications.data ?? [];
-  const securityRows = securityNotifications.data ?? [];
-  const unreadSecurityNotifications = securityRows.filter(item => !item.isRead);
-  const [revokedLoginIds, setRevokedLoginIds] = useState<number[]>([]);
-  const markSecurityNotificationsRead = trpc.governance.markSecurityNotificationsRead.useMutation({
-    onSuccess: () => { void securityNotifications.refetch(); toast.success("تم تحديد تنبيهات الدخول كمقروءة"); },
-    onError: error => toast.error(error.message || "تعذر تحديث التنبيهات"),
-  });
-  const revokeLoginSession = trpc.governance.revokeLoginSession.useMutation({
-    onSuccess: result => {
-      setRevokedLoginIds(ids => ids.includes(result.loginLogId) ? ids : [...ids, result.loginLogId]);
-      toast.success("تم إنهاء الجلسة المشبوهة");
-      void securityNotifications.refetch();
-    },
-    onError: error => toast.error(error.message || "تعذر إنهاء الجلسة"),
-  });
   const [customTitle, setCustomTitle] = useState("");
   const [customMessage, setCustomMessage] = useState("");
   const [customPriority, setCustomPriority] = useState<"low" | "normal" | "high" | "critical">("normal");
@@ -1264,33 +1247,6 @@ export function AlertsPage() {
               <thead className="sticky top-0 z-10 bg-[#fffaf9] text-[11px] font-black text-slate-500 dark:bg-slate-800 dark:text-slate-300"><tr><th className="px-4 py-3 sm:px-6">الصنف</th><th className="px-4 py-3">الكود</th><th className="px-4 py-3">الرصيد الحالي</th><th className="px-4 py-3">حد الطلب</th><th className="px-4 py-3 sm:px-6">التوصية</th></tr></thead>
               <tbody className="divide-y divide-[#f0f4f6] dark:divide-slate-800">{summary.data.lowStock.map(item => <tr key={item.id} className="hover:bg-rose-50/40 dark:hover:bg-rose-950/10"><td className="px-4 py-4 font-bold text-[#102a43] dark:text-slate-100 sm:px-6">{item.name}</td><td className="px-4 py-4 font-mono text-xs text-slate-500 dark:text-slate-400">{item.code}</td><td className="px-4 py-4 font-black text-[#bd5147] dark:text-rose-300">{formatQuantity(item.currentStock)}</td><td className="px-4 py-4 text-slate-500 dark:text-slate-400">{formatQuantity(item.reorderLevel)}</td><td className="px-4 py-4 sm:px-6"><span className="inline-flex items-center gap-2 rounded-full bg-[#fff0ed] px-3 py-1.5 text-xs font-bold text-[#bd5147] dark:bg-rose-950/40 dark:text-rose-200"><AlertTriangle className="h-3.5 w-3.5" />يُفضّل إنشاء طلب توريد</span></td></tr>)}</tbody>
             </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-
-  const securityAlertsCard = (
-    <Card className="min-w-0 border-0 bg-white/90 shadow-[0_10px_30px_rgba(18,44,84,0.055)] dark:border dark:border-slate-700 dark:bg-slate-900/80">
-      <CardContent className="p-0" dir="rtl">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 bg-[#fffaf0] p-4 dark:border-slate-700 dark:bg-amber-950/20 sm:p-5">
-          <div className="flex min-w-0 items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#a96821] shadow-sm dark:bg-slate-800 dark:text-amber-300"><Monitor className="h-5 w-5" /></div><div><p className="text-xs font-black tracking-[0.16em] text-[#a96821] dark:text-amber-300">أمن الحساب</p><h2 className="mt-1 text-lg font-black text-[#102a43] dark:text-white">تنبيهات تسجيل الدخول</h2><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{unreadSecurityNotifications.length ? `${unreadSecurityNotifications.length} تنبيه جديد يحتاج مراجعة` : "لا توجد تنبيهات دخول جديدة"}</p></div></div>
-          <div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className="rounded-full border-amber-200 bg-white text-amber-800 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-200">{securityRows.length} إجمالي</Badge>{unreadSecurityNotifications.length > 0 && <Button type="button" size="sm" variant="outline" onClick={() => markSecurityNotificationsRead.mutate()} disabled={markSecurityNotificationsRead.isPending} className="rounded-xl border-[#d08a3b] text-[#8c5c1d] dark:border-amber-700 dark:text-amber-200">{markSecurityNotificationsRead.isPending ? "جارٍ التحديث..." : "تحديد الكل كمقروء"}</Button>}</div>
-        </div>
-        {securityNotifications.isLoading ? <div className="p-4"><LoadingRows columns={3} /></div> : securityNotifications.error ? <p className="p-5 text-sm font-bold text-red-600 dark:text-red-300">تعذر تحميل تنبيهات الدخول.</p> : !securityRows.length ? <EmptyTable title="لا توجد تنبيهات دخول" description="سيظهر التنبيه هنا عند اكتشاف دخول من جهاز أو متصفح جديد." icon={Monitor} /> : (
-          <div className="max-h-[25rem] space-y-2 overflow-y-auto p-3 sm:p-4">
-            {securityRows.map(notification => (
-              <article key={notification.id} className={`rounded-2xl border p-3 transition-colors sm:p-4 ${notification.isRead ? "border-slate-200 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-950/50" : "border-amber-200 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20"}`}>
-                <div className="flex items-start gap-3">
-                  <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${notification.isRead ? "bg-white text-slate-500 dark:bg-slate-800 dark:text-slate-300" : "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"}`}><Monitor className="h-4 w-4" /></div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-black text-[#102a43] dark:text-white">{notification.title}</h3><Badge className={notification.isRead ? "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300" : "bg-amber-200 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100"}>{notification.isRead ? "تمت القراءة" : "جديد"}</Badge></div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{notification.message}</p>
-                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><time className="text-xs text-slate-500 dark:text-slate-400">{new Date(notification.createdAt).toLocaleString("ar-EG")}</time>{notification.loginLogId != null && <Button type="button" size="sm" onClick={() => { const loginLogId = notification.loginLogId; if (loginLogId != null && window.confirm("سيتم إنهاء جلسة المستخدم فوراً ولن يستطيع متابعة استخدام التطبيق بهذه الجلسة. هل تريد المتابعة؟")) revokeLoginSession.mutate({ loginLogId }); }} disabled={revokeLoginSession.isPending || revokedLoginIds.includes(notification.loginLogId)} className={`rounded-xl ${revokedLoginIds.includes(notification.loginLogId) ? "bg-slate-300 text-slate-600 dark:bg-slate-700 dark:text-slate-300" : "bg-[#bd5147] text-white hover:bg-[#a53f37]"}`}>{revokedLoginIds.includes(notification.loginLogId) ? "تم إنهاء الجلسة" : revokeLoginSession.isPending ? "جارٍ الإنهاء..." : "إنهاء الجلسة"}</Button>}</div>
-                  </div>
-                </div>
-              </article>
-            ))}
           </div>
         )}
       </CardContent>
@@ -1331,18 +1287,15 @@ export function AlertsPage() {
         <PageHeader
           eyebrow="المتابعة / التنبيهات"
           title="التنبيهات الذكية"
-          description="راجع الأصناف التي تحتاج متابعة وتنبيهات الدخول من شاشة مرتبة ومختصرة."
-          action={<div className="flex flex-wrap items-center gap-2"><Badge className="rounded-full bg-[#fff0ed] px-3 py-2 text-[#bd5147] dark:bg-rose-950/50 dark:text-rose-200">حد التنبيه: {summary.data?.thresholdPercentage ?? 20}%</Badge><Badge variant="outline" className="rounded-full border-[#dce7ee] px-3 py-2 text-slate-600 dark:border-slate-700 dark:text-slate-300">{summary.data?.lowStock.length ?? 0} صنف يحتاج مراجعة</Badge>{isAdmin && <Badge variant="outline" className="rounded-full border-amber-200 px-3 py-2 text-amber-800 dark:border-amber-800 dark:text-amber-200">{unreadSecurityNotifications.length} دخول جديد</Badge>}</div>}
+          description="ابدأ بالأصناف التي تحتاج إعادة طلب، ثم تابع التنبؤات والطلبات التي تحتاج إجراءً."
+          action={<div className="flex flex-wrap items-center gap-2"><Badge className="rounded-full bg-[#fff0ed] px-3 py-2 text-[#bd5147] dark:bg-rose-950/50 dark:text-rose-200">حد التنبيه: {summary.data?.thresholdPercentage ?? 20}%</Badge><Badge variant="outline" className="rounded-full border-[#dce7ee] px-3 py-2 text-slate-600 dark:border-slate-700 dark:text-slate-300">{summary.data?.lowStock.length ?? 0} صنف يحتاج مراجعة</Badge></div>}
         />
 
-        <div className={isAdmin ? "grid items-start gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]" : "grid gap-4"}>
-          {lowStockCard}
-          {isAdmin ? securityAlertsCard : null}
-        </div>
-        {isAdmin ? sentNotificationsCard : null}
+        {lowStockCard}
         <SmartForecastCard />
         {isAdmin ? <HelpRequestsAdminCard /> : <HelpRequestCard />}
         {isAdmin ? customNotificationCard : null}
+        {isAdmin ? sentNotificationsCard : null}
       </div>
     </DashboardLayout>
   );
