@@ -123,8 +123,8 @@ function HandwritingPad({ value, onChange }: { value: string; onChange: (value: 
         showCloseButton={false}
         dir="rtl"
         aria-describedby="handwriting-page-description"
-        className="overflow-hidden bg-[#fffefa] text-[#102a43]"
-        style={{ position: "fixed", inset: 0, left: 0, right: 0, top: 0, width: "100vw", minWidth: 0, maxWidth: "none", height: "100dvh", minHeight: 0, maxHeight: "100dvh", transform: "none", zIndex: 100, borderRadius: 0, border: 0, padding: 0, display: "flex", flexDirection: "column", gap: 0, overflow: "hidden" }}
+        className="!fixed !inset-0 !left-0 !right-0 !top-0 !z-[100] !h-[100dvh] !w-full !max-w-none !translate-x-0 !translate-y-0 overflow-hidden rounded-none border-0 bg-[#fffefa] p-0 text-[#102a43]"
+        style={{ position: "fixed", inset: 0, left: 0, right: 0, top: 0, width: "100%", minWidth: 0, maxWidth: "none", height: "100dvh", minHeight: 0, maxHeight: "100dvh", transform: "none", zIndex: 100, borderRadius: 0, border: 0, padding: 0, display: "flex", flexDirection: "column", gap: 0, overflow: "hidden", boxSizing: "border-box" }}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e7e2d5] bg-[#fffefa] px-3 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e8f7f6] text-[#0d7180]"><FilePenLine className="h-5 w-5" /></div><div className="min-w-0"><DialogTitle className="truncate text-base font-black text-[#102a43] sm:text-lg">صفحة كتابة الملاحظة</DialogTitle><DialogDescription id="handwriting-page-description" className="mt-0.5 text-xs text-slate-500">صفحة بيضاء كاملة — اكتب بالقلم أو بإصبعك.</DialogDescription></div></div>
