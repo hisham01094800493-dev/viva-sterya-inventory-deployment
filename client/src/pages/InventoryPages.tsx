@@ -1123,14 +1123,17 @@ function SmartForecastCard() {
   const [severity, setSeverity] = useState<"critical" | "warning" | "watch" | "stagnant">("critical");
   const [search, setSearch] = useState("");
   const [abcClass, setAbcClass] = useState<"" | "A" | "B" | "C">("");
+  const [analysisDaysInput, setAnalysisDaysInput] = useState("30");
+  const analysisDays = Math.min(365, Math.max(1, Number(analysisDaysInput) || 30));
   const [page, setPage] = useState(1);
   const pageSize = 8;
-  const summary = trpc.alerts.forecastSummary.useQuery();
+  const summary = trpc.alerts.forecastSummary.useQuery({ analysisDays }, { refetchInterval: 60_000, refetchOnWindowFocus: true });
   const forecast = trpc.alerts.smartForecast.useQuery({
     severity: severity === "stagnant" ? undefined : severity,
     stagnant: severity === "stagnant" ? true : undefined,
     abcClass: abcClass || undefined,
     search: search || undefined,
+    analysisDays,
     page,
     pageSize,
   });
@@ -1174,6 +1177,7 @@ function SmartForecastCard() {
           <select onChange={event => { setAbcClass(event.target.value as typeof abcClass); setPage(1); }} value={abcClass} aria-label="فلترة حسب تصنيف ABC" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
             <option value="">كل تصنيفات ABC</option><option value="A">ABC - A</option><option value="B">ABC - B</option><option value="C">ABC - C</option>
           </select>
+          <label className="space-y-1 text-xs font-bold text-slate-500 dark:text-slate-400">عدد أيام التحليل<Input type="number" min="1" max="365" value={analysisDaysInput} onChange={event => { setAnalysisDaysInput(event.target.value); setPage(1); }} className="h-10 rounded-xl text-center font-black dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
         </div>
 
         {forecast.isLoading ? <LoadingRows columns={4} /> : forecast.error ? <p className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-200">تعذر تحميل التوقع الذكي.</p> : !forecast.data?.rows.length ? <EmptyTable title="لا توجد أصناف ضمن هذا التصنيف" description="جرّب تغيير الحالة أو البحث أو تصنيف ABC." icon={Activity} /> : (
@@ -1190,7 +1194,7 @@ function SmartForecastCard() {
                     <div className="text-left"><p className="text-xs text-slate-500 dark:text-slate-400">مدة التغطية</p><p className="text-lg font-black text-[#bd5147] dark:text-rose-300">{row.daysOfCover == null ? "غير محددة" : `${row.daysOfCover.toFixed(1)} يوم`}</p></div>
                   </div>
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full rounded-full bg-[#bd5147]" style={{ width: `${Math.min(100, Math.max(4, ((row.daysOfCover ?? 0) / 14) * 100))}%` }} /></div>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs"><span className="font-bold text-slate-500 dark:text-slate-400">المعدل: {row.dailyRate.toFixed(2)} / يوم</span><span className="font-black text-[#a96821] dark:text-amber-300">كمية مقترحة: {formatQuantity(row.suggestedOrderQty)}</span></div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs"><span className="font-bold text-slate-500 dark:text-slate-400">الصرف: {formatQuantity(row.analysisConsumption)} خلال {row.analysisDays} يوم · {row.dailyRate.toFixed(2)} / يوم</span><span className={`font-black ${row.coverageStatus === "enough" ? "text-emerald-700 dark:text-emerald-300" : "text-[#a96821] dark:text-amber-300"}`}>{row.coverageStatus === "enough" ? "يكفي الهدف" : `يحتاج طلب: ${formatQuantity(row.shortageQty)}`}</span></div>
                   {row.lowConfidence && <p className="mt-3 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">بيانات قليلة — التوقع مبدئي</p>}
                 </article>
               ))}
