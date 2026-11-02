@@ -17,6 +17,9 @@ describe("الكتابة بالقلم ومرفقات الملاحظات", () => 
     expect(source).toContain("touch-none select-none");
     expect(source).toContain("onPointerDown={startDrawing}");
     expect(source).toContain("onPointerMove={continueDrawing}");
+    expect(source).toContain("const [penColor, setPenColor]");
+    expect(source).toContain("اختيار لون");
+    expect(source).toContain("aria-pressed={penColor === color.value}");
     expect(source).toContain("حفظ الكتابة والعودة");
     expect(source).toContain("مسح الصفحة");
   });
@@ -41,5 +44,14 @@ describe("الكتابة بالقلم ومرفقات الملاحظات", () => 
   it("يسمح بحفظ الملاحظة التي تتكون من كتابة بالقلم أو صورة دون نص مكتوب", () => {
     expect(source).toContain("(!body && !form.handwriting && !form.image)");
     expect(source).toContain("اكتب عنوان الملاحظة وأضف نصًا أو كتابة بالقلم أو صورة");
+  });
+
+  it("يعرض الملاحظة المحفوظة للمعاينة والتعديل والتصدير", () => {
+    expect(source).toContain("setPreviewDraft(draft)");
+    expect(source).toContain("تعديل الملاحظة");
+    expect(source).toContain("تصدير PDF");
+    expect(source).toContain("تصدير صورة");
+    expect(source).toContain("exportDraftPdf");
+    expect(source).toContain("exportDraftImage");
   });
 });

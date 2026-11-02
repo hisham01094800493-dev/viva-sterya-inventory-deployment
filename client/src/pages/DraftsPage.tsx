@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { FilePenLine, ImagePlus, Mic, Plus, Save, Trash2, X } from "lucide-react";
+import { FileDown, FilePenLine, ImagePlus, Image as ImageIcon, Mic, Plus, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { compressImageFile } from "@/lib/imageCompression";
+import { configureArabicPdf, getPdfImageFormat, loadPdfTools, shapeArabic } from "@/lib/inventoryExportFiles";
 
 type DraftKind = "note" | "movement";
 type DraftForm = { kind: DraftKind; title: string; body: string; movementType: string; itemCode: string; quantity: string; counterparty: string; warehouse: string; handwriting: string; image: string; imageName: string };
@@ -27,6 +28,7 @@ function readLocalDrafts(key: string): LocalDraft[] {
 
 function HandwritingPad({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [penColor, setPenColor] = useState("#173f46");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const activePointer = useRef<number | null>(null);
   const lastPoint = useRef<{ x: number; y: number } | null>(null);
@@ -71,9 +73,9 @@ function HandwritingPad({ value, onChange }: { value: string; onChange: (value: 
     lastPoint.current = point;
     context.lineCap = "round";
     context.lineJoin = "round";
-    context.strokeStyle = "#173f46";
+    context.strokeStyle = penColor;
     context.lineWidth = event.pointerType === "pen" ? Math.max(2, event.pressure * 7) : 7;
-    context.fillStyle = "#173f46";
+    context.fillStyle = penColor;
     context.beginPath();
     context.arc(point.x, point.y, context.lineWidth / 2, 0, Math.PI * 2);
     context.fill();
@@ -90,7 +92,7 @@ function HandwritingPad({ value, onChange }: { value: string; onChange: (value: 
     context.lineTo(point.x, point.y);
     context.lineCap = "round";
     context.lineJoin = "round";
-    context.strokeStyle = "#173f46";
+    context.strokeStyle = penColor;
     context.lineWidth = event.pointerType === "pen" ? Math.max(2, event.pressure * 7) : 7;
     context.stroke();
     lastPoint.current = point;
@@ -112,9 +114,18 @@ function HandwritingPad({ value, onChange }: { value: string; onChange: (value: 
     onChange("");
   }
 
+  const penColors = [
+    { value: "#173f46", label: "أزرق بترولي" },
+    { value: "#102a43", label: "كحلي" },
+    { value: "#bd2f3d", label: "أحمر" },
+    { value: "#b66a16", label: "برتقالي" },
+    { value: "#2f855a", label: "أخضر" },
+    { value: "#6b46c1", label: "بنفسجي" },
+    { value: "#111827", label: "أسود" },
+  ];
   return <section className="space-y-2" aria-label="الكتابة بالقلم">
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#dce7ee] bg-[#f8fcfc] p-3 dark:border-slate-700 dark:bg-slate-900/60">
-      <div><p className="text-sm font-black text-[#102a43] dark:text-white">الكتابة بالقلم أو الرسم</p><p className="text-xs leading-5 text-slate-500 dark:text-slate-300">افتح صفحة بيضاء كبيرة مناسبة لقلم الشاشة أو اللمس.</p></div>
+      <div><p className="text-sm font-black text-[#102a43] dark:text-white">الكتابة بالقلم أو الرسم</p><p className="text-xs leading-5 text-slate-500 dark:text-slate-300">افتح صفحة بيضاء كبيرة مناسبة لقلم الشاشة أو اللمس، واختر لون القلم.</p></div>
       <Button type="button" onClick={() => setOpen(true)} className="rounded-xl bg-[#0d7180] text-white hover:bg-[#095b66]"><FilePenLine className="ml-2 h-4 w-4" />{value ? "متابعة الكتابة بالقلم" : "افتح صفحة الكتابة"}</Button>
       {value ? <img src={value} alt="معاينة الكتابة بالقلم" className="h-16 w-24 rounded-lg border border-slate-200 bg-white object-contain dark:border-slate-700" /> : null}
     </div>
@@ -134,7 +145,7 @@ function HandwritingPad({ value, onChange }: { value: string; onChange: (value: 
           <canvas ref={canvasRef} width={1200} height={1800} aria-label="صفحة بيضاء كبيرة للكتابة بالقلم أو الرسم" className="block h-auto max-h-full w-auto max-w-full touch-none select-none bg-[#fffefa] shadow-sm" style={{ aspectRatio: "2 / 3" }} onPointerDown={startDrawing} onPointerMove={continueDrawing} onPointerUp={finishDrawing} onPointerCancel={finishDrawing} />
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#e7e2d5] bg-[#fffefa] px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
-          <p className="hidden text-xs text-slate-500 sm:block">تُحفظ كتابتك مع الملاحظة عند الضغط على زر الحفظ في النموذج.</p>
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto"><span className="text-xs font-black text-slate-600">لون القلم:</span>{penColors.map(color => <button key={color.value} type="button" onClick={() => setPenColor(color.value)} aria-label={`اختيار لون ${color.label}`} aria-pressed={penColor === color.value} title={color.label} className={`h-7 w-7 rounded-full border-2 transition-transform ${penColor === color.value ? "scale-110 border-[#0d7180] ring-2 ring-[#8ed3d1]" : "border-white shadow-sm"}`} style={{ backgroundColor: color.value }} />)}</div>
           <div className="mr-auto flex w-full gap-2 sm:w-auto"><Button type="button" variant="outline" onClick={clearDrawing} disabled={!value} className="flex-1 rounded-xl border-slate-300 bg-white text-slate-700 sm:flex-none"><X className="ml-1 h-4 w-4" />مسح الصفحة</Button><Button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150] sm:flex-none"><Save className="ml-2 h-4 w-4" />حفظ الكتابة والعودة</Button></div>
         </div>
       </DialogContent>
@@ -148,6 +159,7 @@ export default function DraftsPage() {
   const [form, setForm] = useState<DraftForm>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCompressingImage, setIsCompressingImage] = useState(false);
+  const [previewDraft, setPreviewDraft] = useState<LocalDraft | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setDrafts(readLocalDrafts(storageKey)); setEditingId(null); setForm(emptyDraft); }, [storageKey]);
@@ -168,6 +180,32 @@ export default function DraftsPage() {
     setForm({ ...emptyDraft, ...draft });
   }
   function reset() { setEditingId(null); setForm(emptyDraft); if (imageInputRef.current) imageInputRef.current.value = ""; }
+  function editDraft(draft: LocalDraft) { setPreviewDraft(null); selectDraft(draft); window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function downloadBlob(blob: Blob, filename: string) { const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = filename; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+  function loadImage(dataUrl: string) { return new Promise<HTMLImageElement>((resolve, reject) => { const image = new Image(); image.onload = () => resolve(image); image.onerror = reject; image.src = dataUrl; }); }
+  async function exportDraftImage(draft: LocalDraft) {
+    try {
+      const canvas = document.createElement("canvas"); canvas.width = 1400; canvas.height = 1900;
+      const context = canvas.getContext("2d"); if (!context) throw new Error("تعذر تجهيز الصورة");
+      context.fillStyle = "#fffefa"; context.fillRect(0, 0, canvas.width, canvas.height); context.direction = "rtl"; context.textAlign = "right"; context.fillStyle = "#102a43";
+      context.font = "bold 52px Arial"; context.fillText(draft.title, 1280, 115); context.font = "28px Arial"; context.fillStyle = "#6a7e8b"; context.fillText(formatDraftDate(draft.updatedAt), 1280, 165);
+      let y = 245; if (draft.body) { context.font = "32px Arial"; context.fillStyle = "#102a43"; for (const line of draft.body.split("\n")) { context.fillText(line, 1280, y, 1140); y += 52; } y += 20; }
+      for (const dataUrl of [draft.handwriting, draft.image]) { if (!dataUrl) continue; const image = await loadImage(dataUrl); const scale = Math.min(1140 / image.width, 1100 / image.height, 1); const width = image.width * scale; const height = image.height * scale; context.drawImage(image, (canvas.width - width) / 2, y, width, height); y += height + 35; }
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error("تعذر إنشاء الصورة")), "image/png"));
+      downloadBlob(blob, `${draft.title || "ملاحظة"}.png`); toast.success("تم تصدير الملاحظة كصورة");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تصدير الملاحظة كصورة"); }
+  }
+  async function exportDraftPdf(draft: LocalDraft) {
+    try {
+      const { jsPDF } = await loadPdfTools(); const doc = await configureArabicPdf(new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" }));
+      const pageWidth = doc.internal.pageSize.getWidth(); const pageHeight = doc.internal.pageSize.getHeight(); const right = pageWidth - 42;
+      doc.setFontSize(20); doc.setTextColor(16, 42, 67); doc.text(shapeArabic(doc, draft.title), right, 52, { align: "right" });
+      doc.setFontSize(9); doc.setTextColor(106, 126, 139); doc.text(formatDraftDate(draft.updatedAt), right, 70, { align: "right" });
+      let y = 100; if (draft.body) { doc.setFontSize(12); doc.setTextColor(16, 42, 67); const lines = doc.splitTextToSize(shapeArabic(doc, draft.body), pageWidth - 84); doc.text(lines, right, y, { align: "right", lineHeightFactor: 1.6 }); y += lines.length * 19 + 18; }
+      for (const dataUrl of [draft.handwriting, draft.image]) { if (!dataUrl) continue; const image = await loadImage(dataUrl); const maxWidth = pageWidth - 84; const maxHeight = pageHeight - y - 55; const scale = Math.min(maxWidth / image.width, maxHeight / image.height, 1); const width = image.width * scale; const height = image.height * scale; doc.addImage(dataUrl, getPdfImageFormat(dataUrl), (pageWidth - width) / 2, y, width, height); y += height + 18; if (y > pageHeight - 80) { doc.addPage(); y = 45; } }
+      doc.setFontSize(8); doc.setTextColor(106, 126, 139); doc.text("Smart Inventory", pageWidth / 2, pageHeight - 24, { align: "center" }); doc.save(`${draft.title || "ملاحظة"}.pdf`); toast.success("تم تصدير الملاحظة كملف PDF");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "تعذر تصدير الملاحظة كملف PDF"); }
+  }
 
   async function attachImage(file?: File) {
     if (!file) return;
@@ -203,7 +241,7 @@ export default function DraftsPage() {
   return <DashboardLayout><div className="mx-auto w-full max-w-[1450px] space-y-6" dir="rtl">
     <div><p className="mb-2 text-[10px] font-black uppercase tracking-[0.27em] text-[#d08a3b]">WORKSPACE / NOTES</p><h1 className="text-3xl font-black text-[#102a43] dark:text-white">الملاحظات والمسودات</h1><p className="mt-2 text-sm leading-7 text-slate-500 dark:text-slate-300">ملاحظات شخصية محفوظة على هذا المتصفح فقط، ولا تؤثر على المخزون أو قاعدة البيانات. اكتب بالقلم أو أرفق صورة عند الحاجة.</p></div>
     <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-      <Card className="border-0 bg-white/85 shadow-sm dark:bg-[#172b35]"><CardHeader><CardTitle className="flex items-center justify-between text-lg dark:text-white">الملاحظات المحفوظة <Button type="button" size="icon" onClick={reset} className="rounded-xl bg-[#0d7180] text-white" aria-label="ملاحظة جديدة"><Plus className="h-4 w-4" /></Button></CardTitle></CardHeader><CardContent className="space-y-3">{drafts.length === 0 ? <p className="text-sm text-slate-500 dark:text-slate-300">لا توجد ملاحظات محفوظة بعد.</p> : drafts.map(draft => <div key={draft.id} className={`rounded-2xl border p-3 ${editingId === draft.id ? "border-[#0d7180] bg-[#e8f8f8] dark:bg-teal-950/30" : "border-slate-200 bg-white dark:border-slate-600 dark:bg-[#203d47]"}`}><div className="flex items-start gap-2"><button type="button" onClick={() => selectDraft(draft)} className="min-w-0 flex-1 text-right"><p className="truncate text-sm font-black text-[#102a43] dark:text-white">{draft.title}</p><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-300">{draft.body || (draft.handwriting ? "ملاحظة مكتوبة بالقلم" : draft.image ? "ملاحظة مرفقة بصورة" : "مسودة")}</p><div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-400"><span>{formatDraftDate(draft.updatedAt)}</span><span>· {draft.kind === "movement" ? "مسودة إذن" : "ملاحظة"}</span>{draft.handwriting && <span>· كتابة بالقلم</span>}{draft.image && <span>· صورة مرفقة</span>}</div></button><Button type="button" variant="outline" size="icon" onClick={() => deleteDraft(draft.id)} className="h-9 w-9 shrink-0 rounded-xl border-red-200 text-red-600 hover:bg-red-50" aria-label={`حذف ${draft.title}`}><Trash2 className="h-4 w-4" /></Button></div></div>)}</CardContent></Card>
+      <Card className="border-0 bg-white/85 shadow-sm dark:bg-[#172b35]"><CardHeader><CardTitle className="flex items-center justify-between text-lg dark:text-white">الملاحظات المحفوظة <Button type="button" size="icon" onClick={reset} className="rounded-xl bg-[#0d7180] text-white" aria-label="ملاحظة جديدة"><Plus className="h-4 w-4" /></Button></CardTitle></CardHeader><CardContent className="space-y-3">{drafts.length === 0 ? <p className="text-sm text-slate-500 dark:text-slate-300">لا توجد ملاحظات محفوظة بعد.</p> : drafts.map(draft => <div key={draft.id} className={`rounded-2xl border p-3 ${editingId === draft.id ? "border-[#0d7180] bg-[#e8f8f8] dark:bg-teal-950/30" : "border-slate-200 bg-white dark:border-slate-600 dark:bg-[#203d47]"}`}><div className="flex items-start gap-2"><button type="button" onClick={() => setPreviewDraft(draft)} className="min-w-0 flex-1 text-right"><p className="truncate text-sm font-black text-[#102a43] dark:text-white">{draft.title}</p><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 dark:text-slate-300">{draft.body || (draft.handwriting ? "ملاحظة مكتوبة بالقلم" : draft.image ? "ملاحظة مرفقة بصورة" : "مسودة")}</p><div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-400"><span>{formatDraftDate(draft.updatedAt)}</span><span>· اضغط للمعاينة</span>{draft.handwriting && <span>· كتابة بالقلم</span>}{draft.image && <span>· صورة مرفقة</span>}</div></button><Button type="button" variant="outline" size="icon" onClick={() => deleteDraft(draft.id)} className="h-9 w-9 shrink-0 rounded-xl border-red-200 text-red-600 hover:bg-red-50" aria-label={`حذف ${draft.title}`}><Trash2 className="h-4 w-4" /></Button></div></div>)}</CardContent></Card>
       <Card className="border-0 bg-white/85 shadow-sm dark:bg-[#172b35]"><CardHeader><CardTitle className="flex items-center gap-2 text-lg dark:text-white"><FilePenLine className="h-5 w-5 text-[#0d7180]" />{editingId ? "تعديل الملاحظة" : "ملاحظة جديدة"}</CardTitle></CardHeader><CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2"><Button type="button" variant={form.kind === "note" ? "default" : "outline"} onClick={() => setForm(current => ({ ...current, kind: "note", title: current.title || "ملاحظة جديدة" }))} className="rounded-xl">ملاحظة عامة</Button><Button type="button" variant={form.kind === "movement" ? "default" : "outline"} onClick={() => setForm(current => ({ ...current, kind: "movement", title: current.title || "مسودة إذن مخزني" }))} className="rounded-xl">مسودة إذن مخزني</Button></div>
         <Input value={form.title} onChange={event => setForm(current => ({ ...current, title: event.target.value }))} placeholder="عنوان الملاحظة" className="h-12 rounded-xl dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
@@ -214,5 +252,10 @@ export default function DraftsPage() {
         <div className="flex flex-wrap gap-3"><Button type="button" onClick={save} disabled={isCompressingImage} className="rounded-xl bg-[#0d4f62] text-white"><Save className="ml-2 h-4 w-4" />{editingId ? "تحديث الملاحظة" : "حفظ الملاحظة"}</Button><Button type="button" variant="outline" onClick={reset} className="rounded-xl">ملاحظة جديدة</Button><span className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-300"><Mic className="h-4 w-4" />يمكنك الإملاء صوتيًا أو الكتابة بالقلم</span></div>
       </CardContent></Card>
     </div>
+    <Dialog open={Boolean(previewDraft)} onOpenChange={open => { if (!open) setPreviewDraft(null); }}>
+      <DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto rounded-2xl bg-white dark:bg-[#172b35]" dir="rtl">
+        {previewDraft && <><DialogTitle className="text-xl font-black text-[#102a43] dark:text-white">{previewDraft.title}</DialogTitle><DialogDescription className="text-right text-xs text-slate-500 dark:text-slate-300">آخر تعديل: {formatDraftDate(previewDraft.updatedAt)}</DialogDescription><div className="space-y-4 rounded-2xl border border-[#dce7ee] bg-[#fffefa] p-4 dark:border-slate-600 dark:bg-slate-900"><div className="whitespace-pre-wrap text-base leading-8 text-[#102a43]">{previewDraft.body || <span className="text-slate-400">لا يوجد نص مكتوب</span>}</div>{previewDraft.handwriting && <div><p className="mb-2 text-xs font-black text-[#0d7180]">الكتابة بالقلم</p><img src={previewDraft.handwriting} alt="الكتابة بالقلم" className="max-h-[45vh] w-full rounded-xl border border-[#e7e2d5] bg-[#fffefa] object-contain" /></div>}{previewDraft.image && <div><p className="mb-2 text-xs font-black text-[#0d7180]">الصورة المرفقة</p><img src={previewDraft.image} alt={previewDraft.imageName || "الصورة المرفقة"} className="max-h-[45vh] w-full rounded-xl border border-slate-200 object-contain" /></div>}</div><div className="flex flex-wrap gap-2"><Button type="button" onClick={() => editDraft(previewDraft)} className="rounded-xl bg-[#0d4f62] text-white"><FilePenLine className="ml-2 h-4 w-4" />تعديل الملاحظة</Button><Button type="button" variant="outline" onClick={() => void exportDraftPdf(previewDraft)} className="rounded-xl"><FileDown className="ml-2 h-4 w-4" />تصدير PDF</Button><Button type="button" variant="outline" onClick={() => void exportDraftImage(previewDraft)} className="rounded-xl"><ImageIcon className="ml-2 h-4 w-4" />تصدير صورة</Button><Button type="button" variant="ghost" onClick={() => setPreviewDraft(null)} className="rounded-xl">إغلاق</Button></div></>}
+      </DialogContent>
+    </Dialog>
   </div></DashboardLayout>;
 }
