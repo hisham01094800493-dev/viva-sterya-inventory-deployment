@@ -1124,37 +1124,229 @@ function SmartForecastCard() {
   const [severity, setSeverity] = useState<"critical" | "warning" | "watch" | "stagnant">("critical");
   const [search, setSearch] = useState("");
   const [abcClass, setAbcClass] = useState<"" | "A" | "B" | "C">("");
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
   const summary = trpc.alerts.forecastSummary.useQuery();
-  const forecast = trpc.alerts.smartForecast.useQuery({ severity: severity === "stagnant" ? undefined : severity, abcClass: abcClass || undefined, search: search || undefined, page: 1, pageSize: 50 });
-  const tabs = [{ key: "critical", label: "حرج", value: summary.data?.critical ?? 0 }, { key: "warning", label: "تحذير", value: summary.data?.warning ?? 0 }, { key: "watch", label: "مراقبة", value: summary.data?.watch ?? 0 }, { key: "stagnant", label: "راكد", value: summary.data?.stagnant ?? 0 }] as const;
-  return <Card className="border-0 bg-white/90 shadow-[0_10px_30px_rgba(18,44,84,0.055)]"><CardContent className="space-y-5 p-5" dir="rtl"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black tracking-[0.16em] text-[#0d7180]">PREDICTIVE STOCK</p><h3 className="mt-1 text-xl font-black text-[#102a43]">التوقع الذكي للنقص</h3><p className="mt-1 text-sm text-slate-500">معدل الصرف الفعلي يوضح كم يومًا يكفي الرصيد الحالي.</p></div><div className="grid grid-cols-4 gap-2 text-center text-xs font-black">{tabs.map(tab => <button key={tab.key} type="button" onClick={() => setSeverity(tab.key)} className="rounded-xl bg-slate-50 px-3 py-2 text-[#0d7180]">{tab.value}<span className="block text-[10px]">{tab.label}</span></button>)}</div></div><div className="grid gap-3 md:grid-cols-[1fr_180px]"><Input value={search} onChange={event => setSearch(event.target.value)} placeholder="ابحث بالاسم أو الكود" className="rounded-xl" /><select onChange={event => setAbcClass(event.target.value as typeof abcClass)} value={abcClass} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="">كل تصنيفات ABC</option><option value="A">ABC - A</option><option value="B">ABC - B</option><option value="C">ABC - C</option></select></div>{forecast.isLoading ? <LoadingRows columns={4} /> : forecast.error ? <p className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700">تعذر تحميل التوقع الذكي.</p> : !forecast.data?.rows.length ? <EmptyTable title="لا توجد أصناف ضمن هذا التصنيف" description="جرّب تغيير التبويب أو الفلاتر." icon={Activity} /> : <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{forecast.data.rows.filter(row => severity !== "stagnant" || row.stagnant).map(row => <article key={row.code} className="rounded-2xl border border-[#e5eef1] bg-[#fbfdff] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h4 className="truncate font-black text-[#102a43]">{row.name}</h4><p className="mt-1 font-mono text-xs text-slate-400">{row.code} · {row.unit || "—"}</p></div><span className="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-black text-purple-700">ABC {row.abcClass}</span></div><div className="mt-4 flex items-end justify-between"><div><p className="text-xs text-slate-500">الرصيد الحالي</p><p className="text-xl font-black text-[#0d7180]">{row.currentStock}</p></div><div className="text-left"><p className="text-xs text-slate-500">يكفي</p><p className="text-lg font-black text-[#bd5147]">{row.daysOfCover == null ? "غير محدد" : `${row.daysOfCover.toFixed(1)} يوم`}</p></div></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#bd5147]" style={{ width: `${Math.min(100, Math.max(4, ((row.daysOfCover ?? 0) / 14) * 100))}%` }} /></div><div className="mt-3 flex items-center justify-between text-xs"><span className="font-bold text-slate-500">المعدل: {row.dailyRate.toFixed(2)} / يوم</span><span className="font-black text-[#a96821]">طلب مقترح: {row.suggestedOrderQty}</span></div>{row.lowConfidence && <p className="mt-3 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-bold text-amber-700">بيانات قليلة — التوقع مبدئي</p>}</article>)}</div>}</CardContent></Card>;
+  const forecast = trpc.alerts.smartForecast.useQuery({
+    severity: severity === "stagnant" ? undefined : severity,
+    stagnant: severity === "stagnant" ? true : undefined,
+    abcClass: abcClass || undefined,
+    search: search || undefined,
+    page,
+    pageSize,
+  });
+  const tabs = [
+    { key: "critical", label: "حرج", value: summary.data?.critical ?? 0 },
+    { key: "warning", label: "تحذير", value: summary.data?.warning ?? 0 },
+    { key: "watch", label: "مراقبة", value: summary.data?.watch ?? 0 },
+    { key: "stagnant", label: "راكد", value: summary.data?.stagnant ?? 0 },
+  ] as const;
+  const total = forecast.data?.total ?? 0;
+  const pageCount = forecast.data?.pageCount ?? 1;
+  const firstResult = total ? (page - 1) * pageSize + 1 : 0;
+  const lastResult = Math.min(page * pageSize, total);
+
+  return (
+    <Card className="border-0 bg-white/90 shadow-[0_10px_30px_rgba(18,44,84,0.055)] dark:border dark:border-slate-700 dark:bg-slate-900/80">
+      <CardContent className="space-y-4 p-4 sm:space-y-5 sm:p-5" dir="rtl">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-black tracking-[0.16em] text-[#0d7180] dark:text-teal-300">توقع استهلاك المخزون</p>
+            <h3 className="mt-1 text-xl font-black text-[#102a43] dark:text-white">التوقع الذكي للنقص</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">تابع الأصناف حسب درجة الخطورة، مع عرض محدود يسهل مراجعته.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="group" aria-label="تصفية التوقع حسب الحالة">
+            {tabs.map(tab => (
+              <button
+                key={tab.key}
+                type="button"
+                aria-pressed={severity === tab.key}
+                onClick={() => { setSeverity(tab.key); setPage(1); }}
+                className={`min-w-[82px] rounded-xl px-3 py-2 text-center text-xs font-black transition ${severity === tab.key ? "bg-[#0d7180] text-white shadow-sm" : "bg-slate-50 text-[#0d7180] hover:bg-[#e8f7f6] dark:bg-slate-800 dark:text-teal-200 dark:hover:bg-slate-700"}`}
+              >
+                {tab.value}<span className="block text-[10px]">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
+          <Input value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="ابحث بالاسم أو الكود" aria-label="ابحث في التوقع الذكي" className="rounded-xl dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
+          <select onChange={event => { setAbcClass(event.target.value as typeof abcClass); setPage(1); }} value={abcClass} aria-label="فلترة حسب تصنيف ABC" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
+            <option value="">كل تصنيفات ABC</option><option value="A">ABC - A</option><option value="B">ABC - B</option><option value="C">ABC - C</option>
+          </select>
+        </div>
+
+        {forecast.isLoading ? <LoadingRows columns={4} /> : forecast.error ? <p className="rounded-xl bg-red-50 p-4 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-200">تعذر تحميل التوقع الذكي.</p> : !forecast.data?.rows.length ? <EmptyTable title="لا توجد أصناف ضمن هذا التصنيف" description="جرّب تغيير الحالة أو البحث أو تصنيف ABC." icon={Activity} /> : (
+          <>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {forecast.data.rows.map(row => (
+                <article key={row.code} className="rounded-2xl border border-[#e5eef1] bg-[#fbfdff] p-4 dark:border-slate-700 dark:bg-slate-950/60">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0"><h4 className="truncate font-black text-[#102a43] dark:text-white">{row.name}</h4><p className="mt-1 font-mono text-xs text-slate-400">{row.code} · {row.unit || "—"}</p></div>
+                    <Badge className="shrink-0 bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-200">ABC {row.abcClass}</Badge>
+                  </div>
+                  <div className="mt-4 flex items-end justify-between">
+                    <div><p className="text-xs text-slate-500 dark:text-slate-400">الرصيد الحالي</p><p className="text-xl font-black text-[#0d7180] dark:text-teal-300">{formatQuantity(row.currentStock)}</p></div>
+                    <div className="text-left"><p className="text-xs text-slate-500 dark:text-slate-400">مدة التغطية</p><p className="text-lg font-black text-[#bd5147] dark:text-rose-300">{row.daysOfCover == null ? "غير محددة" : `${row.daysOfCover.toFixed(1)} يوم`}</p></div>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full rounded-full bg-[#bd5147]" style={{ width: `${Math.min(100, Math.max(4, ((row.daysOfCover ?? 0) / 14) * 100))}%` }} /></div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs"><span className="font-bold text-slate-500 dark:text-slate-400">المعدل: {row.dailyRate.toFixed(2)} / يوم</span><span className="font-black text-[#a96821] dark:text-amber-300">كمية مقترحة: {formatQuantity(row.suggestedOrderQty)}</span></div>
+                  {row.lowConfidence && <p className="mt-3 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">بيانات قليلة — التوقع مبدئي</p>}
+                </article>
+              ))}
+            </div>
+            {pageCount > 1 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 dark:border-slate-700">
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400" aria-live="polite">عرض {firstResult}–{lastResult} من {total} صنف · الصفحة {page} من {pageCount}</p>
+                <div className="flex items-center gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setPage(value => Math.max(1, value - 1))} disabled={page <= 1 || forecast.isFetching} className="rounded-xl dark:border-slate-600 dark:text-slate-200">السابقة</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setPage(value => Math.min(pageCount, value + 1))} disabled={page >= pageCount || forecast.isFetching} className="rounded-xl dark:border-slate-600 dark:text-slate-200">التالية</Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function AlertsPage() {
   const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const summary = trpc.dashboard.summary.useQuery();
-  const securityNotifications = trpc.governance.securityNotifications.useQuery(undefined, { enabled: user?.role === "admin" });
-  const managementUsers = trpc.governance.users.useQuery(undefined, { enabled: user?.role === "admin" });
-  const sentNotifications = trpc.notifications.sent.useQuery(undefined, { enabled: user?.role === "admin" });
+  const securityNotifications = trpc.governance.securityNotifications.useQuery(undefined, { enabled: isAdmin });
+  const managementUsers = trpc.governance.users.useQuery(undefined, { enabled: isAdmin });
+  const sentNotifications = trpc.notifications.sent.useQuery(undefined, { enabled: isAdmin });
   const sentRows = sentNotifications.data ?? [];
+  const securityRows = securityNotifications.data ?? [];
+  const unreadSecurityNotifications = securityRows.filter(item => !item.isRead);
   const [revokedLoginIds, setRevokedLoginIds] = useState<number[]>([]);
-  const markSecurityNotificationsRead = trpc.governance.markSecurityNotificationsRead.useMutation({ onSuccess: () => securityNotifications.refetch() });
-  const revokeLoginSession = trpc.governance.revokeLoginSession.useMutation({ onSuccess: result => { setRevokedLoginIds(ids => ids.includes(result.loginLogId) ? ids : [...ids, result.loginLogId]); toast.success("تم إنهاء الجلسة المشبوهة"); void securityNotifications.refetch(); }, onError: error => toast.error(error.message || "تعذر إنهاء الجلسة") });
-  const unreadSecurityNotifications = (securityNotifications.data ?? []).filter(item => !item.isRead);
+  const markSecurityNotificationsRead = trpc.governance.markSecurityNotificationsRead.useMutation({
+    onSuccess: () => { void securityNotifications.refetch(); toast.success("تم تحديد تنبيهات الدخول كمقروءة"); },
+    onError: error => toast.error(error.message || "تعذر تحديث التنبيهات"),
+  });
+  const revokeLoginSession = trpc.governance.revokeLoginSession.useMutation({
+    onSuccess: result => {
+      setRevokedLoginIds(ids => ids.includes(result.loginLogId) ? ids : [...ids, result.loginLogId]);
+      toast.success("تم إنهاء الجلسة المشبوهة");
+      void securityNotifications.refetch();
+    },
+    onError: error => toast.error(error.message || "تعذر إنهاء الجلسة"),
+  });
   const [customTitle, setCustomTitle] = useState("");
   const [customMessage, setCustomMessage] = useState("");
   const [customPriority, setCustomPriority] = useState<"low" | "normal" | "high" | "critical">("normal");
   const [customRecipientIds, setCustomRecipientIds] = useState<number[]>([]);
-  const createCustomNotification = trpc.notifications.create.useMutation({ onSuccess: () => { setCustomTitle(""); setCustomMessage(""); setCustomPriority("normal"); setCustomRecipientIds([]); toast.success("تم إرسال الإشعار إلى المستلمين المحددين"); }, onError: error => toast.error(error.message || "تعذر إرسال الإشعار") });
-  const [forecastSeverity, setForecastSeverity] = useState<"critical" | "warning" | "watch" | "stagnant">("critical");
-  const [forecastSearch, setForecastSearch] = useState("");
-  const [forecastAbc, setForecastAbc] = useState<"" | "A" | "B" | "C">("");
-  const forecastSummary = trpc.alerts.forecastSummary.useQuery();
-  const forecast = trpc.alerts.smartForecast.useQuery({ severity: forecastSeverity === "stagnant" ? undefined : forecastSeverity, abcClass: forecastAbc || undefined, search: forecastSearch || undefined, page: 1, pageSize: 50 });
-  return <DashboardLayout><div className="mx-auto max-w-[1500px] space-y-7"><PageHeader eyebrow="MONITORING / ALERTS" title="التنبيهات الذكية" description="تنبيهات المخزون والتنبيهات الأمنية المهمة للمدير." action={<Badge className="rounded-full bg-[#fff0ed] px-4 py-2 text-[#bd5147] hover:bg-[#fff0ed]">نسبة التنبيه: {summary.data?.thresholdPercentage ?? 20}%</Badge>} /><SmartForecastCard />{user?.role === "admin" && <HelpRequestsAdminCard />}{user?.role !== "admin" && <HelpRequestCard />}{user?.role === "admin" && <Card className="border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)]"><CardContent className="space-y-4 p-5"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-[#0d7180]">CUSTOM NOTIFICATIONS</p><h3 className="mt-1 text-xl font-black text-[#102a43]">إرسال إشعار مخصص</h3><p className="mt-1 text-sm text-slate-500">اختر إرسال الإشعار للجميع أو لمستخدمين محددين داخل جرس الإشعارات.</p></div><div className="grid gap-3 md:grid-cols-[1fr_180px]"><Input value={customTitle} onChange={event => setCustomTitle(event.target.value)} placeholder="عنوان الإشعار" className="rounded-xl" /><select value={customPriority} onChange={event => setCustomPriority(event.target.value as typeof customPriority)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="low">أولوية منخفضة</option><option value="normal">أولوية عادية</option><option value="high">أولوية عالية</option><option value="critical">حرجة</option></select></div><div className="space-y-3 rounded-xl border border-[#dce7ee] bg-[#f8fcfc] p-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-black text-[#102a43]">المستلمون</p><label className="inline-flex items-center gap-2 text-sm font-bold text-[#0d4f62]"><input type="checkbox" checked={customRecipientIds.length === 0} onChange={event => { if (event.target.checked) setCustomRecipientIds([]); }} className="h-4 w-4 accent-[#0d7180]" />كل المستخدمين</label></div><p className="text-xs text-slate-500">عند اختيار مستخدمين محددين، لن يظهر الإشعار لغيرهم.</p>{managementUsers.isLoading ? <p className="text-xs text-slate-400">جاري تحميل قائمة المستخدمين...</p> : managementUsers.error ? <p className="text-xs font-bold text-red-600">تعذر تحميل قائمة المستخدمين.</p> : <div className="grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">{(managementUsers.data ?? []).map(managedUser => <label key={managedUser.id} className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-bold text-[#102a43]"><input type="checkbox" checked={customRecipientIds.includes(managedUser.id)} onChange={event => setCustomRecipientIds(ids => event.target.checked ? [...ids, managedUser.id] : ids.filter(id => id !== managedUser.id))} className="h-4 w-4 accent-[#0d7180]" /><span className="min-w-0 truncate">{managedUser.name || managedUser.email || `مستخدم ${managedUser.id}`}</span>{managedUser.role === "admin" ? <span className="text-[10px] text-[#a96821]">مدير</span> : null}</label>)}</div>}</div><Textarea value={customMessage} onChange={event => setCustomMessage(event.target.value)} placeholder="اكتب نص الإشعار..." className="min-h-24 rounded-xl" /><div className="flex justify-end"><Button type="button" onClick={() => createCustomNotification.mutate({ recipientUserIds: customRecipientIds, notificationType: "custom", title: customTitle, message: customMessage, priority: customPriority, link: null })} disabled={createCustomNotification.isPending || !customTitle.trim() || !customMessage.trim()} className="rounded-xl bg-[#0d7180] text-white hover:bg-[#095b66]">{createCustomNotification.isPending ? "جاري الإرسال..." : "إرسال الإشعار"}</Button></div></CardContent></Card>}{user?.role === "admin" && <Card className="border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)]"><CardContent className="space-y-3 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-[#0d7180]">READ RECEIPTS</p><h3 className="mt-1 text-xl font-black text-[#102a43]">حالة قراءة الإشعارات الإدارية</h3><p className="mt-1 text-sm text-slate-500">يعرض هذا السجل حالة كل مستلم ووقت فتح الإشعار.</p></div><Badge className="bg-[#e8f7f6] text-[#0d4f62]">{sentRows.filter(row => row.notification.isRead).length ?? 0} تم فتحها</Badge></div>{sentNotifications.isLoading ? <LoadingRows columns={4} /> : sentNotifications.error ? <p className="text-sm text-red-600">تعذر تحميل سجل قراءة الإشعارات.</p> : !sentRows.length ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">لا توجد إشعارات مرسلة بعد.</p> : <div className="max-h-80 overflow-y-auto rounded-xl border border-[#e5eef1]"><div className="min-w-[680px]"><div className="grid grid-cols-[1.2fr_1fr_1fr_1fr] gap-2 bg-[#f8fcfc] px-3 py-3 text-xs font-black text-slate-500"><span>الإشعار</span><span>المستلم</span><span>الحالة</span><span>وقت الفتح</span></div>{sentRows.map(row => <div key={row.notification.id} className="grid grid-cols-[1.2fr_1fr_1fr_1fr] gap-2 border-t border-[#eef3f5] px-3 py-3 text-xs"><span className="font-black text-[#102a43]">{row.notification.title}</span><span className="truncate text-slate-600">{row.recipientName || row.recipientEmail || `مستخدم ${row.notification.recipientUserId ?? ""}`}</span><span className={row.notification.isRead ? "font-bold text-emerald-700" : "font-bold text-amber-700"}>{row.notification.isRead ? "تم الفتح" : "لم يُفتح بعد"}</span><span className="text-slate-500">{row.notification.readAt ? new Date(row.notification.readAt).toLocaleString("ar-EG") : "—"}</span></div>)}</div></div>}</CardContent></Card>}{user?.role === "admin" && <Card className="border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)]"><CardContent className="p-0"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f5] bg-[#fffaf0] p-5"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-[#a96821]">SECURITY ALERTS</p><h3 className="mt-1 text-xl font-black text-[#102a43]">تنبيهات الدخول من أجهزة جديدة</h3><p className="mt-1 text-sm text-slate-500">{unreadSecurityNotifications.length ? `يوجد ${unreadSecurityNotifications.length} تنبيه غير مقروء` : "لا توجد تنبيهات دخول جديدة غير مقروءة"}</p></div>{unreadSecurityNotifications.length > 0 && <Button type="button" variant="outline" onClick={() => markSecurityNotificationsRead.mutate()} disabled={markSecurityNotificationsRead.isPending} className="rounded-xl border-[#d08a3b] text-[#8c5c1d]">تحديد الكل كمقروء</Button>}</div>{securityNotifications.isLoading ? <LoadingRows columns={3} /> : securityNotifications.error ? <p className="p-5 text-sm text-slate-400">تعذر تحميل تنبيهات الدخول.</p> : (securityNotifications.data ?? []).length === 0 ? <EmptyTable title="لا توجد تنبيهات دخول" description="سيظهر تنبيه هنا عند دخول مستخدم من جهاز أو متصفح جديد." icon={Monitor} /> : <div className="space-y-3 p-5">{(securityNotifications.data ?? []).map(notification => <article key={notification.id} className={`rounded-2xl border p-4 ${notification.isRead ? "border-slate-100 bg-slate-50/70" : "border-[#f0dfbe] bg-[#fffaf0]"}`}><div className="flex items-start gap-3"><div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#a96821]"><Monitor className="h-5 w-5" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-black text-[#102a43]">{notification.title}</h4><time className="text-xs text-slate-400">{new Date(notification.createdAt).toLocaleString("en-US")}</time></div><p className="mt-2 text-sm leading-7 text-slate-600">{notification.message}</p>{notification.loginLogId != null && <Button type="button" onClick={() => { const loginLogId = notification.loginLogId; if (loginLogId != null && window.confirm("سيتم إنهاء جلسة المستخدم فوراً ولن يستطيع متابعة استخدام التطبيق بهذه الجلسة. هل تريد المتابعة؟")) revokeLoginSession.mutate({ loginLogId }); }} disabled={revokeLoginSession.isPending || revokedLoginIds.includes(notification.loginLogId)} className={`mt-3 rounded-xl ${revokedLoginIds.includes(notification.loginLogId) ? "bg-slate-300 text-slate-600" : "bg-[#bd5147] text-white hover:bg-[#a53f37]"}`}>{revokedLoginIds.includes(notification.loginLogId) ? "تم إنهاء الجلسة" : "إنهاء الجلسة فوراً"}</Button>}</div></div></article>)}</div>}</CardContent></Card>}
-      <Card className="modern-card border-0 bg-white/85 shadow-[0_10px_30px_rgba(18,44,84,0.055)] backdrop-blur-sm"><CardContent className="p-0">{summary.isLoading ? <LoadingRows columns={5} /> : !summary.data?.lowStock.length ? <EmptyTable title="كل شيء مستقر" description="لا توجد أصناف تحت مستوى التنبيه الحالي." icon={Package} /> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-right"><thead><tr className="bg-[#fffaf9] text-[11px] font-black text-slate-400"><th className="px-6 py-4">الصنف</th><th className="px-4 py-4">الكود</th><th className="px-4 py-4">الرصيد الحالي</th><th className="px-4 py-4">حد الطلب</th><th className="px-6 py-4">التوصية</th></tr></thead><tbody className="divide-y divide-[#f0f4f6]">{summary.data.lowStock.map(item => <tr key={item.id}><td className="px-6 py-5 font-bold text-[#102a43]">{item.name}</td><td className="px-4 py-5 font-mono text-xs text-slate-400">{item.code}</td><td className="px-4 py-5 font-black text-[#bd5147]">{formatQuantity(item.currentStock)}</td><td className="px-4 py-5 text-slate-500">{formatQuantity(item.reorderLevel)}</td><td className="px-6 py-5"><span className="inline-flex items-center gap-2 rounded-full bg-[#fff0ed] px-3 py-1.5 text-xs font-bold text-[#bd5147]"><AlertTriangle className="h-3.5 w-3.5" />يُفضّل إنشاء طلب توريد</span></td></tr>)}</tbody></table></div>}</CardContent></Card></div></DashboardLayout>;
-}
+  const createCustomNotification = trpc.notifications.create.useMutation({
+    onSuccess: () => {
+      setCustomTitle("");
+      setCustomMessage("");
+      setCustomPriority("normal");
+      setCustomRecipientIds([]);
+      toast.success("تم إرسال الإشعار إلى المستلمين المحددين");
+      void sentNotifications.refetch();
+    },
+    onError: error => toast.error(error.message || "تعذر إرسال الإشعار"),
+  });
 
+  const lowStockCard = (
+    <Card className="modern-card min-w-0 border-0 bg-white/90 shadow-[0_10px_30px_rgba(18,44,84,0.055)] dark:border dark:border-slate-700 dark:bg-slate-900/80">
+      <CardContent className="p-0" dir="rtl">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf2f5] bg-[#fff7f5] p-4 dark:border-slate-700 dark:bg-rose-950/20 sm:p-5">
+          <div><p className="text-xs font-black tracking-[0.16em] text-[#bd5147] dark:text-rose-300">متابعة المخزون</p><h2 className="mt-1 text-lg font-black text-[#102a43] dark:text-white">الأصناف عند حد التنبيه</h2><p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">الأصناف التي تحتاج مراجعة رصيدها أو طلب توريد.</p></div>
+          <Badge className="rounded-full bg-[#fff0ed] px-3 py-1.5 text-[#bd5147] dark:bg-rose-950/50 dark:text-rose-200">{summary.data?.lowStock.length ?? 0} صنف</Badge>
+        </div>
+        {summary.isLoading && !summary.data ? <div className="p-4"><LoadingRows columns={5} /></div> : summary.error && !summary.data ? <p className="p-5 text-sm font-bold text-red-600 dark:text-red-300">تعذر تحميل تنبيهات المخزون.</p> : !summary.data?.lowStock.length ? <EmptyTable title="كل شيء مستقر" description="لا توجد أصناف تحت مستوى التنبيه الحالي." icon={Package} /> : (
+          <div className="max-h-[25rem] overflow-auto rounded-b-2xl">
+            <table className="w-full min-w-[660px] text-right">
+              <thead className="sticky top-0 z-10 bg-[#fffaf9] text-[11px] font-black text-slate-500 dark:bg-slate-800 dark:text-slate-300"><tr><th className="px-4 py-3 sm:px-6">الصنف</th><th className="px-4 py-3">الكود</th><th className="px-4 py-3">الرصيد الحالي</th><th className="px-4 py-3">حد الطلب</th><th className="px-4 py-3 sm:px-6">التوصية</th></tr></thead>
+              <tbody className="divide-y divide-[#f0f4f6] dark:divide-slate-800">{summary.data.lowStock.map(item => <tr key={item.id} className="hover:bg-rose-50/40 dark:hover:bg-rose-950/10"><td className="px-4 py-4 font-bold text-[#102a43] dark:text-slate-100 sm:px-6">{item.name}</td><td className="px-4 py-4 font-mono text-xs text-slate-500 dark:text-slate-400">{item.code}</td><td className="px-4 py-4 font-black text-[#bd5147] dark:text-rose-300">{formatQuantity(item.currentStock)}</td><td className="px-4 py-4 text-slate-500 dark:text-slate-400">{formatQuantity(item.reorderLevel)}</td><td className="px-4 py-4 sm:px-6"><span className="inline-flex items-center gap-2 rounded-full bg-[#fff0ed] px-3 py-1.5 text-xs font-bold text-[#bd5147] dark:bg-rose-950/40 dark:text-rose-200"><AlertTriangle className="h-3.5 w-3.5" />يُفضّل إنشاء طلب توريد</span></td></tr>)}</tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const securityAlertsCard = (
+    <Card className="min-w-0 border-0 bg-white/90 shadow-[0_10px_30px_rgba(18,44,84,0.055)] dark:border dark:border-slate-700 dark:bg-slate-900/80">
+      <CardContent className="p-0" dir="rtl">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 bg-[#fffaf0] p-4 dark:border-slate-700 dark:bg-amber-950/20 sm:p-5">
+          <div className="flex min-w-0 items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#a96821] shadow-sm dark:bg-slate-800 dark:text-amber-300"><Monitor className="h-5 w-5" /></div><div><p className="text-xs font-black tracking-[0.16em] text-[#a96821] dark:text-amber-300">أمن الحساب</p><h2 className="mt-1 text-lg font-black text-[#102a43] dark:text-white">تنبيهات تسجيل الدخول</h2><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{unreadSecurityNotifications.length ? `${unreadSecurityNotifications.length} تنبيه جديد يحتاج مراجعة` : "لا توجد تنبيهات دخول جديدة"}</p></div></div>
+          <div className="flex flex-wrap items-center gap-2"><Badge variant="outline" className="rounded-full border-amber-200 bg-white text-amber-800 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-200">{securityRows.length} إجمالي</Badge>{unreadSecurityNotifications.length > 0 && <Button type="button" size="sm" variant="outline" onClick={() => markSecurityNotificationsRead.mutate()} disabled={markSecurityNotificationsRead.isPending} className="rounded-xl border-[#d08a3b] text-[#8c5c1d] dark:border-amber-700 dark:text-amber-200">{markSecurityNotificationsRead.isPending ? "جارٍ التحديث..." : "تحديد الكل كمقروء"}</Button>}</div>
+        </div>
+        {securityNotifications.isLoading ? <div className="p-4"><LoadingRows columns={3} /></div> : securityNotifications.error ? <p className="p-5 text-sm font-bold text-red-600 dark:text-red-300">تعذر تحميل تنبيهات الدخول.</p> : !securityRows.length ? <EmptyTable title="لا توجد تنبيهات دخول" description="سيظهر التنبيه هنا عند اكتشاف دخول من جهاز أو متصفح جديد." icon={Monitor} /> : (
+          <div className="max-h-[25rem] space-y-2 overflow-y-auto p-3 sm:p-4">
+            {securityRows.map(notification => (
+              <article key={notification.id} className={`rounded-2xl border p-3 transition-colors sm:p-4 ${notification.isRead ? "border-slate-200 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-950/50" : "border-amber-200 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20"}`}>
+                <div className="flex items-start gap-3">
+                  <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${notification.isRead ? "bg-white text-slate-500 dark:bg-slate-800 dark:text-slate-300" : "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"}`}><Monitor className="h-4 w-4" /></div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-black text-[#102a43] dark:text-white">{notification.title}</h3><Badge className={notification.isRead ? "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300" : "bg-amber-200 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100"}>{notification.isRead ? "تمت القراءة" : "جديد"}</Badge></div>
+                    <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{notification.message}</p>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2"><time className="text-xs text-slate-500 dark:text-slate-400">{new Date(notification.createdAt).toLocaleString("ar-EG")}</time>{notification.loginLogId != null && <Button type="button" size="sm" onClick={() => { const loginLogId = notification.loginLogId; if (loginLogId != null && window.confirm("سيتم إنهاء جلسة المستخدم فوراً ولن يستطيع متابعة استخدام التطبيق بهذه الجلسة. هل تريد المتابعة؟")) revokeLoginSession.mutate({ loginLogId }); }} disabled={revokeLoginSession.isPending || revokedLoginIds.includes(notification.loginLogId)} className={`rounded-xl ${revokedLoginIds.includes(notification.loginLogId) ? "bg-slate-300 text-slate-600 dark:bg-slate-700 dark:text-slate-300" : "bg-[#bd5147] text-white hover:bg-[#a53f37]"}`}>{revokedLoginIds.includes(notification.loginLogId) ? "تم إنهاء الجلسة" : revokeLoginSession.isPending ? "جارٍ الإنهاء..." : "إنهاء الجلسة"}</Button>}</div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const sentNotificationsCard = (
+    <Card className="border-0 bg-white/90 shadow-[0_10px_30px_rgba(18,44,84,0.055)] dark:border dark:border-slate-700 dark:bg-slate-900/80">
+      <CardContent className="space-y-3 p-4 sm:p-5" dir="rtl">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black tracking-[0.16em] text-[#0d7180] dark:text-teal-300">سجل الإشعارات</p><h2 className="mt-1 text-lg font-black text-[#102a43] dark:text-white">حالة قراءة الإشعارات المرسلة</h2><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">تابع المستلمين وحالة فتح كل إشعار.</p></div><Badge className="bg-[#e8f7f6] text-[#0d4f62] dark:bg-teal-950/50 dark:text-teal-200">{sentRows.filter(row => row.notification.isRead).length} من {sentRows.length} تمت قراءتها</Badge></div>
+        {sentNotifications.isLoading ? <LoadingRows columns={4} /> : sentNotifications.error ? <p className="text-sm font-bold text-red-600 dark:text-red-300">تعذر تحميل سجل قراءة الإشعارات.</p> : !sentRows.length ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-300">لا توجد إشعارات مرسلة بعد.</p> : (
+          <div className="max-h-[22rem] overflow-auto rounded-xl border border-[#e5eef1] dark:border-slate-700">
+            <div className="min-w-[640px]">
+              <div className="sticky top-0 z-10 grid grid-cols-[1.2fr_1fr_1fr_1fr] gap-2 bg-[#f8fcfc] px-3 py-3 text-xs font-black text-slate-500 dark:bg-slate-800 dark:text-slate-300"><span>الإشعار</span><span>المستلم</span><span>الحالة</span><span>وقت الفتح</span></div>
+              {sentRows.map(row => <div key={row.notification.id} className="grid grid-cols-[1.2fr_1fr_1fr_1fr] gap-2 border-t border-[#eef3f5] px-3 py-3 text-xs dark:border-slate-800"><span className="font-black text-[#102a43] dark:text-slate-100">{row.notification.title}</span><span className="truncate text-slate-600 dark:text-slate-300">{row.recipientName || row.recipientEmail || `مستخدم ${row.notification.recipientUserId ?? ""}`}</span><span className={row.notification.isRead ? "font-bold text-emerald-700 dark:text-emerald-300" : "font-bold text-amber-700 dark:text-amber-300"}>{row.notification.isRead ? "تم الفتح" : "لم يُفتح بعد"}</span><span className="text-slate-500 dark:text-slate-400">{row.notification.readAt ? new Date(row.notification.readAt).toLocaleString("ar-EG") : "—"}</span></div>)}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const customNotificationCard = (
+    <Card className="border-0 bg-white/90 shadow-[0_10px_30px_rgba(18,44,84,0.055)] dark:border dark:border-slate-700 dark:bg-slate-900/80">
+      <CardContent className="space-y-4 p-4 sm:p-5" dir="rtl">
+        <div><p className="text-xs font-black tracking-[0.16em] text-[#0d7180] dark:text-teal-300">إدارة الإشعارات</p><h2 className="mt-1 text-lg font-black text-[#102a43] dark:text-white">إرسال إشعار مخصص</h2><p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">أرسله لجميع المستخدمين أو حدد مستلمين بعينهم.</p></div>
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]"><Input value={customTitle} onChange={event => setCustomTitle(event.target.value)} placeholder="عنوان الإشعار" className="rounded-xl dark:border-slate-700 dark:bg-slate-950 dark:text-white" /><select value={customPriority} onChange={event => setCustomPriority(event.target.value as typeof customPriority)} aria-label="أولوية الإشعار" className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"><option value="low">أولوية منخفضة</option><option value="normal">أولوية عادية</option><option value="high">أولوية عالية</option><option value="critical">حرجة</option></select></div>
+        <div className="space-y-3 rounded-xl border border-[#dce7ee] bg-[#f8fcfc] p-3 dark:border-slate-700 dark:bg-slate-950/50"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-black text-[#102a43] dark:text-white">المستلمون</p><label className="inline-flex cursor-pointer items-center gap-2 text-sm font-bold text-[#0d4f62] dark:text-teal-200"><input type="checkbox" checked={customRecipientIds.length === 0} onChange={event => { if (event.target.checked) setCustomRecipientIds([]); }} className="h-4 w-4 accent-[#0d7180]" />كل المستخدمين</label></div><p className="text-xs text-slate-500 dark:text-slate-400">عند اختيار مستخدمين محددين، لن يظهر الإشعار لغيرهم.</p>{managementUsers.isLoading ? <p className="text-xs text-slate-400">جاري تحميل قائمة المستخدمين...</p> : managementUsers.error ? <p className="text-xs font-bold text-red-600 dark:text-red-300">تعذر تحميل قائمة المستخدمين.</p> : <div className="grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">{(managementUsers.data ?? []).map(managedUser => <label key={managedUser.id} className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-bold text-[#102a43] dark:bg-slate-900 dark:text-slate-100"><input type="checkbox" checked={customRecipientIds.includes(managedUser.id)} onChange={event => setCustomRecipientIds(ids => event.target.checked ? [...ids, managedUser.id] : ids.filter(id => id !== managedUser.id))} className="h-4 w-4 accent-[#0d7180]" /><span className="min-w-0 truncate">{managedUser.name || managedUser.email || `مستخدم ${managedUser.id}`}</span>{managedUser.role === "admin" ? <span className="text-[10px] text-[#a96821] dark:text-amber-300">مدير</span> : null}</label>)}</div>}</div>
+        <Textarea value={customMessage} onChange={event => setCustomMessage(event.target.value)} placeholder="اكتب نص الإشعار..." className="min-h-24 rounded-xl dark:border-slate-700 dark:bg-slate-950 dark:text-white" />
+        <div className="flex justify-end"><Button type="button" onClick={() => createCustomNotification.mutate({ recipientUserIds: customRecipientIds, notificationType: "custom", title: customTitle, message: customMessage, priority: customPriority, link: null })} disabled={createCustomNotification.isPending || !customTitle.trim() || !customMessage.trim()} className="rounded-xl bg-[#0d7180] text-white hover:bg-[#095b66]">{createCustomNotification.isPending ? "جاري الإرسال..." : "إرسال الإشعار"}</Button></div>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <DashboardLayout>
+      <div className="mx-auto max-w-[1500px] space-y-5 sm:space-y-6">
+        <PageHeader
+          eyebrow="المتابعة / التنبيهات"
+          title="التنبيهات الذكية"
+          description="راجع الأصناف التي تحتاج متابعة وتنبيهات الدخول من شاشة مرتبة ومختصرة."
+          action={<div className="flex flex-wrap items-center gap-2"><Badge className="rounded-full bg-[#fff0ed] px-3 py-2 text-[#bd5147] dark:bg-rose-950/50 dark:text-rose-200">حد التنبيه: {summary.data?.thresholdPercentage ?? 20}%</Badge><Badge variant="outline" className="rounded-full border-[#dce7ee] px-3 py-2 text-slate-600 dark:border-slate-700 dark:text-slate-300">{summary.data?.lowStock.length ?? 0} صنف يحتاج مراجعة</Badge>{isAdmin && <Badge variant="outline" className="rounded-full border-amber-200 px-3 py-2 text-amber-800 dark:border-amber-800 dark:text-amber-200">{unreadSecurityNotifications.length} دخول جديد</Badge>}</div>}
+        />
+
+        <div className={isAdmin ? "grid items-start gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]" : "grid gap-4"}>
+          {lowStockCard}
+          {isAdmin ? securityAlertsCard : null}
+        </div>
+        {isAdmin ? sentNotificationsCard : null}
+        <SmartForecastCard />
+        {isAdmin ? <HelpRequestsAdminCard /> : <HelpRequestCard />}
+        {isAdmin ? customNotificationCard : null}
+      </div>
+    </DashboardLayout>
+  );
+}
 function parseReportRunSummary(value?: string | null): Record<string, any> {
   if (!value) return {};
   try { return JSON.parse(value); } catch { return {}; }
