@@ -124,14 +124,14 @@ function HandwritingPad({ value, onChange }: { value: string; onChange: (value: 
         dir="rtl"
         aria-describedby="handwriting-page-description"
         className="overflow-hidden bg-[#fffefa] text-[#102a43]"
-        style={{ position: "fixed", inset: 0, left: 0, top: 0, width: "100vw", maxWidth: "none", height: "100dvh", maxHeight: "100dvh", transform: "none", borderRadius: 0, border: 0, padding: 0, display: "flex", flexDirection: "column", gap: 0 }}
+        style={{ position: "fixed", inset: 0, left: 0, right: 0, top: 0, width: "100vw", minWidth: 0, maxWidth: "none", height: "100dvh", minHeight: 0, maxHeight: "100dvh", transform: "none", zIndex: 100, borderRadius: 0, border: 0, padding: 0, display: "flex", flexDirection: "column", gap: 0, overflow: "hidden" }}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e7e2d5] bg-[#fffefa] px-3 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e8f7f6] text-[#0d7180]"><FilePenLine className="h-5 w-5" /></div><div className="min-w-0"><DialogTitle className="truncate text-base font-black text-[#102a43] sm:text-lg">صفحة كتابة الملاحظة</DialogTitle><DialogDescription id="handwriting-page-description" className="mt-0.5 text-xs text-slate-500">صفحة بيضاء كاملة — اكتب بالقلم أو بإصبعك.</DialogDescription></div></div>
           <Button type="button" variant="outline" onClick={() => setOpen(false)} className="shrink-0 rounded-xl border-[#cbdcde] bg-white text-[#0d4f62]"><X className="ml-2 h-4 w-4" /><span className="hidden sm:inline">رجوع للملاحظة</span><span className="sm:hidden">رجوع</span></Button>
         </div>
-        <div className="min-h-0 flex-1 bg-[#fffefa] p-2 sm:p-5">
-          <canvas ref={canvasRef} width={1600} height={2400} aria-label="صفحة بيضاء كبيرة للكتابة بالقلم أو الرسم" className="block h-full w-full touch-none select-none bg-[#fffefa]" style={{ objectFit: "contain" }} onPointerDown={startDrawing} onPointerMove={continueDrawing} onPointerUp={finishDrawing} onPointerCancel={finishDrawing} />
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f4f1e8] p-2 sm:p-5">
+          <canvas ref={canvasRef} width={1200} height={1800} aria-label="صفحة بيضاء كبيرة للكتابة بالقلم أو الرسم" className="block h-auto max-h-full w-auto max-w-full touch-none select-none bg-[#fffefa] shadow-sm" style={{ aspectRatio: "2 / 3" }} onPointerDown={startDrawing} onPointerMove={continueDrawing} onPointerUp={finishDrawing} onPointerCancel={finishDrawing} />
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[#e7e2d5] bg-[#fffefa] px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
           <p className="hidden text-xs text-slate-500 sm:block">تُحفظ كتابتك مع الملاحظة عند الضغط على زر الحفظ في النموذج.</p>

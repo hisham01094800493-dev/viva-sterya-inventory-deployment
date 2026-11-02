@@ -9,6 +9,10 @@ describe("الكتابة بالقلم ومرفقات الملاحظات", () => 
     expect(source).toContain("<Dialog open={open} onOpenChange={setOpen}>");
     expect(source).toContain('position: "fixed", inset: 0');
     expect(source).toContain('height: "100dvh"');
+    expect(source).toContain('right: 0');
+    expect(source).toContain('minWidth: 0');
+    expect(source).toContain('aspectRatio: "2 / 3"');
+    expect(source).toContain("items-center justify-center overflow-hidden");
     expect(source).toContain('aria-label="صفحة بيضاء كبيرة للكتابة بالقلم أو الرسم"');
     expect(source).toContain("touch-none select-none");
     expect(source).toContain("onPointerDown={startDrawing}");
