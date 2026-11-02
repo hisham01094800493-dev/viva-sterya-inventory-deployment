@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { parse as parseCookie } from "cookie";
 import { z } from "zod";
-import { getDisbursementAnalysis, getForecastRows, invalidateForecastCache } from "./stockForecast";
+import { getForecastRows, invalidateForecastCache } from "./stockForecast";
 import { buildActivityCleanupAuditDetails } from "./activityCleanup";
 import {
   createAddition,
@@ -585,24 +585,21 @@ export const appRouter = router({
 
   alerts: router({
     smartForecast: permissionProcedure("alerts")
-      .input(z.object({ warehouseId: z.number().int().positive().nullable().optional(), severity: z.enum(["critical", "warning", "watch", "ok"]).nullable().optional(), stagnant: z.boolean().optional(), abcClass: z.enum(["A", "B", "C"]).nullable().optional(), search: z.string().trim().max(200).optional(), analysisDays: z.number().int().min(1).max(365).default(30), page: z.number().int().positive().default(1), pageSize: z.number().int().min(5).max(100).default(25) }))
+      .input(z.object({ warehouseId: z.number().int().positive().nullable().optional(), severity: z.enum(["critical", "warning", "watch", "ok"]).nullable().optional(), stagnant: z.boolean().optional(), abcClass: z.enum(["A", "B", "C"]).nullable().optional(), search: z.string().trim().max(200).optional(), page: z.number().int().positive().default(1), pageSize: z.number().int().min(5).max(100).default(25) }))
       .query(({ input, ctx }) => safe(async () => {
         if (input.warehouseId && ctx.permissions.allowedWarehouseIds.length && !ctx.permissions.allowedWarehouseIds.includes(input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" });
         const [leadTime, safetyStock] = await Promise.all([getSettingValue("forecast_lead_time_days", "7"), getSettingValue("forecast_safety_stock_days", "3")]);
-        const rows = await getForecastRows(ctx.permissions.allowedWarehouseIds, { leadTimeDays: Math.max(0, Number(leadTime) || 7), safetyStockDays: Math.max(0, Number(safetyStock) || 3), analysisDays: input.analysisDays });
+        const rows = await getForecastRows(ctx.permissions.allowedWarehouseIds, { leadTimeDays: Math.max(0, Number(leadTime) || 7), safetyStockDays: Math.max(0, Number(safetyStock) || 3) });
         const search = input.search?.toLowerCase();
         const filtered = rows.filter(row => (!input.warehouseId || row.warehouseId === input.warehouseId) && (!input.severity || row.severity === input.severity) && (!input.stagnant || row.stagnant) && (!input.abcClass || row.abcClass === input.abcClass) && (!search || row.name.toLowerCase().includes(search) || row.code.toLowerCase().includes(search)));
         const start = (input.page - 1) * input.pageSize;
         return { rows: filtered.slice(start, start + input.pageSize), total: filtered.length, page: input.page, pageSize: input.pageSize, pageCount: Math.max(1, Math.ceil(filtered.length / input.pageSize)) };
       })),
-    forecastSummary: permissionProcedure("alerts").input(z.object({ analysisDays: z.number().int().min(1).max(365).default(30) }).optional()).query(({ ctx, input }) => safe(async () => {
+    forecastSummary: permissionProcedure("alerts").query(({ ctx }) => safe(async () => {
       const [leadTime, safetyStock] = await Promise.all([getSettingValue("forecast_lead_time_days", "7"), getSettingValue("forecast_safety_stock_days", "3")]);
-      const rows = await getForecastRows(ctx.permissions.allowedWarehouseIds, { leadTimeDays: Math.max(0, Number(leadTime) || 7), safetyStockDays: Math.max(0, Number(safetyStock) || 3), analysisDays: input?.analysisDays ?? 30 });
+      const rows = await getForecastRows(ctx.permissions.allowedWarehouseIds, { leadTimeDays: Math.max(0, Number(leadTime) || 7), safetyStockDays: Math.max(0, Number(safetyStock) || 3) });
       return { critical: rows.filter(row => row.severity === "critical").length, warning: rows.filter(row => row.severity === "warning").length, watch: rows.filter(row => row.severity === "watch").length, ok: rows.filter(row => row.severity === "ok").length, stagnant: rows.filter(row => row.stagnant).length, suggestedValue: rows.reduce((sum, row) => sum + row.suggestedOrderQty * row.consumptionValue90 / Math.max(1, row.dailyRate90 * 90), 0) };
     })),
-    disbursementAnalysis: permissionProcedure("alerts")
-      .input(z.object({ historyDays: z.number().int().min(1).max(3650).default(30), forecastDays: z.number().int().min(1).max(3650).default(30) }))
-      .query(({ input, ctx }) => safe(() => getDisbursementAnalysis(ctx.permissions.allowedWarehouseIds, input.historyDays, input.forecastDays))),
   }),
 
   notifications: router({

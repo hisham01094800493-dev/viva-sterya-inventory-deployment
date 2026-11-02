@@ -1,13 +1,12 @@
 import { getDb } from "./db/connection";
-import { and, asc, gte, inArray, lte } from "drizzle-orm";
-import { buildings, disbursements, items } from "../drizzle/schema";
+import { asc, inArray } from "drizzle-orm";
+import { disbursements, items } from "../drizzle/schema";
 
 type ItemRow = { id: number; code: string; name: string; currentStock: unknown; unit?: string | null; unitPrice?: unknown; warehouseId?: number | null; createdAt?: Date | null };
 type DisbursementRow = { itemCode: string; quantity: unknown; unitPrice?: unknown; totalValue?: unknown; date: string; warehouseId?: number | null };
 export type ForecastSeverity = "critical" | "warning" | "watch" | "ok";
-export type ForecastCoverageStatus = "enough" | "shortage";
-export type ForecastRow = { code: string; name: string; unit: string | null; currentStock: number; analysisDays: number; analysisConsumption: number; dailyRate: number; dailyRate30: number; dailyRate90: number; daysOfCover: number | null; targetCoverageDays: number; targetStock: number; coverageStatus: ForecastCoverageStatus; shortageQty: number; severity: ForecastSeverity; suggestedOrderQty: number; abcClass: "A" | "B" | "C"; lastDisbursementDate: string | null; lowConfidence: boolean; stagnant: boolean; warehouseId: number | null; consumptionValue90: number; outlierQuantity90: number };
-export type ForecastSettings = { leadTimeDays: number; safetyStockDays: number; analysisDays?: number };
+export type ForecastRow = { code: string; name: string; unit: string | null; currentStock: number; dailyRate: number; dailyRate30: number; dailyRate90: number; daysOfCover: number | null; severity: ForecastSeverity; suggestedOrderQty: number; abcClass: "A" | "B" | "C"; lastDisbursementDate: string | null; lowConfidence: boolean; stagnant: boolean; warehouseId: number | null; consumptionValue90: number; outlierQuantity90: number };
+export type ForecastSettings = { leadTimeDays: number; safetyStockDays: number };
 
 const DAY = 86_400_000;
 const asNumber = (value: unknown) => Number(value ?? 0) || 0;
@@ -35,10 +34,9 @@ export function classifyAbc(rows: Array<{ code: string; value: number }>) {
   for (const row of sorted) { cumulative += row.value; const ratio = total ? cumulative / total : 1; result.set(row.code, ratio <= 0.8 ? "A" : ratio <= 0.95 ? "B" : "C"); }
   return result;
 }
-export function buildForecast(itemsRows: ItemRow[], movementRows: DisbursementRow[], now = new Date(), settings: ForecastSettings = { leadTimeDays: 7, safetyStockDays: 3, analysisDays: 30 }) {
+export function buildForecast(itemsRows: ItemRow[], movementRows: DisbursementRow[], now = new Date(), settings: ForecastSettings = { leadTimeDays: 7, safetyStockDays: 3 }) {
   const end = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  const analysisDays = Math.min(365, Math.max(1, Math.round(settings.analysisDays ?? 30)));
-  const startAnalysis = end - analysisDays * DAY, start30 = end - 30 * DAY, start90 = end - 90 * DAY;
+  const start30 = end - 30 * DAY, start90 = end - 90 * DAY;
   const grouped = new Map<string, Array<{ date: Date; quantity: number; value: number }>>();
   for (const row of movementRows) {
     const date = parseDate(row.date); const quantity = asNumber(row.quantity);
@@ -55,20 +53,20 @@ export function buildForecast(itemsRows: ItemRow[], movementRows: DisbursementRo
     const filtered = deviation > 0 ? movements.filter(row => row.quantity <= average + 3 * deviation) : movements;
     const lastDate = movements.length ? movements.reduce((latest, row) => row.date > latest ? row.date : latest, movements[0].date) : null;
     const sumBetween = (from: number) => filtered.filter(row => row.date.getTime() >= from).reduce((sum, row) => sum + row.quantity, 0);
-    const analysisConsumption = movements.filter(row => row.date.getTime() >= startAnalysis).reduce((sum, row) => sum + row.quantity, 0), recent30 = sumBetween(start30) / 30, recent90 = sumBetween(start90) / 90;
-    const lowConfidence = !item.createdAt || (end - new Date(item.createdAt).getTime()) < analysisDays * DAY;
-    const dailyRate = analysisConsumption / analysisDays;
-    const currentStock = asNumber(item.currentStock); const targetCoverageDays = Math.max(0, settings.leadTimeDays + settings.safetyStockDays); const targetStock = dailyRate * targetCoverageDays; const shortageQty = Math.max(0, targetStock - currentStock); const coverageStatus: ForecastCoverageStatus = shortageQty > 0 ? "shortage" : "enough"; const daysOfCover = dailyRate > 0 ? currentStock / dailyRate : null;
+    const recent30 = sumBetween(start30) / 30, recent90 = sumBetween(start90) / 90;
+    const lowConfidence = !item.createdAt || (end - new Date(item.createdAt).getTime()) < 30 * DAY;
+    const dailyRate = lowConfidence && recent90 === 0 ? recent30 : (recent30 * 0.6 + recent90 * 0.4);
+    const currentStock = asNumber(item.currentStock); const daysOfCover = dailyRate > 0 ? currentStock / dailyRate : null;
     const severity = classifySeverity(daysOfCover, currentStock);
     const suggestedOrderQty = Math.max(0, Math.ceil(dailyRate * (settings.leadTimeDays + settings.safetyStockDays) - currentStock));
     const stagnant = currentStock > 0 && (!lastDate || lastDate.getTime() < start90);
-    return { code: item.code, name: item.name, unit: item.unit ?? null, currentStock, analysisDays, analysisConsumption, dailyRate, dailyRate30: recent30, dailyRate90: recent90, daysOfCover, targetCoverageDays, targetStock, coverageStatus, shortageQty, severity, suggestedOrderQty, abcClass: abc.get(item.code) ?? "C", lastDisbursementDate: lastDate ? dateKey(lastDate) : null, lowConfidence, stagnant, warehouseId: item.warehouseId ?? null, consumptionValue90: movements.reduce((sum, row) => sum + row.value, 0), outlierQuantity90: quantities.filter(quantity => deviation > 0 && quantity > average + 3 * deviation).reduce((sum, quantity) => sum + quantity, 0) } satisfies ForecastRow;
+    return { code: item.code, name: item.name, unit: item.unit ?? null, currentStock, dailyRate, dailyRate30: recent30, dailyRate90: recent90, daysOfCover, severity, suggestedOrderQty, abcClass: abc.get(item.code) ?? "C", lastDisbursementDate: lastDate ? dateKey(lastDate) : null, lowConfidence, stagnant, warehouseId: item.warehouseId ?? null, consumptionValue90: movements.reduce((sum, row) => sum + row.value, 0), outlierQuantity90: quantities.filter(quantity => deviation > 0 && quantity > average + 3 * deviation).reduce((sum, quantity) => sum + quantity, 0) } satisfies ForecastRow;
   }).sort((a, b) => ({ critical: 0, warning: 1, watch: 2, ok: 3 }[a.severity] - ({ critical: 0, warning: 1, watch: 2, ok: 3 }[b.severity]) || Number(a.daysOfCover ?? -1) - Number(b.daysOfCover ?? -1) || a.name.localeCompare(b.name, "ar")));
 }
 let cached: { at: number; key: string; rows: ForecastRow[] } | null = null;
 export function invalidateForecastCache() { cached = null; }
-export async function getForecastRows(allowedWarehouseIds: number[] = [], settings: ForecastSettings = { leadTimeDays: 7, safetyStockDays: 3, analysisDays: 30 }) {
-  const cacheKey = `${settings.leadTimeDays}:${settings.safetyStockDays}:${settings.analysisDays ?? 30}:${allowedWarehouseIds.join(",")}`;
+export async function getForecastRows(allowedWarehouseIds: number[] = [], settings: ForecastSettings = { leadTimeDays: 7, safetyStockDays: 3 }) {
+  const cacheKey = `${settings.leadTimeDays}:${settings.safetyStockDays}:${allowedWarehouseIds.join(",")}`;
   if (!allowedWarehouseIds.length && cached && cached.key === cacheKey && Date.now() - cached.at < 5 * 60_000) return cached.rows;
   const db = await getDb();
   if (!db) return [];
@@ -78,84 +76,4 @@ export async function getForecastRows(allowedWarehouseIds: number[] = [], settin
   const rows = buildForecast(itemRows, movementRows, new Date(), settings);
   if (!allowedWarehouseIds.length) cached = { at: Date.now(), key: cacheKey, rows };
   return rows;
-}
-
-
-export type DisbursementAnalysisRow = {
-  key: string;
-  itemCode: string;
-  itemName: string;
-  unit: string | null;
-  buildingId: number | null;
-  buildingName: string;
-  buildingCode: string;
-  buildingType: "owned_building" | "subcontractor" | "unknown";
-  totalQuantity: number;
-  totalValue: number;
-  movementCount: number;
-  averageDaily: number;
-  forecastDays: number;
-  projectedQuantity: number;
-  currentStock: number;
-};
-
-export async function getDisbursementAnalysis(
-  allowedWarehouseIds: number[] = [],
-  historyDays = 30,
-  forecastDays = 30,
-): Promise<DisbursementAnalysisRow[]> {
-  const db = await getDb();
-  if (!db) return [];
-  const safeHistoryDays = Math.min(3650, Math.max(1, Math.floor(historyDays)));
-  const safeForecastDays = Math.min(3650, Math.max(1, Math.floor(forecastDays)));
-  const end = new Date();
-  const endKey = dateKey(new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate())));
-  const start = new Date(`${endKey}T00:00:00.000Z`);
-  start.setUTCDate(start.getUTCDate() - safeHistoryDays + 1);
-  const startKey = dateKey(start);
-  const movementWhere = and(
-    gte(disbursements.date, startKey),
-    lte(disbursements.date, endKey),
-    ...(allowedWarehouseIds.length ? [inArray(disbursements.warehouseId, allowedWarehouseIds)] : []),
-  );
-  const [movementRows, itemRows, buildingRows] = await Promise.all([
-    db.select({ itemCode: disbursements.itemCode, itemName: disbursements.itemName, quantity: disbursements.quantity, totalValue: disbursements.totalValue, date: disbursements.date, buildingId: disbursements.buildingId }).from(disbursements).where(movementWhere),
-    db.select({ code: items.code, name: items.name, currentStock: items.currentStock, unit: items.unit }).from(items),
-    db.select({ id: buildings.id, name: buildings.name, code: buildings.code, type: buildings.type }).from(buildings),
-  ]);
-  const itemByCode = new Map(itemRows.map(item => [item.code, item]));
-  const buildingById = new Map(buildingRows.map(building => [building.id, building]));
-  const grouped = new Map<string, DisbursementAnalysisRow>();
-  for (const movement of movementRows) {
-    const item = itemByCode.get(movement.itemCode);
-    const building = movement.buildingId ? buildingById.get(movement.buildingId) : undefined;
-    const buildingId = movement.buildingId ?? null;
-    const key = `${buildingId ?? "unknown"}:${movement.itemCode}`;
-    const quantity = asNumber(movement.quantity);
-    const value = asNumber(movement.totalValue);
-    const existing = grouped.get(key) ?? {
-      key,
-      itemCode: movement.itemCode,
-      itemName: String(item?.name ?? movement.itemName ?? movement.itemCode),
-      unit: item?.unit ?? null,
-      buildingId,
-      buildingName: building?.name ?? "جهة غير محددة",
-      buildingCode: building?.code ?? "—",
-      buildingType: building?.type ?? "unknown",
-      totalQuantity: 0,
-      totalValue: 0,
-      movementCount: 0,
-      averageDaily: 0,
-      forecastDays: safeForecastDays,
-      projectedQuantity: 0,
-      currentStock: asNumber(item?.currentStock),
-    };
-    existing.totalQuantity += quantity;
-    existing.totalValue += value;
-    existing.movementCount += 1;
-    grouped.set(key, existing);
-  }
-  return Array.from(grouped.values())
-    .map(row => ({ ...row, averageDaily: row.totalQuantity / safeHistoryDays, projectedQuantity: Math.max(0, row.totalQuantity / safeHistoryDays * safeForecastDays) }))
-    .sort((a, b) => b.totalQuantity - a.totalQuantity || a.itemName.localeCompare(b.itemName, "ar"));
 }

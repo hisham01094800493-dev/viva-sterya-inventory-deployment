@@ -25,28 +25,4 @@ describe("smart stock forecast", () => {
     expect(rows[0].suggestedOrderQty).toBeGreaterThanOrEqual(0);
     expect(["A", "B", "C"]).toContain(rows[0].abcClass);
   });
-
-  it("marks coverage against lead time plus safety stock", () => {
-    const rows = buildForecast(
-      [{ id: 1, code: "A", name: "صنف", currentStock: "3", createdAt: new Date("2025-01-01") }],
-      [{ itemCode: "A", quantity: 30, date: "2026-10-20", unitPrice: 1 }],
-      new Date("2026-10-29T00:00:00Z"),
-      { leadTimeDays: 7, safetyStockDays: 3 },
-    );
-    expect(rows[0].targetCoverageDays).toBe(10);
-    expect(rows[0].coverageStatus).toBe("shortage");
-    expect(rows[0].shortageQty).toBeGreaterThan(0);
-  });
-
-  it("uses the entered analysis period as the daily-rate denominator", () => {
-    const rows = buildForecast(
-      [{ id: 1, code: "A", name: "لوحة كهرباء", currentStock: "200", createdAt: new Date("2025-01-01") }],
-      [{ itemCode: "A", quantity: 600, date: "2026-10-20", unitPrice: 1 }],
-      new Date("2026-10-29T00:00:00Z"),
-      { leadTimeDays: 7, safetyStockDays: 3, analysisDays: 30 },
-    );
-    expect(rows[0].analysisConsumption).toBe(600);
-    expect(rows[0].dailyRate).toBe(20);
-    expect(rows[0].daysOfCover).toBe(10);
-  });
 });
