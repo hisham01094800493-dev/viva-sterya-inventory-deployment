@@ -2362,7 +2362,7 @@ export async function createDisbursement(input: {
   itemCode: string;
   destination?: string | null;
   customerId?: number | null;
-  buildingId?: number;
+  buildingId?: number | null;
   quantity: number;
   notes?: string | null;
   store?: string | null;
@@ -2380,8 +2380,7 @@ export async function createDisbursement(input: {
     );
   const quantity = enteredQuantity;
   const clientRequestId = input.clientRequestId?.trim() || null;
-  if (!input.buildingId) throw new InventoryError("BAD_REQUEST", "يجب ربط إذن الصرف بمبنى أو جهة مستلمة");
-  const buildingId = input.buildingId;
+  const buildingId = input.buildingId ?? null;
 
   return db.transaction(async (tx: any) => {
     if (clientRequestId) {
@@ -2394,17 +2393,17 @@ export async function createDisbursement(input: {
       if (existing[0]) return existing[0];
     }
     const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode));
-    const buildingRows = await tx
-      .select({ id: buildings.id })
-      .from(buildings)
-      .where(and(eq(buildings.id, buildingId), eq(buildings.status, "active")))
-      .limit(1);
-    if (!buildingRows[0]) {
-      throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
+    if (buildingId !== null) {
+      const buildingRows = await tx
+        .select({ id: buildings.id })
+        .from(buildings)
+        .where(and(eq(buildings.id, buildingId), eq(buildings.status, "active")))
+        .limit(1);
+      if (!buildingRows[0]) throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
     }
     const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
     const totalValue = Math.sign(quantity) * calculateTotalValue(unitPrice, Math.abs(quantity));
-    const historicalRows = await tx
+    const historicalRows = buildingId === null ? [] : await tx
       .select({
         buildingId: disbursements.buildingId,
         itemCode: disbursements.itemCode,
@@ -2412,13 +2411,7 @@ export async function createDisbursement(input: {
         date: disbursements.date,
       })
       .from(disbursements)
-      .where(
-        and(
-          eq(disbursements.buildingId, buildingId),
-          eq(disbursements.itemCode, item.code),
-          lt(disbursements.date, input.date),
-        ),
-      );
+      .where(and(eq(disbursements.buildingId, buildingId), eq(disbursements.itemCode, item.code), lt(disbursements.date, input.date)));
     const baseline = calculateConsumptionBaseline(
       historicalRows,
       buildingId,
@@ -2478,7 +2471,7 @@ export async function createDisbursementBatch(input: {
   date: string;
   eznNum: string;
   warehouseId: number;
-  buildingId: number;
+  buildingId?: number | null;
   destination?: string | null;
   customerId?: number | null;
   notes?: string | null;
@@ -2491,7 +2484,6 @@ export async function createDisbursementBatch(input: {
   const db = await requireDb();
   const batchKey = input.clientRequestId.trim();
   if (!batchKey) throw new InventoryError("BAD_REQUEST", "مفتاح الإذن مطلوب");
-  if (!input.buildingId) throw new InventoryError("BAD_REQUEST", "يجب ربط إذن الصرف بمبنى أو جهة مستلمة");
   if (input.lines.length < 1 || input.lines.length > 50)
     throw new InventoryError("BAD_REQUEST", "يجب أن يحتوي الإذن على بند واحد إلى 50 بنداً");
 
@@ -2526,12 +2518,14 @@ export async function createDisbursementBatch(input: {
       throw new InventoryError("CONFLICT", "مفتاح الإذن مستخدم لطلب آخر أو حُفظ جزء غير متوقع منه");
     }
 
-    const buildingRows = await tx
-      .select({ id: buildings.id })
-      .from(buildings)
-      .where(and(eq(buildings.id, input.buildingId), eq(buildings.status, "active")))
-      .limit(1);
-    if (!buildingRows[0]) throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
+    if (input.buildingId != null) {
+      const buildingRows = await tx
+        .select({ id: buildings.id })
+        .from(buildings)
+        .where(and(eq(buildings.id, input.buildingId), eq(buildings.status, "active")))
+        .limit(1);
+      if (!buildingRows[0]) throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
+    }
     const warehouse = await resolveWarehouseId(tx, input.warehouseId);
     const lockedItems = new Map<string, any>();
     for (const code of Array.from(new Set(normalizedLines.map(line => line.itemCode))).sort())
@@ -2589,7 +2583,7 @@ export async function updateDisbursement(input: {
   itemCode?: string;
   destination?: string | null;
   customerId?: number | null;
-  buildingId?: number;
+  buildingId?: number | null;
   quantity?: number;
   notes?: string | null;
   store?: string | null;
@@ -2675,8 +2669,8 @@ export async function updateDisbursement(input: {
     }
 
     const nextItem = lockedItems.get(nextCode);
-    const nextBuildingId = input.buildingId ?? old.buildingId ?? null;
-    if (input.buildingId !== undefined) {
+    const nextBuildingId = input.buildingId === undefined ? (old.buildingId ?? null) : (input.buildingId ?? null);
+    if (input.buildingId != null) {
       const buildingRows = await tx
         .select({ id: buildings.id })
         .from(buildings)

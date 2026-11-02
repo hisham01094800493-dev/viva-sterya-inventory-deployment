@@ -120,8 +120,8 @@ export function DisbursementBatchDialog({
   }, [warehouseId, warehouses.data]);
 
   function advanceMobileStep() {
-    if (!date || !eznNum.trim() || !warehouseId || !buildingId) {
-      toast.error("أدخل التاريخ ورقم الإذن واختر المخزن والمبنى أولاً");
+    if (!date || !eznNum.trim() || !warehouseId) {
+      toast.error("أدخل التاريخ ورقم الإذن واختر المخزن أولاً");
       return;
     }
     setMobileStep(1);
@@ -134,9 +134,9 @@ export function DisbursementBatchDialog({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!navigator.onLine) { toast.error("إذن الصرف متعدد الأصناف يحتاج إلى اتصال مباشر لحفظه ذرياً."); return; }
-    if (!date || !eznNum.trim() || !warehouseId || !buildingId || invalidLines || hasDuplicateCode || hasInsufficientStock) {
-      if (!date || !eznNum.trim() || !warehouseId || !buildingId) setMobileStep(0);
-      toast.error(hasDuplicateCode ? "الصنف مكرر؛ اجمع كميته في بند واحد." : "راجع التاريخ ورقم الإذن والمخزن والمبنى والأصناف والأرصدة.");
+    if (!date || !eznNum.trim() || !warehouseId || invalidLines || hasDuplicateCode || hasInsufficientStock) {
+      if (!date || !eznNum.trim() || !warehouseId) setMobileStep(0);
+      toast.error(hasDuplicateCode ? "الصنف مكرر؛ اجمع كميته في بند واحد." : "راجع التاريخ ورقم الإذن والمخزن والأصناف والأرصدة.");
       return;
     }
     try {
@@ -144,7 +144,7 @@ export function DisbursementBatchDialog({
         date,
         eznNum: eznNum.trim(),
         warehouseId: numericWarehouseId,
-        buildingId: Number(buildingId),
+        buildingId: buildingId ? Number(buildingId) : null,
         customerId: customerId ? Number(customerId) : null,
         destination: destination || null,
         notes: notes || null,
@@ -174,7 +174,7 @@ export function DisbursementBatchDialog({
             <label className="space-y-1.5 text-sm font-bold text-slate-700">التاريخ<Input type="date" value={date} onChange={event => setDate(event.target.value)} required /></label>
             <label className="space-y-1.5 text-sm font-bold text-slate-700">رقم الإذن<Input value={eznNum} onChange={event => setEznNum(event.target.value)} placeholder="مثال: 5229" required /></label>
             <label className="space-y-1.5 text-sm font-bold text-slate-700"><span className="flex items-center gap-1"><Warehouse className="h-4 w-4" />المخزن المصدر</span><select value={warehouseId} onChange={event => setWarehouseId(event.target.value)} required disabled={!warehouses.data?.length} className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"><option value="">اختر المخزن</option>{warehouses.data?.map(warehouse => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select></label>
-            <label className="space-y-1.5 text-sm font-bold text-slate-700">المبنى / الجهة المستفيدة<select value={buildingId} onChange={event => { const id = event.target.value; setBuildingId(id); setDestination(buildings.data?.find(building => String(building.id) === id)?.name ?? ""); }} required className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"><option value="">اختر المبنى أو الجهة</option>{buildings.data?.map(building => <option key={building.id} value={building.id}>{building.name}</option>)}</select></label>
+            <label className="space-y-1.5 text-sm font-bold text-slate-700">المبنى / الجهة المستفيدة (اختياري)<select value={buildingId} onChange={event => { const id = event.target.value; setBuildingId(id); setDestination(buildings.data?.find(building => String(building.id) === id)?.name ?? ""); }} className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"><option value="">بدون مبنى — اختياري</option>{buildings.data?.map(building => <option key={building.id} value={building.id}>{building.name}</option>)}</select></label>
             <label className="space-y-1.5 text-sm font-bold text-slate-700">العميل (اختياري)<select value={customerId} onChange={event => { const id = event.target.value; setCustomerId(id); if (id) setDestination(customers.data?.find(customer => String(customer.id) === id)?.name ?? destination); }} className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"><option value="">اختر العميل عند الحاجة</option>{customers.data?.map(customer => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
             <label className="space-y-1.5 text-sm font-bold text-slate-700 sm:col-span-2">ملاحظات مشتركة (اختياري)<Textarea value={notes} onChange={event => setNotes(event.target.value)} maxLength={1000} className="min-h-16" /></label>
           </div>
@@ -200,10 +200,10 @@ export function DisbursementBatchDialog({
             {hasDuplicateCode ? <p className="flex items-start gap-2 text-xs font-bold text-red-600"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />الصنف مكرر في أكثر من بند؛ اجمع الكمية في بند واحد.</p> : null}
             {hasInsufficientStock ? <p className="flex items-start gap-2 text-xs font-bold text-red-600"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />يوجد بند أكبر من الرصيد المتاح؛ لن يُسجّل الإذن بهذا الوضع.</p> : null}
           </section>
-          <div className="flex items-center justify-between gap-2 md:hidden"><Button type="button" variant="outline" onClick={() => setMobileStep(0)} disabled={mobileStep === 0} className="rounded-xl">السابق</Button><Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl">إلغاء</Button>{mobileStep === 0 ? <Button type="button" onClick={advanceMobileStep} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">التالي</Button> : <Button type="submit" disabled={createBatch.isPending || !warehouseId || !buildingId || invalidLines || hasDuplicateCode || hasInsufficientStock || stockQuery.isLoading} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">{createBatch.isPending ? <><Loader2 className="ml-2 h-4 w-4 animate-spin" />جاري الحفظ…</> : "حفظ إذن الصرف"}</Button>}</div>
+          <div className="flex items-center justify-between gap-2 md:hidden"><Button type="button" variant="outline" onClick={() => setMobileStep(0)} disabled={mobileStep === 0} className="rounded-xl">السابق</Button><Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl">إلغاء</Button>{mobileStep === 0 ? <Button type="button" onClick={advanceMobileStep} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">التالي</Button> : <Button type="submit" disabled={createBatch.isPending || !warehouseId || invalidLines || hasDuplicateCode || hasInsufficientStock || stockQuery.isLoading} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">{createBatch.isPending ? <><Loader2 className="ml-2 h-4 w-4 animate-spin" />جاري الحفظ…</> : "حفظ إذن الصرف"}</Button>}</div>
           <DialogFooter className="hidden gap-2 md:flex md:justify-start">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">إلغاء</Button>
-            <Button type="submit" disabled={createBatch.isPending || !warehouseId || !buildingId || invalidLines || hasDuplicateCode || hasInsufficientStock || stockQuery.isLoading} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">{createBatch.isPending ? <><Loader2 className="ml-2 h-4 w-4 animate-spin" />جاري حفظ البنود معاً…</> : "حفظ إذن الصرف"}</Button>
+            <Button type="submit" disabled={createBatch.isPending || !warehouseId || invalidLines || hasDuplicateCode || hasInsufficientStock || stockQuery.isLoading} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">{createBatch.isPending ? <><Loader2 className="ml-2 h-4 w-4 animate-spin" />جاري حفظ البنود معاً…</> : "حفظ إذن الصرف"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
