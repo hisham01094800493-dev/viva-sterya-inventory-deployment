@@ -39,6 +39,8 @@ describe("الكتابة بالقلم ومرفقات الملاحظات", () => 
     expect(source).toContain("editingId ? drafts.map(item => item.id === editingId ? nextDraft : item)");
     expect(source).toContain("[nextDraft, ...drafts.filter(item => item.id !== nextDraft.id)]");
     expect(source).toContain("{drafts.length}");
+    expect(source).toContain("const selectedDraft = drafts.find(item => item.id === draft.id) ?? draft");
+    expect(source).toContain("window.setTimeout(() => editorRef.current?.scrollIntoView");
   });
 
   it("يسمح باختيار صورة من الهاتف ويضغطها قبل حفظها محليًا", () => {
