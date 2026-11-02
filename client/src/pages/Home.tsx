@@ -286,7 +286,7 @@ function WarehouseBranchCard({ warehouse, lowItems, onOpen }: { warehouse: { id:
 }
 
 export default function Home() {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { user } = useAuth();
   const [previewReadOnly, setPreviewReadOnly] = useState<boolean | null>(() => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); return raw ? Boolean(JSON.parse(raw)?.readOnly) : null; } catch { return null; } });
   useEffect(() => { const syncPreview = () => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); setPreviewReadOnly(raw ? Boolean(JSON.parse(raw)?.readOnly) : null); } catch { setPreviewReadOnly(null); } }; window.addEventListener("smart-inventory-preview", syncPreview); return () => window.removeEventListener("smart-inventory-preview", syncPreview); }, []);
@@ -310,6 +310,14 @@ export default function Home() {
   const [timelineWarehouseId, setTimelineWarehouseId] = useState<number | "all">("all");
   const [warehouseCardsExpanded, setWarehouseCardsExpanded] = useState(false);
   const [workCenterView, setWorkCenterView] = useState<"summary" | "movement" | "stagnant" | "operations">("summary");
+  useEffect(() => {
+    const params = new URLSearchParams(location.split("?")[1] ?? "");
+    if (params.get("workCenter") !== "movement") return;
+    setWorkCenterView("movement");
+    window.requestAnimationFrame(() => {
+      document.getElementById("daily-work-center")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [location]);
   const [itemCardLookupOpen, setItemCardLookupOpen] = useState(false);
   const [itemCardSearch, setItemCardSearch] = useState("");
   const [selectedItemCardId, setSelectedItemCardId] = useState<number>();
@@ -428,7 +436,7 @@ export default function Home() {
           </div></div> : <div className="px-5 py-5 text-center text-sm text-slate-400">لا توجد أصناف مرتبطة بالمخازن حتى الآن.</div>}
         </details>
 
-        <section className="rounded-[1.5rem] border border-[#b9d4d9] bg-gradient-to-br from-[#f7fbfc] via-white to-[#eef8f7] p-4 shadow-[0_12px_36px_rgba(18,44,84,0.055)]" dir="rtl" aria-label="مركز العمل اليومي">
+        <section id="daily-work-center" className="scroll-mt-24 rounded-[1.5rem] border border-[#b9d4d9] bg-gradient-to-br from-[#f7fbfc] via-white to-[#eef8f7] p-4 shadow-[0_12px_36px_rgba(18,44,84,0.055)]" dir="rtl" aria-label="مركز العمل اليومي">
           <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-base font-black text-[#102a43]">مركز العمل اليومي</h3><p className="mt-0.5 text-[11px] text-slate-500">ملخص سريع؛ اختر القسم لعرض تفاصيله.</p></div><span className={`rounded-full px-3 py-1.5 text-xs font-black ${lowStockCount ? "bg-[#fff0ed] text-[#bd5147]" : "bg-[#e7f3f1] text-[#0d806c]"}`}>{lowStockCount ? `${formatNumber(lowStockCount)} أصناف تحتاج متابعة` : "المخزون مستقر حالياً"}</span></div>
           <div className="mt-3 flex gap-1 overflow-x-auto rounded-xl bg-[#f5f8f9] p-1" role="group" aria-label="أقسام مركز العمل اليومي">{([{ id: "summary", label: "نظرة سريعة" }, { id: "movement", label: "الحركة" }, { id: "stagnant", label: "الراكد" }, { id: "operations", label: "المتابعة" }] as const).map(tab => <button key={tab.id} type="button" aria-pressed={workCenterView === tab.id} onClick={() => setWorkCenterView(tab.id)} className={`shrink-0 rounded-lg px-3 py-2 text-[11px] font-black transition-all duration-200 sm:flex-1 ${workCenterView === tab.id ? "bg-white text-[#0d4f62] shadow-sm ring-1 ring-[#dce7ee]" : "text-slate-500 hover:bg-white/70 hover:text-[#0d4f62]"}`}>{tab.label}</button>)}</div>
           <AnimatePresence mode="wait" initial={false}><motion.div key={workCenterView} initial={{ opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }} className="mt-3 min-h-[66px] rounded-xl border border-[#e3ecef] bg-white/80 p-3">

@@ -70,6 +70,10 @@ export function getCairoParts(date: Date): CairoParts {
   return { date: dateValue, time: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`, minutes: hour * 60 + minute };
 }
 
+export function buildDailyReportNotificationLink() {
+  return "/?workCenter=movement";
+}
+
 export function isScheduleDue(now: Date, scheduleTime: string, lastSuccessfulDate?: string | null): boolean {
   const cairo = getCairoParts(now);
   const [hour, minute] = /^([01]\d|2[0-3]):([0-5]\d)$/.test(scheduleTime) ? scheduleTime.split(":").map(Number) : [17, 0];
@@ -166,7 +170,8 @@ async function notifyManagers(title: string, content: string) {
   const db = await requireDb();
   const managers = await db.select({ id: users.id }).from(users).where(or(eq(users.role, "admin"), eq(users.role, "manager")));
   if (!managers.length) return 0;
-  await Promise.all(managers.map(manager => db.insert(notifications).values({ recipientUserId: manager.id, createdBy: null, notificationType: "daily_report", title, message: content, priority: "normal", link: "/settings" })));
+  const link = buildDailyReportNotificationLink();
+  await Promise.all(managers.map(manager => db.insert(notifications).values({ recipientUserId: manager.id, createdBy: null, notificationType: "daily_report", title, message: content, priority: "normal", link })));
   return managers.length;
 }
 

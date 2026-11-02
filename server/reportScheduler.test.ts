@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { computeNextRunAt, getCairoParts, isScheduleDue } from "./reportScheduler";
+import { buildDailyReportNotificationLink, computeNextRunAt, getCairoParts, isScheduleDue } from "./reportScheduler";
+
+describe("رابط إشعار التقرير اليومي", () => {
+  it("يفتح مركز العمل اليومي على قسم الحركة", () => {
+    expect(buildDailyReportNotificationLink()).toBe("/?workCenter=movement");
+  });
+});
 
 describe("جدولة التقرير اليومية بتوقيت القاهرة", () => {
   it("تستخدم Africa/Cairo حول بداية التوقيت الصيفي دون الاعتماد على UTC ثابت", () => {
