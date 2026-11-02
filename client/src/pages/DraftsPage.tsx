@@ -523,12 +523,6 @@ export default function DraftsPage() {
       selectedDraft.id,
       selectedForm
     );
-    window.setTimeout(() => {
-      editorCardRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 0);
     return true;
   }
   function editDraft(draft: LocalDraft) {
@@ -739,7 +733,9 @@ export default function DraftsPage() {
           </p>
         </div>
         <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-          <Card className="order-1 border-0 bg-white/85 shadow-sm dark:bg-[#172b35]">
+          <Card
+            className={`border-0 bg-white/85 shadow-sm dark:bg-[#172b35] ${editingId ? "order-2 lg:order-1" : "order-1"}`}
+          >
             <CardHeader>
               <CardTitle className="flex items-center justify-between text-lg dark:text-white">
                 الملاحظات المحفوظة{" "}
@@ -771,9 +767,9 @@ export default function DraftsPage() {
                     <div className="flex items-start gap-2">
                       <button
                         type="button"
-                        onClick={() => selectDraft(draft)}
+                        onClick={() => setPreviewDraft(draft)}
                         className="min-w-0 flex-1 text-right"
-                        aria-label={`تحرير ${draft.title}`}
+                        aria-label={`معاينة ${draft.title}`}
                       >
                         <p className="truncate text-sm font-black text-[#102a43] dark:text-white">
                           {draft.title}
@@ -788,7 +784,7 @@ export default function DraftsPage() {
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
                           <span>{formatDraftDate(draft.updatedAt)}</span>
-                          <span>· اضغط للتحرير</span>
+                          <span>· اضغط للمعاينة</span>
                           {draft.handwriting && <span>· كتابة بالقلم</span>}
                           {draft.image && <span>· صورة مرفقة</span>}
                         </div>
@@ -822,7 +818,8 @@ export default function DraftsPage() {
           </Card>
           <Card
             ref={editorCardRef}
-            className="order-2 border-0 bg-white/85 shadow-sm dark:bg-[#172b35]"
+            tabIndex={-1}
+            className={`border-0 bg-white/85 shadow-sm dark:bg-[#172b35] ${editingId ? "order-1 lg:order-2" : "order-2 lg:order-2"}`}
           >
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg dark:text-white">
@@ -1079,6 +1076,13 @@ export default function DraftsPage() {
               if (!preventPreviewFocusRestoreRef.current) return;
               event.preventDefault();
               preventPreviewFocusRestoreRef.current = false;
+              window.requestAnimationFrame(() => {
+                editorCardRef.current?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                });
+                editorCardRef.current?.focus({ preventScroll: true });
+              });
             }}
           >
             {previewDraft && (

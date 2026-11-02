@@ -47,22 +47,27 @@ describe("الكتابة بالقلم ومرفقات الملاحظات", () => 
     expect(source).toContain("ملاحظة مكتوبة بالقلم");
   });
 
-  it("يفتح المسودة المختارة في المحرر مباشرةً ويحفظ التعديل على نفس المسودة", () => {
+  it("يعرض المسودة للمعاينة ثم يفتح تعديلها على نفس المسودة", () => {
     expect(source).toContain("function startNewDraft()");
-    expect(source).toContain("onClick={() => selectDraft(draft)}");
+    expect(source).toContain("onClick={() => setPreviewDraft(draft)}");
+    expect(source).toContain("onClick={() => editDraft(previewDraft)}");
     expect(source).toContain("const id = editingId ?? createDraftId();");
     expect(source).toContain("editingId: id,");
     expect(helpers).toContain("id: input.editingId ?? input.newId");
     expect(helpers).toContain("item.id === draft.id");
-    expect(source).toContain('className="order-1 border-0');
-    expect(source).toContain('className="order-2 border-0');
+    expect(source).toContain('editingId ? "order-2 lg:order-1" : "order-1"');
+    expect(source).toContain(
+      'editingId ? "order-1 lg:order-2" : "order-2 lg:order-2"'
+    );
     expect(source).toContain("editorCardRef.current?.scrollIntoView(");
+    expect(source).toContain(
+      "editorCardRef.current?.focus({ preventScroll: true })"
+    );
   });
 
   it("يبقي المعاينة كخيار منفصل ويمنع قفزة التركيز عند الانتقال للتحرير", () => {
     expect(source).toContain("onClick={() => setPreviewDraft(draft)}");
     expect(source).toContain("aria-label={`معاينة ${draft.title}`}");
-    expect(source).toContain("aria-label={`تحرير ${draft.title}`}");
     expect(source).toContain("preventPreviewFocusRestoreRef.current = true");
     expect(source).toContain("onCloseAutoFocus={event => {");
     expect(source).toContain("event.preventDefault();");
