@@ -93,12 +93,14 @@ export default function BuildingCostComparisonPage() {
   const rows = report.data?.rows ?? [];
   const itemRows = report.data?.itemRows ?? [];
   const totals = report.data?.totals ?? { movements: 0, quantity: 0, cost: 0, budget: 0, remainingBudget: 0 };
-  const totalSuppliedQuantity = useMemo(() => (partyReport.data?.accounts?.suppliers ?? []).reduce((sum, row) => sum + Math.max(0, Number(row.quantity ?? 0)), 0), [partyReport.data]);
-  const partyRows = useMemo(() => (partyReport.data?.accounts?.suppliers ?? [])
-    .map(row => ({ name: row.name, type: "مورد", quantity: Number(row.quantity ?? 0), movements: Number(row.movements ?? 0) }))
-    .filter(row => row.quantity > 0)
-    .sort((left, right) => right.quantity - left.quantity || right.movements - left.movements)
-    .slice(0, 12), [partyReport.data]);
+  const partyTotals = useMemo(() => ({
+    supplied: (partyReport.data?.accounts?.suppliers ?? []).reduce((sum, row) => sum + Math.max(0, Number(row.quantity ?? 0)), 0),
+    disbursed: (partyReport.data?.accounts?.customers ?? []).reduce((sum, row) => sum + Math.max(0, Number(row.quantity ?? 0)), 0),
+  }), [partyReport.data]);
+  const partyRows = useMemo(() => [
+    ...(partyReport.data?.accounts?.suppliers ?? []).map(row => ({ name: row.name, type: "مورد", basisLabel: "إجمالي التوريد", totalQuantity: partyTotals.supplied, quantity: Number(row.quantity ?? 0), movements: Number(row.movements ?? 0) })),
+    ...(partyReport.data?.accounts?.customers ?? []).map(row => ({ name: row.name, type: "عميل / مقاول / جهة", basisLabel: "إجمالي الصرف", totalQuantity: partyTotals.disbursed, quantity: Number(row.quantity ?? 0), movements: Number(row.movements ?? 0) })),
+  ].filter(row => row.quantity > 0).sort((left, right) => right.quantity - left.quantity || right.movements - left.movements).slice(0, 12), [partyReport.data, partyTotals]);
   const highestCost = useMemo(() => Math.max(1, ...rows.map(row => Number(row.cost))), [rows]);
   const overBudgetCount = rows.filter(row => !row.isUnassigned && row.budget > 0 && row.cost > row.budget).length;
   const chartRows = useMemo<ChartRow[]>(() => rows.filter(row => !row.isUnassigned && row.movements > 0).slice(0, 20).map(row => ({
@@ -242,7 +244,7 @@ export default function BuildingCostComparisonPage() {
         </section>}
 
         <BuildingComparisonSection rows={rows} totals={totals} highestCost={highestCost} loading={report.isLoading} onSelectBuilding={buildingId => { setSelectedBuildingId(String(buildingId)); setActiveTab("items"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
-        <PartyQuantityAnalysis rows={partyRows} totalQuantity={totalSuppliedQuantity} loading={partyReport.isLoading} />
+        <PartyQuantityAnalysis rows={partyRows} loading={partyReport.isLoading} />
       </>}
 
       {activeTab === "items" && <section className="space-y-4">
@@ -517,22 +519,22 @@ function ItemCategorySection({ groups, metric }: { groups: Array<{ category: str
   </Card>;
 }
 
-function PartyQuantityAnalysis({ rows, totalQuantity, loading }: { rows: Array<{ name: string; type: string; quantity: number; movements: number }>; totalQuantity: number; loading: boolean }) {
+function PartyQuantityAnalysis({ rows, loading }: { rows: Array<{ name: string; type: string; basisLabel: string; totalQuantity: number; quantity: number; movements: number }>; loading: boolean }) {
   return <Card className="overflow-hidden rounded-[1.5rem] border-[#dce7ee] shadow-[0_14px_38px_rgba(18,44,84,0.055)] sm:rounded-[1.75rem]">
     <CardHeader className="border-b border-[#e7eef3] bg-gradient-to-l from-[#f2faf9] to-white p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#0d7180] shadow-sm"><UsersRound className="h-5 w-5" /></span><div><CardTitle className="text-base font-black text-[#102a43] sm:text-lg">تحليل الموردين حسب الكمية الموردة</CardTitle><p className="mt-1 text-[11px] leading-5 text-slate-500 sm:text-xs">نسبة كل مورد من إجمالي الكمية الموردة؛ اضغط على أي بطاقة لفتح حركات المورد.</p></div></div>
-        <Badge variant="outline" className="w-fit rounded-full border-[#b9d4d9] bg-white text-[10px] font-black text-[#0d4f62]">الكمية الموردة فقط</Badge>
+        <div className="flex items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#0d7180] shadow-sm"><UsersRound className="h-5 w-5" /></span><div><CardTitle className="text-base font-black text-[#102a43] sm:text-lg">مقارنة الجهات حسب الكمية</CardTitle><p className="mt-1 text-[11px] leading-5 text-slate-500 sm:text-xs">الموردون محسوبون من إجمالي التوريد، والعملاء والمقاولون والجهات من إجمالي الصرف.</p></div></div>
+        <Badge variant="outline" className="w-fit rounded-full border-[#b9d4d9] bg-white text-[10px] font-black text-[#0d4f62]">توريد وصرف منفصلان</Badge>
       </div>
     </CardHeader>
     <CardContent className="p-3 sm:p-5">
       {loading ? <ChartLoading height={150} /> : rows.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((row, index) => <button key={`${row.type}-${row.name}`} type="button" onClick={() => { const key = row.type === "مورد" ? "incomingFrom" : "outgoingTo"; window.location.assign(`/reports?${key}=${encodeURIComponent(row.name)}`); }} className="group relative overflow-hidden rounded-2xl border border-[#e4edf1] bg-white p-4 text-right shadow-[0_8px_24px_rgba(18,44,84,0.04)] transition hover:-translate-y-0.5 hover:border-[#8fc8ca] hover:shadow-[0_14px_30px_rgba(13,113,128,0.12)] focus:outline-none focus:ring-2 focus:ring-[#0d7180]">
           <div className="flex items-start gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#e8f1f2] text-xs font-black text-[#0d4f62]">{index + 1}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${row.type === "مورد" ? "bg-[#e7f5ef] text-[#0d806c]" : "bg-[#fbeceb] text-[#bd5147]"}`}>{row.type}</span><span className="text-[10px] font-bold text-slate-400">{quantity(row.movements)} حركة</span></div><p className="mt-2 break-words text-sm font-black leading-6 text-[#102a43]">{row.name}</p></div><ChevronLeft className="mt-1 h-4 w-4 shrink-0 text-slate-300 transition group-hover:-translate-x-1 group-hover:text-[#0d7180]" /></div>
-          <div className="mt-4 border-t border-[#eef3f5] pt-3"><div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold text-slate-400">إجمالي الكمية</p><p className="mt-1 text-lg font-black text-[#0d4f62]">{quantity(row.quantity)} <span className="text-[10px]">وحدة</span></p></div><div className="text-left"><p className="text-[10px] font-bold text-slate-400">الحصة من الإجمالي</p><p className="mt-1 text-lg font-black text-[#0d7180]">{totalQuantity ? `${((Math.max(0, row.quantity) / totalQuantity) * 100).toFixed(1)}%` : "0.0%"}</p></div></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e8f1f2]" role="progressbar" aria-label={`حصة ${row.name} من إجمالي الكمية`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={totalQuantity ? Math.round((Math.max(0, row.quantity) / totalQuantity) * 1000) / 10 : 0}><div className="h-full rounded-full bg-gradient-to-l from-[#0d7180] to-[#55b7ad] transition-all" style={{ width: `${totalQuantity ? Math.min(100, (Math.max(0, row.quantity) / totalQuantity) * 100) : 0}%` }} /></div><div className="mt-2 flex items-center justify-between gap-2"><span className="text-[10px] font-bold text-[#0d7180]">عرض الحركات</span><span className="text-[10px] font-bold text-slate-400">من إجمالي {quantity(totalQuantity)} وحدة</span></div></div>
+          <div className="mt-4 border-t border-[#eef3f5] pt-3"><div className="flex items-end justify-between gap-3"><div><p className="text-[10px] font-bold text-slate-400">إجمالي الكمية</p><p className="mt-1 text-lg font-black text-[#0d4f62]">{quantity(row.quantity)} <span className="text-[10px]">وحدة</span></p></div><div className="text-left"><p className="text-[10px] font-bold text-slate-400">الحصة من الإجمالي</p><p className="mt-1 text-lg font-black text-[#0d7180]">{row.totalQuantity ? `${((Math.max(0, row.quantity) / row.totalQuantity) * 100).toFixed(1)}%` : "0.0%"}</p></div></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e8f1f2]" role="progressbar" aria-label={`حصة ${row.name} من إجمالي الكمية`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={row.totalQuantity ? Math.round((Math.max(0, row.quantity) / row.totalQuantity) * 1000) / 10 : 0}><div className="h-full rounded-full bg-gradient-to-l from-[#0d7180] to-[#55b7ad] transition-all" style={{ width: `${row.totalQuantity ? Math.min(100, (Math.max(0, row.quantity) / row.totalQuantity) * 100) : 0}%` }} /></div><div className="mt-2 flex items-center justify-between gap-2"><span className="text-[10px] font-bold text-[#0d7180]">عرض الحركات</span><span className="text-[10px] font-bold text-slate-400">من {row.basisLabel} {quantity(row.totalQuantity)} وحدة</span></div></div>
         </button>)}
-      </div> : <EmptyState icon={<UsersRound className="h-6 w-6" />} title="لا توجد جهات ضمن الفترة" text="ستظهر هنا الموردون بعد تسجيل حركات توريد مرتبطة بالفترة المحددة." compact />}
-      {rows.length ? <p className="mt-4 border-t border-[#edf2f5] pt-3 text-center text-[10px] font-bold text-slate-400">تظهر أعلى 12 مورداً مرتبة حسب الكمية الموردة؛ النسب محسوبة من إجمالي كميات الموردين فقط.</p> : null}
+      </div> : <EmptyState icon={<UsersRound className="h-6 w-6" />} title="لا توجد جهات ضمن الفترة" text="ستظهر هنا الجهات بعد تسجيل حركات توريد أو صرف مرتبطة بالفترة المحددة." compact />}
+      {rows.length ? <p className="mt-4 border-t border-[#edf2f5] pt-3 text-center text-[10px] font-bold text-slate-400">تظهر أعلى 12 جهة حسب الكمية؛ كل نسبة محسوبة داخل نوع الحركة الخاص بها لمنع خلط التوريد بالصرف.</p> : null}
     </CardContent>
   </Card>;
 }
