@@ -7,6 +7,7 @@ import {
 import {
   FileDown,
   FilePenLine,
+  Eye,
   ImagePlus,
   Image as ImageIcon,
   Mic,
@@ -360,6 +361,8 @@ export default function DraftsPage() {
   const [loadedStorageKey, setLoadedStorageKey] = useState(storageKey);
   const lastSavedSignature = useRef<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const editorCardRef = useRef<HTMLDivElement>(null);
+  const preventPreviewFocusRestoreRef = useRef(false);
 
   useEffect(() => {
     const savedDrafts = readLocalDrafts(storageKey);
@@ -494,7 +497,7 @@ export default function DraftsPage() {
     startNewDraft();
   }
   function selectDraft(draft: LocalDraft) {
-    if (isDirty && !saveCurrentDraft(false, false)) return;
+    if (isDirty && !saveCurrentDraft(false, false)) return false;
     const selectedDraft =
       draftsRef.current.find(item => item.id === draft.id) ?? draft;
     const selectedForm: DraftForm = {
@@ -520,9 +523,17 @@ export default function DraftsPage() {
       selectedDraft.id,
       selectedForm
     );
+    window.setTimeout(() => {
+      editorCardRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
+    return true;
   }
   function editDraft(draft: LocalDraft) {
-    selectDraft(draft);
+    if (!selectDraft(draft)) return;
+    preventPreviewFocusRestoreRef.current = true;
     setPreviewDraft(null);
   }
   function downloadBlob(blob: Blob, filename: string) {
@@ -728,9 +739,7 @@ export default function DraftsPage() {
           </p>
         </div>
         <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
-          <Card
-            className={`border-0 bg-white/85 shadow-sm dark:bg-[#172b35] ${editingId ? "order-2 lg:order-1" : "order-1"}`}
-          >
+          <Card className="order-1 border-0 bg-white/85 shadow-sm dark:bg-[#172b35]">
             <CardHeader>
               <CardTitle className="flex items-center justify-between text-lg dark:text-white">
                 الملاحظات المحفوظة{" "}
@@ -762,8 +771,9 @@ export default function DraftsPage() {
                     <div className="flex items-start gap-2">
                       <button
                         type="button"
-                        onClick={() => setPreviewDraft(draft)}
+                        onClick={() => selectDraft(draft)}
                         className="min-w-0 flex-1 text-right"
+                        aria-label={`تحرير ${draft.title}`}
                       >
                         <p className="truncate text-sm font-black text-[#102a43] dark:text-white">
                           {draft.title}
@@ -778,11 +788,22 @@ export default function DraftsPage() {
                         </p>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
                           <span>{formatDraftDate(draft.updatedAt)}</span>
-                          <span>· اضغط للمعاينة</span>
+                          <span>· اضغط للتحرير</span>
                           {draft.handwriting && <span>· كتابة بالقلم</span>}
                           {draft.image && <span>· صورة مرفقة</span>}
                         </div>
                       </button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setPreviewDraft(draft)}
+                        className="h-9 w-9 shrink-0 rounded-xl"
+                        aria-label={`معاينة ${draft.title}`}
+                        title="معاينة"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
                       <Button
                         type="button"
                         variant="outline"
@@ -800,7 +821,8 @@ export default function DraftsPage() {
             </CardContent>
           </Card>
           <Card
-            className={`border-0 bg-white/85 shadow-sm dark:bg-[#172b35] ${editingId ? "order-1 lg:order-2" : "order-2 lg:order-2"}`}
+            ref={editorCardRef}
+            className="order-2 border-0 bg-white/85 shadow-sm dark:bg-[#172b35]"
           >
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg dark:text-white">
@@ -1053,6 +1075,11 @@ export default function DraftsPage() {
           <DialogContent
             className="max-h-[92vh] max-w-2xl overflow-y-auto rounded-2xl bg-white dark:bg-[#172b35]"
             dir="rtl"
+            onCloseAutoFocus={event => {
+              if (!preventPreviewFocusRestoreRef.current) return;
+              event.preventDefault();
+              preventPreviewFocusRestoreRef.current = false;
+            }}
           >
             {previewDraft && (
               <>
