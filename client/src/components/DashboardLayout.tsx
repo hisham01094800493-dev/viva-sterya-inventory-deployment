@@ -724,7 +724,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
               <h1 className="smart-topbar-title text-lg font-black">{activeMenuItem.label}</h1>
             </div>
           </div>
-            <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
+            <div className="topbar-actions flex min-w-0 items-center gap-1.5 sm:gap-3">
             <ProjectSwitcher state={activeProjectState} className="topbar-project-switcher" />
             <CommandPalette canCreateItems={canCreateItems} onNavigate={path => { window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} /><div className="flex shrink-0 items-center rounded-xl border border-red-200 bg-red-50/80 p-0.5 shadow-sm sm:rounded-2xl sm:p-1" aria-label="البحث الصوتي"><div className="rounded-lg bg-red-50 [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg [&_button]:border-red-200 [&_button]:bg-red-50 [&_button]:text-red-600 [&_button]:hover:bg-red-100 sm:rounded-xl sm:[&_button]:h-9 sm:[&_button]:w-9"><GlobalVoiceSearch /></div></div>
             <NotificationBell chatEnabled={chatEnabled} />
