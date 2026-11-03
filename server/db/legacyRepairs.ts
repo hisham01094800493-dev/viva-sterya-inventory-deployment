@@ -18,7 +18,7 @@ export async function repairLegacyAccountOnlyPermit18(pool: mysql.Pool) {
 
   const [existing] = await pool.query(
     `SELECT repair_key FROM inventory_data_repairs WHERE repair_key = ? LIMIT 1`,
-    ["permit-18-account-only-v2"],
+    ["permit-18-account-only-v3"],
   );
   if (Array.isArray(existing) && existing.length > 0) return;
   const [oldRepair] = await pool.query(
@@ -123,9 +123,30 @@ export async function repairLegacyAccountOnlyPermit18(pool: mysql.Pool) {
       }
     }
 
+    // These four historical lines are account-only and must not leave any
+    // stock behind. Keep the account rows intact; normalize only their item
+    // balances and the matching warehouse balances as the final step.
+    const itemWarehousePairs = new Set(
+      rows
+        .map(row => `${String(row.item_code)}\u0000${String(row.warehouse_id ?? "")}`)
+        .filter(Boolean),
+    );
+    for (const pair of Array.from(itemWarehousePairs)) {
+      const [itemCode, warehouseId] = pair.split("\u0000");
+      await connection.query(`UPDATE items SET current_stock = 0 WHERE code = ?`, [itemCode]);
+      if (warehouseId) {
+        await connection.query(
+          `UPDATE item_warehouse_balances SET current_stock = 0
+           WHERE item_id = (SELECT id FROM items WHERE code = ? LIMIT 1)
+             AND warehouse_id = ?`,
+          [itemCode, warehouseId],
+        );
+      }
+    }
+
     await connection.query(
       `INSERT INTO inventory_data_repairs (repair_key) VALUES (?)`,
-      ["permit-18-account-only-v2"],
+      ["permit-18-account-only-v3"],
     );
     await connection.commit();
     console.info(`[Database] Applied legacy repair: permit 18 account-only (${rows.length} row(s))`);
