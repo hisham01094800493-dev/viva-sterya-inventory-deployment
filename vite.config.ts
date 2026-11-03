@@ -166,6 +166,8 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // ExcelJS وPDF.js يُحمّلان عند التصدير/المعاينة فقط، ولا يدخلان الحزمة الأساسية.
+    chunkSizeWarningLimit: 1000,
   },
   server: {
     host: true,
