@@ -8,5 +8,8 @@ export const RAILWAY_APP_ICON_OPTIONS = [
 
 export function resolveCompanyLogoUrl(value: string | null | undefined) {
   const url = value?.trim();
-  return !url || url.startsWith("/manus-storage/") ? DEFAULT_COMPANY_LOGO_URL : url;
+  // Empty means the company logo was intentionally removed. Keep the PDF
+  // header empty instead of silently inserting the application icon.
+  if (!url) return null;
+  return url.startsWith("/manus-storage/") ? DEFAULT_COMPANY_LOGO_URL : url;
 }
