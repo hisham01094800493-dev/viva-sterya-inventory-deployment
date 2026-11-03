@@ -113,6 +113,10 @@ export function ProjectsManagerCard() {
       toast.error("اسم المشروع وكوده مطلوبان");
       return;
     }
+    if (draft.code.trim().length < 2) {
+      toast.error("كود المشروع يجب أن يتكون من حرفين أو رقمين على الأقل");
+      return;
+    }
     createProject.mutate({
       name: draft.name.trim(),
       code: draft.code.trim(),
@@ -127,6 +131,10 @@ export function ProjectsManagerCard() {
 
   const submitEdit = () => {
     if (editingId == null) return;
+    if (editDraft.code.trim() && editDraft.code.trim().length < 2) {
+      toast.error("كود المشروع يجب أن يتكون من حرفين أو رقمين على الأقل");
+      return;
+    }
     updateProject.mutate({
       id: editingId,
       name: editDraft.name.trim() || undefined,
@@ -177,7 +185,8 @@ export function ProjectsManagerCard() {
         <input
           value={draft.code}
           onChange={event => setDraft(current => ({ ...current, code: event.target.value.toUpperCase() }))}
-          placeholder="CODE"
+          placeholder="CODE (حرفان على الأقل)"
+          minLength={2}
           className="h-11 rounded-xl border border-[#b9d4d9] bg-white px-3 text-sm font-black tracking-widest text-[#102a43] outline-none focus:border-[#0d7180] focus:ring-2 focus:ring-[#65c2c8]/30 dark:border-[#486673] dark:bg-[#182934] dark:text-[#f1fbfc]"
         />
         <input
@@ -217,6 +226,7 @@ export function ProjectsManagerCard() {
                     />
                     <input
                       value={editDraft.code}
+                      minLength={2}
                       onChange={event => setEditDraft(current => ({ ...current, code: event.target.value.toUpperCase() }))}
                       className="h-10 rounded-xl border border-[#b9d4d9] bg-white px-3 text-sm font-black tracking-widest outline-none focus:border-[#0d7180] focus:ring-2 focus:ring-[#65c2c8]/30 dark:border-[#486673] dark:bg-[#182934] dark:text-[#f1fbfc]"
                     />
