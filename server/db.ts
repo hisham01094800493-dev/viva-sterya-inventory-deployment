@@ -54,6 +54,7 @@ import {
   backupRecords,
   backupVerificationConfigs,
   backupVerificationRuns,
+  projects,
   User,
   userAbsences,
   users,
@@ -86,6 +87,7 @@ export {
   calculateStockDelta,
 } from "./db/scale";
 import { InventoryError } from "./db/errors";
+import { assertProjectCode, canAccessProject, chooseFallbackProject, parseAllowedProjectIds } from "./projectAccess";
 import { buildBuildingCostComparison } from "./buildingCostComparison";
 import { applyCustomerAccountTransferNetting } from "./customerAccountTransferNetting";
 import { calculateConsumptionBaseline, isConsumptionAnomaly } from "./consumptionAnalytics";
@@ -5934,6 +5936,87 @@ function parseWarehouseIds(value: string | null | undefined) {
   }
 }
 
+export async function listProjects(includeArchived = false) {
+  const db = await requireDb();
+  return db.select().from(projects).where(includeArchived ? undefined : eq(projects.status, "active")).orderBy(asc(projects.name));
+}
+
+export async function getProjectById(id: number) {
+  const db = await requireDb();
+  return (await db.select().from(projects).where(eq(projects.id, id)).limit(1))[0] ?? null;
+}
+
+export async function createProject(input: { name: string; code: string; description?: string | null }) {
+  const db = await requireDb();
+  const code = assertProjectCode(input.code);
+  const name = input.name.trim();
+  if (!name) throw new InventoryError("BAD_REQUEST", "اسم المشروع مطلوب");
+  try {
+    const result = await db.insert(projects).values({ name, code, description: input.description?.trim() || null, status: "active" });
+    return getProjectById(resultInsertId(result));
+  } catch (error) {
+    if (String(error).toLowerCase().includes("duplicate")) throw new InventoryError("CONFLICT", "كود المشروع مستخدم بالفعل");
+    throw error;
+  }
+}
+
+export async function updateProject(input: { id: number; name?: string; code?: string; description?: string | null }) {
+  const db = await requireDb();
+  const current = await getProjectById(input.id);
+  if (!current) throw new InventoryError("NOT_FOUND", "المشروع غير موجود");
+  const values = {
+    name: input.name?.trim() || current.name,
+    code: input.code == null ? current.code : assertProjectCode(input.code),
+    description: input.description === undefined ? current.description : input.description?.trim() || null,
+  };
+  try {
+    await db.update(projects).set(values).where(eq(projects.id, input.id));
+    return getProjectById(input.id);
+  } catch (error) {
+    if (String(error).toLowerCase().includes("duplicate")) throw new InventoryError("CONFLICT", "كود المشروع مستخدم بالفعل");
+    throw error;
+  }
+}
+
+export async function archiveProject(id: number) {
+  const db = await requireDb();
+  const current = await getProjectById(id);
+  if (!current) throw new InventoryError("NOT_FOUND", "المشروع غير موجود");
+  if (current.code === "MAIN") throw new InventoryError("BAD_REQUEST", "لا يمكن أرشفة المشروع الافتراضي MAIN");
+  await db.update(projects).set({ status: "archived" }).where(eq(projects.id, id));
+  return getProjectById(id);
+}
+
+export async function getUserProjectPermissions(userId: number, role: string) {
+  if (role === "admin") return { userId, allowedProjectIds: (await listProjects(false)).map(project => project.id) };
+  const db = await requireDb();
+  const row = (await db.select({ allowedProjects: userPermissions.allowedProjects }).from(userPermissions).where(eq(userPermissions.userId, userId)).limit(1))[0];
+  return { userId, allowedProjectIds: parseAllowedProjectIds(row?.allowedProjects) };
+}
+
+export async function listActiveProjectsForUser(userId: number, role: string) {
+  const all = await listProjects(false);
+  if (role === "admin") return all;
+  const access = await getUserProjectPermissions(userId, role);
+  return all.filter(project => access.allowedProjectIds.includes(project.id));
+}
+
+export async function getActiveProjectForUser(userId: number, role: string) {
+  const available = await listActiveProjectsForUser(userId, role);
+  const preferences = await getUserPreferences(userId);
+  const selected = chooseFallbackProject(available, preferences.activeProjectId);
+  return selected ?? null;
+}
+
+export async function setActiveProjectForUser(input: { userId: number; role: string; projectId: number }) {
+  const project = await getProjectById(input.projectId);
+  const access = await getUserProjectPermissions(input.userId, input.role);
+  if (!canAccessProject({ role: input.role, allowedProjectIds: access.allowedProjectIds, project })) throw new InventoryError("BAD_REQUEST", "لا تملك صلاحية اختيار هذا المشروع");
+  const preferences = await getUserPreferences(input.userId);
+  await upsertUserPreferences({ userId: input.userId, quickActions: preferences.quickActions, hapticEnabled: preferences.hapticEnabled, reportColumnOrder: preferences.reportColumnOrder, activeProjectId: input.projectId });
+  return getActiveProjectForUser(input.userId, input.role);
+}
+
 export async function getUserPermissionSettings(userId: number, role: string) {
   const db = await requireDb();
   const rows = await db
@@ -5953,6 +6036,7 @@ export async function getUserPermissionSettings(userId: number, role: string) {
         READ_ONLY_DEFAULT_REPORTS
       ),
       allowedWarehouseIds: parseWarehouseIds(rows[0].allowedWarehouses),
+      allowedProjectIds: parseAllowedProjectIds(rows[0].allowedProjects),
       readOnly: rows[0].readOnly,
     };
   const isReadOnly = ["viewer", "reviewer", "reports"].includes(role);
@@ -5967,6 +6051,7 @@ export async function getUserPermissionSettings(userId: number, role: string) {
         ? [...PERMISSION_REPORTS]
         : [...OPERATIONAL_REPORTS],
     allowedWarehouseIds: [],
+    allowedProjectIds: [],
     readOnly: isReadOnly,
   };
 }
@@ -5979,6 +6064,7 @@ export async function listManagedUserPermissions() {
       allowedScreens: userPermissions.allowedScreens,
       allowedReports: userPermissions.allowedReports,
       allowedWarehouseIds: userPermissions.allowedWarehouses,
+      allowedProjectIds: userPermissions.allowedProjects,
       readOnly: userPermissions.readOnly,
     })
     .from(userPermissions);
@@ -5989,6 +6075,7 @@ export async function upsertUserPermissionSettings(input: {
   allowedScreens: string[];
   allowedReports: string[];
   allowedWarehouseIds: number[];
+  allowedProjectIds?: number[];
   readOnly: boolean;
 }) {
   const db = await requireDb();
@@ -5999,6 +6086,7 @@ export async function upsertUserPermissionSettings(input: {
       allowedScreens: JSON.stringify(input.allowedScreens),
       allowedReports: JSON.stringify(input.allowedReports),
       allowedWarehouses: JSON.stringify(input.allowedWarehouseIds),
+      allowedProjects: JSON.stringify(input.allowedProjectIds ?? []),
       readOnly: input.readOnly,
     })
     .onDuplicateKeyUpdate({
@@ -6006,6 +6094,7 @@ export async function upsertUserPermissionSettings(input: {
         allowedScreens: JSON.stringify(input.allowedScreens),
         allowedReports: JSON.stringify(input.allowedReports),
         allowedWarehouses: JSON.stringify(input.allowedWarehouseIds),
+        ...(input.allowedProjectIds === undefined ? {} : { allowedProjects: JSON.stringify(input.allowedProjectIds) }),
         readOnly: input.readOnly,
       },
     });
@@ -6050,6 +6139,7 @@ export async function getUserPreferences(userId: number) {
       hapticEnabled: true,
       reportColumnOrder: {} as Record<string, string[]>,
       onboardingCompleted: false,
+      activeProjectId: null,
     };
   let reportColumnOrder: ReportColumnOrder = {};
   try {
@@ -6065,6 +6155,7 @@ export async function getUserPreferences(userId: number) {
       hapticEnabled: row.hapticEnabled,
       reportColumnOrder,
       onboardingCompleted: row.onboardingCompleted,
+      activeProjectId: row.activeProjectId,
     };
   } catch {
     return {
@@ -6072,6 +6163,7 @@ export async function getUserPreferences(userId: number) {
       hapticEnabled: row.hapticEnabled,
       reportColumnOrder,
       onboardingCompleted: row.onboardingCompleted,
+      activeProjectId: row.activeProjectId,
     };
   }
 }
@@ -6081,6 +6173,7 @@ export async function upsertUserPreferences(input: {
   quickActions: string[];
   hapticEnabled: boolean;
   reportColumnOrder?: ReportColumnOrder;
+  activeProjectId?: number | null;
 }) {
   const db = await requireDb();
   const quickActions = JSON.stringify(
@@ -6096,12 +6189,14 @@ export async function upsertUserPreferences(input: {
       quickActions,
       hapticEnabled: input.hapticEnabled,
       reportColumnOrder,
+      activeProjectId: input.activeProjectId ?? null,
     })
     .onDuplicateKeyUpdate({
       set: {
         quickActions,
         hapticEnabled: input.hapticEnabled,
         reportColumnOrder,
+        ...(input.activeProjectId === undefined ? {} : { activeProjectId: input.activeProjectId }),
       },
     });
   return getUserPreferences(input.userId);
