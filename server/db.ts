@@ -6085,8 +6085,17 @@ export async function createProject(input: { name: string; code: string; descrip
   const name = input.name.trim();
   if (!name) throw new InventoryError("BAD_REQUEST", "اسم المشروع مطلوب");
   try {
-    const result = await db.insert(projects).values({ name, code, description: input.description?.trim() || null, status: "active" });
-    return getProjectById(resultInsertId(result));
+    const projectId = await db.transaction(async (tx: any) => {
+      const result = await tx.insert(projects).values({ name, code, description: input.description?.trim() || null, status: "active" });
+      const createdProjectId = resultInsertId(result);
+      await tx.insert(warehouses).values({
+        projectId: createdProjectId,
+        slot: 1,
+        name: "المخزن الرئيسي",
+      });
+      return createdProjectId;
+    });
+    return getProjectById(projectId);
   } catch (error) {
     if (String(error).toLowerCase().includes("duplicate")) throw new InventoryError("CONFLICT", "كود المشروع مستخدم بالفعل");
     throw error;
