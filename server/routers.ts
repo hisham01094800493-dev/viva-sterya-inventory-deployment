@@ -379,12 +379,13 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
         if (!canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" });
-        const rows = await safe(() => listWarehouseStockRows(input.warehouseId));
+        const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
+        const rows = await safe(() => listWarehouseStockRows(input.warehouseId, scope.projectId));
         const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
         return canViewFinancialDetails ? rows : rows.map(({ unitPrice: _unitPrice, ...row }) => row);
       }),
-    warehouseLowStock: permissionProcedure("inventory").query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const rows = await safe(() => listWarehouseLowStockItems()); return permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows; }),
-    warehouseBalanceSummaries: permissionProcedure("inventory").query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const rows = await safe(() => listWarehouseBalanceSummaries()); return permissions.allowedWarehouseIds.length ? rows.filter(row => permissions.allowedWarehouseIds.includes(row.id)) : rows; }),
+    warehouseLowStock: permissionProcedure("inventory").query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); const rows = await safe(() => listWarehouseLowStockItems(scope.projectId)); return permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows; }),
+    warehouseBalanceSummaries: permissionProcedure("inventory").query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); const rows = await safe(() => listWarehouseBalanceSummaries(scope.projectId)); return permissions.allowedWarehouseIds.length ? rows.filter(row => permissions.allowedWarehouseIds.includes(row.id)) : rows; }),
     listPaged: permissionProcedure("inventory")
       .input(z.object({ search: z.string().optional(), warehouseId: z.number().int().positive().optional(), category: z.string().optional(), stockFilter: z.enum(["all", "low", "healthy"]).default("all"), sortBy: z.enum(["name", "code", "stock"]).default("name"), page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(24) }))
       .query(async ({ ctx, input }) => {
@@ -535,8 +536,9 @@ export const appRouter = router({
       .query(({ ctx, input }) =>
         safe(async () => {
           const permissions = await getUserPermissionSettings(ctx.user.id, ctx.user.role);
+          const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
           const [rows, configuredThreshold] = await Promise.all([
-            getInventoryRows(permissions.allowedWarehouseIds),
+            getInventoryRows(permissions.allowedWarehouseIds, scope.projectId),
             getSettingValue("threshold_percentage", "20"),
           ]);
           const visibleRows = permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows;
@@ -548,10 +550,11 @@ export const appRouter = router({
     summary: permissionProcedure("dashboard").query(async ({ ctx }) =>
       safe(async () => {
         const permissions = await getUserPermissionSettings(ctx.user.id, ctx.user.role);
+        const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
         const [rows, movements, latestPermits, configuredThreshold] = await Promise.all([
-          getInventoryRows(permissions.allowedWarehouseIds),
-          getRecentMovements(8, permissions.allowedWarehouseIds),
-          getLatestPermitSummaries(permissions.allowedWarehouseIds),
+          getInventoryRows(permissions.allowedWarehouseIds, scope.projectId),
+          getRecentMovements(8, permissions.allowedWarehouseIds, scope.projectId),
+          getLatestPermitSummaries(permissions.allowedWarehouseIds, scope.projectId),
           getSettingValue("threshold_percentage", "20"),
         ]);
         const visibleRows = permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows;
@@ -599,16 +602,18 @@ export const appRouter = router({
       .input(z.object({ warehouseId: z.number().int().positive().nullable().optional(), severity: z.enum(["critical", "warning", "watch", "ok"]).nullable().optional(), abcClass: z.enum(["A", "B", "C"]).nullable().optional(), search: z.string().trim().max(200).optional(), page: z.number().int().positive().default(1), pageSize: z.number().int().min(5).max(100).default(25) }))
       .query(({ input, ctx }) => safe(async () => {
         if (input.warehouseId && ctx.permissions.allowedWarehouseIds.length && !ctx.permissions.allowedWarehouseIds.includes(input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" });
+        const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
         const [leadTime, safetyStock] = await Promise.all([getSettingValue("forecast_lead_time_days", "7"), getSettingValue("forecast_safety_stock_days", "3")]);
-        const rows = await getForecastRows(ctx.permissions.allowedWarehouseIds, { leadTimeDays: Math.max(0, Number(leadTime) || 7), safetyStockDays: Math.max(0, Number(safetyStock) || 3) });
+        const rows = await getForecastRows(ctx.permissions.allowedWarehouseIds, { leadTimeDays: Math.max(0, Number(leadTime) || 7), safetyStockDays: Math.max(0, Number(safetyStock) || 3) }, scope.projectId);
         const search = input.search?.toLowerCase();
         const filtered = rows.filter(row => (!input.warehouseId || row.warehouseId === input.warehouseId) && (!input.severity || row.severity === input.severity) && (!input.abcClass || row.abcClass === input.abcClass) && (!search || row.name.toLowerCase().includes(search) || row.code.toLowerCase().includes(search)));
         const start = (input.page - 1) * input.pageSize;
         return { rows: filtered.slice(start, start + input.pageSize), total: filtered.length, page: input.page, pageSize: input.pageSize, pageCount: Math.max(1, Math.ceil(filtered.length / input.pageSize)) };
       })),
     forecastSummary: permissionProcedure("alerts").query(({ ctx }) => safe(async () => {
+      const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
       const [leadTime, safetyStock] = await Promise.all([getSettingValue("forecast_lead_time_days", "7"), getSettingValue("forecast_safety_stock_days", "3")]);
-      const rows = await getForecastRows(ctx.permissions.allowedWarehouseIds, { leadTimeDays: Math.max(0, Number(leadTime) || 7), safetyStockDays: Math.max(0, Number(safetyStock) || 3) });
+      const rows = await getForecastRows(ctx.permissions.allowedWarehouseIds, { leadTimeDays: Math.max(0, Number(leadTime) || 7), safetyStockDays: Math.max(0, Number(safetyStock) || 3) }, scope.projectId);
       return { critical: rows.filter(row => row.severity === "critical").length, warning: rows.filter(row => row.severity === "warning").length, watch: rows.filter(row => row.severity === "watch").length, ok: rows.filter(row => row.severity === "ok").length, stagnant: rows.filter(row => row.stagnant).length, suggestedValue: rows.reduce((sum, row) => sum + row.suggestedOrderQty * row.consumptionValue90 / Math.max(1, row.dailyRate90 * 90), 0) };
     })),
   }),

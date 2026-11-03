@@ -501,7 +501,7 @@ export async function listWarehousesByUsageForAccess(
     : rows;
 }
 
-export async function listWarehouseBalanceSummaries() {
+export async function listWarehouseBalanceSummaries(projectId?: number | null) {
   const db = await requireDb();
   const [warehouseRows, balanceRows, incomingRows] = await Promise.all([
     db
@@ -511,6 +511,7 @@ export async function listWarehouseBalanceSummaries() {
         name: warehouses.name,
       })
       .from(warehouses)
+      .where(projectId != null ? eq(warehouses.projectId, projectId) : undefined)
       .orderBy(warehouses.slot),
     db
       .select({
@@ -519,6 +520,8 @@ export async function listWarehouseBalanceSummaries() {
         balance: sum(itemWarehouseBalances.currentStock),
       })
       .from(itemWarehouseBalances)
+      .leftJoin(items, eq(items.id, itemWarehouseBalances.itemId))
+      .where(projectId != null ? eq(items.projectId, projectId) : undefined)
       .groupBy(itemWarehouseBalances.warehouseId),
     db
       .select({
@@ -526,7 +529,7 @@ export async function listWarehouseBalanceSummaries() {
         incoming: sum(additions.quantity),
       })
       .from(additions)
-      .where(not(isNull(additions.warehouseId)))
+      .where(and(not(isNull(additions.warehouseId)), projectId != null ? eq(additions.projectId, projectId) : undefined))
       .groupBy(additions.warehouseId),
   ]);
   const balancesByWarehouse = new Map(
@@ -942,7 +945,7 @@ export async function renameWarehouseItemCategory(input: {
   return { updatedCount, category: toCategory };
 }
 
-export async function listWarehouseStockRows(warehouseId: number) {
+export async function listWarehouseStockRows(warehouseId: number, projectId?: number | null) {
   const db = await requireDb();
   const rows = await db
     .select({ item: items, warehouseStock: itemWarehouseBalances.currentStock })
@@ -953,7 +956,7 @@ export async function listWarehouseStockRows(warehouseId: number) {
   return rows.map(row => ({ ...row.item, currentStock: row.warehouseStock }));
 }
 
-export async function listWarehouseLowStockItems() {
+export async function listWarehouseLowStockItems(projectId?: number | null) {
   const db = await requireDb();
   const rows = await db
     .select({
@@ -969,13 +972,13 @@ export async function listWarehouseLowStockItems() {
     .innerJoin(items, eq(items.id, itemWarehouseBalances.itemId))
     .innerJoin(warehouses, eq(warehouses.id, itemWarehouseBalances.warehouseId))
     .where(
-      or(
+      and(projectId != null ? eq(items.projectId, projectId) : undefined, or(
         lte(itemWarehouseBalances.currentStock, "0"),
         and(
           gt(items.reorderLevel, "0"),
           lte(itemWarehouseBalances.currentStock, items.reorderLevel)
         )
-      )
+      ))
     )
     .orderBy(asc(warehouses.slot), asc(items.name));
 
@@ -6432,14 +6435,18 @@ export async function getVoiceStockQueryData(allowedWarehouseIds: number[] = [])
   return { items: itemRows, balances: balanceRows, warehouses: warehouseRows };
 }
 
-export async function getInventoryRows(allowedWarehouseIds: number[] = []) {
+export async function getInventoryRows(allowedWarehouseIds: number[] = [], projectId?: number | null) {
   const db = await requireDb();
-  if (!allowedWarehouseIds.length)
+  const conditions = [
+    allowedWarehouseIds.length ? inArray(items.warehouseId, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(items.projectId, projectId) : undefined,
+  ].filter(Boolean);
+  if (!conditions.length)
     return db.select().from(items).orderBy(desc(items.updatedAt));
   return db
     .select()
     .from(items)
-    .where(inArray(items.warehouseId, allowedWarehouseIds))
+    .where(and(...conditions as any))
     .orderBy(desc(items.updatedAt));
 }
 
@@ -6463,21 +6470,22 @@ export async function getDailyDisbursementRows(reportDate: string) {
 
 export async function getRecentMovements(
   limit = 10,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
-  const additionWhere = allowedWarehouseIds.length
-    ? inArray(additions.warehouseId, allowedWarehouseIds)
-    : undefined;
-  const disbursementWhere = allowedWarehouseIds.length
-    ? inArray(disbursements.warehouseId, allowedWarehouseIds)
-    : undefined;
-  const transferWhere = allowedWarehouseIds.length
-    ? or(
-        inArray(transfers.fromWarehouseId, allowedWarehouseIds),
-        inArray(transfers.toWarehouseId, allowedWarehouseIds)
-      )
-    : undefined;
+  const additionWhere = and(
+    allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(additions.projectId, projectId) : undefined,
+  );
+  const disbursementWhere = and(
+    allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(disbursements.projectId, projectId) : undefined,
+  );
+  const transferWhere = and(
+    allowedWarehouseIds.length ? or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)) : undefined,
+    projectId != null ? eq(transfers.projectId, projectId) : undefined,
+  );
   const [additionRows, disbursementRows, transferRows] = await Promise.all([
     db
       .select()
@@ -6508,15 +6516,12 @@ export async function getRecentMovements(
 /** Returns the latest permit of each requested movement type by its business date.
  * The id provides a stable tie-breaker when multiple rows belong to the same permit date. */
 export async function getLatestPermitSummaries(
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
-  const additionWhere = allowedWarehouseIds.length
-    ? inArray(additions.warehouseId, allowedWarehouseIds)
-    : undefined;
-  const disbursementWhere = allowedWarehouseIds.length
-    ? inArray(disbursements.warehouseId, allowedWarehouseIds)
-    : undefined;
+  const additionWhere = and(allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined, projectId != null ? eq(additions.projectId, projectId) : undefined);
+  const disbursementWhere = and(allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined, projectId != null ? eq(disbursements.projectId, projectId) : undefined);
   const [additionRows, disbursementRows] = await Promise.all([
     db
       .select({

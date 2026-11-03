@@ -1,5 +1,5 @@
 import { getDb } from "./db/connection";
-import { asc, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { disbursements, items } from "../drizzle/schema";
 
 type ItemRow = { id: number; code: string; name: string; currentStock: unknown; unit?: string | null; unitPrice?: unknown; warehouseId?: number | null; createdAt?: Date | null };
@@ -65,13 +65,13 @@ export function buildForecast(itemsRows: ItemRow[], movementRows: DisbursementRo
 }
 let cached: { at: number; key: string; rows: ForecastRow[] } | null = null;
 export function invalidateForecastCache() { cached = null; }
-export async function getForecastRows(allowedWarehouseIds: number[] = [], settings: ForecastSettings = { leadTimeDays: 7, safetyStockDays: 3 }) {
-  const cacheKey = `${settings.leadTimeDays}:${settings.safetyStockDays}:${allowedWarehouseIds.join(",")}`;
+export async function getForecastRows(allowedWarehouseIds: number[] = [], settings: ForecastSettings = { leadTimeDays: 7, safetyStockDays: 3 }, projectId?: number | null) {
+  const cacheKey = `${settings.leadTimeDays}:${settings.safetyStockDays}:${allowedWarehouseIds.join(",")}:${projectId ?? "all"}`;
   if (!allowedWarehouseIds.length && cached && cached.key === cacheKey && Date.now() - cached.at < 5 * 60_000) return cached.rows;
   const db = await getDb();
   if (!db) return [];
-  const itemWhere = allowedWarehouseIds.length ? inArray(items.warehouseId, allowedWarehouseIds) : undefined;
-  const movementWhere = allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined;
+  const itemWhere = and(allowedWarehouseIds.length ? inArray(items.warehouseId, allowedWarehouseIds) : undefined, projectId != null ? eq(items.projectId, projectId) : undefined);
+  const movementWhere = and(allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined, projectId != null ? eq(disbursements.projectId, projectId) : undefined);
   const [itemRows, movementRows] = await Promise.all([db.select().from(items).where(itemWhere), db.select({ itemCode: disbursements.itemCode, quantity: disbursements.quantity, unitPrice: disbursements.unitPrice, totalValue: disbursements.totalValue, date: disbursements.date, warehouseId: disbursements.warehouseId }).from(disbursements).where(movementWhere)]);
   const rows = buildForecast(itemRows, movementRows, new Date(), settings);
   if (!allowedWarehouseIds.length) cached = { at: Date.now(), key: cacheKey, rows };
