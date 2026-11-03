@@ -1205,7 +1205,10 @@ export function dedupeItemCardReturns<T extends ItemCardReturnRow>(rows: T[]): T
     rows.findIndex(candidate => isSameItemCardReturn(candidate, row)) === index
   );
 }
-
+/** إذن 18 التاريخي تسوية حسابية ولا يمثل حركة مخزون فعلية. */
+export function isAccountOnlyDisbursement(row: { eznNum?: string | number | null } | null | undefined) {
+  return String(row?.eznNum ?? "").trim() === "18";
+}
 export async function getItemCard(
   itemId: number,
   allowedWarehouseIds: number[] = []
@@ -1255,8 +1258,8 @@ export async function getItemCard(
       .where(transferWhere)
       .orderBy(desc(transfers.id)),
   ]);
-  const legacyReturnDisbursements = disbursementRows.filter(isReturnDisbursement);
-  const normalDisbursements = disbursementRows.filter(row => !isReturnDisbursement(row));
+  const legacyReturnDisbursements = disbursementRows.filter(row => !isAccountOnlyDisbursement(row) && isReturnDisbursement(row));
+  const normalDisbursements = disbursementRows.filter(row => !isAccountOnlyDisbursement(row) && !isReturnDisbursement(row));
   const buildingIds = Array.from(new Set(normalDisbursements.map(row => Number(row.buildingId)).filter(id => Number.isInteger(id) && id > 0)));
   const customerIds = Array.from(new Set([
     ...normalDisbursements.map(row => Number(row.customerId)),
@@ -2431,12 +2434,14 @@ export async function createDisbursement(input: {
       input.warehouseId,
       input.store
     );
-    await applyStockDelta(tx, item, {
-      incoming: 0,
-      outgoing: quantity,
-      current: -quantity,
-    });
-    await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, -quantity);
+    if (!isAccountOnlyDisbursement({ eznNum: input.eznNum })) {
+      await applyStockDelta(tx, item, {
+        incoming: 0,
+        outgoing: quantity,
+        current: -quantity,
+      });
+      await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, -quantity);
+    }
     const result = await tx.insert(disbursements).values({
       date: input.date.trim(),
       eznNum: input.eznNum.trim(),
@@ -2635,27 +2640,34 @@ export async function updateDisbursement(input: {
       input.warehouseId ?? old.warehouseId,
       input.store === undefined ? old.store : input.store
     );
+    const oldIsAccountOnly = isAccountOnlyDisbursement(old);
+    const nextIsAccountOnly = isAccountOnlyDisbursement({ eznNum: input.eznNum ?? old.eznNum });
     const stockAffectingChange =
-      oldCode !== nextCode ||
-      oldSignedQuantity !== nextQuantity ||
-      oldWarehouse.id !== nextWarehouse.id;
+      oldIsAccountOnly !== nextIsAccountOnly ||
+      (!oldIsAccountOnly && !nextIsAccountOnly && (
+        oldCode !== nextCode ||
+        oldSignedQuantity !== nextQuantity ||
+        oldWarehouse.id !== nextWarehouse.id
+      ));
+    const oldStockQuantity = oldIsAccountOnly ? 0 : oldSignedQuantity;
+    const nextStockQuantity = nextIsAccountOnly ? 0 : nextQuantity;
 
     if (stockAffectingChange && oldCode === nextCode) {
       await applyStockDelta(tx, lockedItems.get(oldCode), {
         incoming: 0,
-        outgoing: nextQuantity - oldSignedQuantity,
-        current: oldSignedQuantity - nextQuantity,
+        outgoing: nextStockQuantity - oldStockQuantity,
+        current: oldStockQuantity - nextStockQuantity,
       });
     } else if (stockAffectingChange) {
       await applyStockDelta(tx, lockedItems.get(oldCode), {
         incoming: 0,
-        outgoing: -oldSignedQuantity,
-        current: oldSignedQuantity,
+        outgoing: -oldStockQuantity,
+        current: oldStockQuantity,
       });
       await applyStockDelta(tx, lockedItems.get(nextCode), {
         incoming: 0,
-        outgoing: nextQuantity,
-        current: -nextQuantity,
+        outgoing: nextStockQuantity,
+        current: -nextStockQuantity,
       });
     }
 
@@ -2664,13 +2676,13 @@ export async function updateDisbursement(input: {
         tx,
         lockedItems.get(oldCode).id,
         oldWarehouse.id,
-        oldSignedQuantity
+        oldStockQuantity
       );
       await applyWarehouseBalanceDelta(
         tx,
         lockedItems.get(nextCode).id,
         nextWarehouse.id,
-        -nextQuantity
+        -nextStockQuantity
       );
     }
 
@@ -2741,8 +2753,10 @@ export async function cancelDisbursement(input: { id: number; reason: string } &
     const warehouse = await resolveWarehouseId(tx, disbursement.warehouseId, disbursement.store);
     const warehouseRows = await tx.select({ currentStock: itemWarehouseBalances.currentStock }).from(itemWarehouseBalances).where(and(eq(itemWarehouseBalances.itemId, item.id), eq(itemWarehouseBalances.warehouseId, warehouse.id))).limit(1).for("update");
     const warehouseBefore = toScaled(warehouseRows[0]?.currentStock ?? 0);
-    await applyStockDelta(tx, item, { incoming: 0, outgoing: -quantity, current: quantity });
-    await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity);
+    if (!isAccountOnlyDisbursement(disbursement)) {
+      await applyStockDelta(tx, item, { incoming: 0, outgoing: -quantity, current: quantity });
+      await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity);
+    }
     const normalizedOriginal = normalizeCustomerAccountDisbursement(disbursement);
     const reversalValue = -toMoneyScaled(normalizedOriginal.totalValue);
     const permit = reversalPermitNumber(disbursement.eznNum, input.id);

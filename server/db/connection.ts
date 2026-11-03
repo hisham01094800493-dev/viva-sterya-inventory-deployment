@@ -4,6 +4,7 @@ import mysql from "mysql2/promise";
 import dns from "node:dns/promises";
 import { ENV } from "../_core/env";
 import { InventoryError } from "./errors";
+import { repairLegacyAccountOnlyPermit18 } from "./legacyRepairs";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _pool: mysql.Pool | null = null;
@@ -68,6 +69,14 @@ export async function getDb() {
         KEY report_scheduler_runs_status_idx (status), KEY report_scheduler_runs_completed_at_idx (completed_at)
       )`)
       );
+      try {
+        await repairLegacyAccountOnlyPermit18(_pool);
+      } catch (repairError) {
+        console.warn(
+          "[Database] Legacy permit 18 repair deferred:",
+          repairError,
+        );
+      }
       try {
         await _db.execute(
           sql.raw(
