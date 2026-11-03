@@ -203,19 +203,7 @@
     .smart-topbar { min-height: 3.5rem !important; padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
   }
   @media (max-width: 639px) {
-    .smart-topbar { flex-wrap: wrap !important; align-content: center; gap: 0.25rem !important; padding-inline: 0.5rem !important; overflow: visible !important; }
-    .smart-topbar-leading { width: 100%; gap: 0.25rem !important; flex: 0 0 100%; }
-    .smart-topbar-leading .smart-topbar-action { height: 2.25rem !important; width: 2.25rem !important; }
-    .smart-topbar-heading { max-width: 5.75rem; }
-    .smart-topbar-eyebrow { display: none; }
-    .smart-topbar-title { display: block; max-width: 5.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.95rem !important; }
-    .topbar-actions { width: 100%; min-width: 0; flex: 0 0 100% !important; justify-content: flex-start; padding-bottom: 0.15rem; }
-    .topbar-project-switcher { max-width: 10rem !important; min-width: 0; padding-inline: 0.5rem !important; }
-    .topbar-project-switcher > span { min-width: 0; }
-    .topbar-project-switcher .project-switcher-label { max-width: 4.5rem; }
-    .smart-topbar-notifications { height: 2.25rem !important; width: 2.25rem !important; }
-    .smart-topbar-avatar { display: none !important; }
-    .topbar-actions > * { flex-shrink: 0; }
+    .smart-topbar { overflow: visible !important; }
   }
   @media (prefers-reduced-motion: reduce) {
     .quick-actions-settling { transition: none; }
