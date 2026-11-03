@@ -28,7 +28,7 @@ UPDATE `items` SET `project_id` = (SELECT `id` FROM `projects` WHERE `code` = 'M
 UPDATE `additions` SET `project_id` = (SELECT `id` FROM `projects` WHERE `code` = 'MAIN' LIMIT 1) WHERE `project_id` IS NULL;--> statement-breakpoint
 UPDATE `disbursements` SET `project_id` = (SELECT `id` FROM `projects` WHERE `code` = 'MAIN' LIMIT 1) WHERE `project_id` IS NULL;--> statement-breakpoint
 UPDATE `transfers` SET `project_id` = (SELECT `id` FROM `projects` WHERE `code` = 'MAIN' LIMIT 1) WHERE `project_id` IS NULL;--> statement-breakpoint
-UPDATE `user_permissions` SET `allowed_projects` = '[1]' WHERE `allowed_projects` = '[]' OR `allowed_projects` IS NULL;--> statement-breakpoint
+UPDATE `user_permissions` SET `allowed_projects` = CONCAT('[', (SELECT `id` FROM `projects` WHERE `code` = 'MAIN' LIMIT 1), ']') WHERE `allowed_projects` = '[]' OR `allowed_projects` IS NULL;--> statement-breakpoint
 UPDATE `user_preferences` SET `active_project_id` = (SELECT `id` FROM `projects` WHERE `code` = 'MAIN' LIMIT 1) WHERE `active_project_id` IS NULL;--> statement-breakpoint
 ALTER TABLE `items` ADD CONSTRAINT `items_project_code_uq` UNIQUE(`project_id`,`code`);--> statement-breakpoint
 ALTER TABLE `warehouses` ADD CONSTRAINT `warehouses_project_slot_uq` UNIQUE(`project_id`,`slot`);--> statement-breakpoint

@@ -74,6 +74,7 @@ import PwaVersionCard from "./PwaVersionCard";
 import ChatFloatingBubble from "./ChatFloatingBubble";
 import { OnboardingTour } from "./OnboardingTour";
 import { VoiceStockQuery } from "./VoiceStockQuery";
+import { ProjectSwitcher, useActiveProjectState } from "./ProjectSwitcher";
 
 export function buildWarehouseNavigationItems(warehouses: Array<{ slot: number; name: string }>) { return warehouses.map(item => ({ icon: Warehouse, label: item.name, path: `/warehouses/${item.slot}` })); }
 
@@ -588,6 +589,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   const { state, toggleSidebar } = useSidebar();
   useEffect(() => { document.documentElement.classList.toggle("dark", darkMode); window.localStorage.setItem("smart-inventory-theme", darkMode ? "dark" : "light"); }, [darkMode]);
   useEffect(() => { const applyNumberScale = () => { document.documentElement.dataset.numberScale = window.localStorage.getItem("smart-inventory-number-scale") || "normal"; }; applyNumberScale(); window.addEventListener("smart-inventory-number-scale", applyNumberScale); return () => window.removeEventListener("smart-inventory-number-scale", applyNumberScale); }, []);
+  const activeProjectState = useActiveProjectState();
   const permissionQuery = trpc.permissions.mine.useQuery(undefined, inventoryQueryOptions);
   const onboardingPreferences = trpc.preferences.get.useQuery(undefined, inventoryQueryOptions);
   const updatePreferences = trpc.preferences.update.useMutation();
@@ -723,6 +725,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
             </div>
           </div>
             <div className="flex min-w-0 items-center gap-1.5 sm:gap-3">
+            <ProjectSwitcher state={activeProjectState} />
             <CommandPalette canCreateItems={canCreateItems} onNavigate={path => { window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} /><div className="flex shrink-0 items-center rounded-xl border border-red-200 bg-red-50/80 p-0.5 shadow-sm sm:rounded-2xl sm:p-1" aria-label="البحث الصوتي"><div className="rounded-lg bg-red-50 [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg [&_button]:border-red-200 [&_button]:bg-red-50 [&_button]:text-red-600 [&_button]:hover:bg-red-100 sm:rounded-xl sm:[&_button]:h-9 sm:[&_button]:w-9"><GlobalVoiceSearch /></div></div>
             <NotificationBell chatEnabled={chatEnabled} />
             {isMovementPage && canViewMovementFinancialDetails ? <Button type="button" variant="outline" size="sm" onClick={() => void toggleMovementFinancialDetails()} disabled={updatePreferences.isPending || onboardingPreferences.isLoading} aria-pressed={showMovementFinancialDetails} className="movement-financial-toggle inline-flex rounded-xl px-2 text-[10px] font-black sm:px-3 sm:text-xs">{showMovementFinancialDetails ? "إخفاء التفاصيل المالية" : "إظهار التفاصيل المالية"}</Button> : null}
