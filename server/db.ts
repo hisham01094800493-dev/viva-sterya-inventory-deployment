@@ -325,28 +325,38 @@ export async function upsertGoogleUser(input: {
   return (await db.select().from(users).where(eq(users.id, id)).limit(1))[0]!;
 }
 
-export async function listWarehouses() {
+export async function listWarehouses(projectId?: number | null) {
   const db = await requireDb();
-  const rows = await db.select().from(warehouses).orderBy(warehouses.slot);
+  const rows = await db
+    .select()
+    .from(warehouses)
+    .where(projectId == null ? undefined : eq(warehouses.projectId, projectId))
+    .orderBy(warehouses.slot);
   return rows;
 }
 
-export async function listBuildings() {
+export async function listBuildings(projectId?: number | null) {
   const db = await requireDb();
   return db
     .select()
     .from(buildings)
-    .where(eq(buildings.status, "active"))
+    .where(
+      and(
+        eq(buildings.status, "active"),
+        projectId == null ? undefined : eq(buildings.projectId, projectId)
+      )
+    )
     .orderBy(asc(buildings.id));
 }
-export async function createBuilding(input: { name: string; code: string; type?: "owned_building" | "subcontractor"; budget?: number }) {
+export async function createBuilding(input: { name: string; code: string; type?: "owned_building" | "subcontractor"; budget?: number; projectId?: number | null }) {
   const db = await requireDb();
   const name = input.name.trim();
   const code = input.code.trim();
   if (!name) throw new InventoryError("BAD_REQUEST", "اسم المبنى مطلوب");
   if (!code) throw new InventoryError("BAD_REQUEST", "كود المبنى مطلوب");
   try {
-    const result = await db.insert(buildings).values({ name, code, type: input.type ?? "owned_building", budget: String(Math.max(0, Number(input.budget ?? 0))) });
+    const projectId = await resolveWriteProjectId(db, input.projectId);
+    const result = await db.insert(buildings).values({ name, code, type: input.type ?? "owned_building", budget: String(Math.max(0, Number(input.budget ?? 0))), projectId });
     const id = resultInsertId(result);
     return (await db.select().from(buildings).where(eq(buildings.id, id)).limit(1))[0];
   } catch (error: any) {
@@ -372,11 +382,11 @@ export async function updateBuilding(input: { id: number; name?: string; code?: 
   if (!row) throw new InventoryError("NOT_FOUND", "المبنى غير موجود");
   return row;
 }
-export async function getBuildingCostComparison(input: { fromDate?: string; toDate?: string }, allowedWarehouseIds: number[] = []) {
+export async function getBuildingCostComparison(input: { fromDate?: string; toDate?: string }, allowedWarehouseIds: number[] = [], projectId?: number | null) {
   const db = await requireDb();
   const [buildingRows, movementRows] = await Promise.all([
-    db.select().from(buildings).where(eq(buildings.status, "active")).orderBy(asc(buildings.id)),
-    db.select({ buildingId: disbursements.buildingId, quantity: disbursements.quantity, totalValue: disbursements.totalValue, date: disbursements.date, itemCode: disbursements.itemCode, itemName: disbursements.itemName, category: items.category, unit: items.unit, warehouseId: disbursements.warehouseId }).from(disbursements).leftJoin(items, eq(disbursements.itemCode, items.code)),
+    db.select().from(buildings).where(and(eq(buildings.status, "active"), projectId != null ? eq(buildings.projectId, projectId) : undefined)).orderBy(asc(buildings.id)),
+    db.select({ buildingId: disbursements.buildingId, quantity: disbursements.quantity, totalValue: disbursements.totalValue, date: disbursements.date, itemCode: disbursements.itemCode, itemName: disbursements.itemName, category: items.category, unit: items.unit, warehouseId: disbursements.warehouseId }).from(disbursements).leftJoin(items, eq(disbursements.itemCode, items.code)).where(projectId != null ? eq(disbursements.projectId, projectId) : undefined),
   ]);
   const visibleMovements = allowedWarehouseIds.length
     ? movementRows.filter(row => row.warehouseId == null || allowedWarehouseIds.includes(row.warehouseId))
@@ -384,9 +394,10 @@ export async function getBuildingCostComparison(input: { fromDate?: string; toDa
   return buildBuildingCostComparison(buildingRows, visibleMovements, input);
 }
 export async function listWarehousesForAccess(
-  allowedWarehouseIds: number[] | null
+  allowedWarehouseIds: number[] | null,
+  projectId?: number | null
 ) {
-  const rows = await listWarehouses();
+  const rows = await listWarehouses(projectId);
   return allowedWarehouseIds?.length
     ? rows.filter(row => allowedWarehouseIds.includes(row.id))
     : rows;
@@ -418,7 +429,7 @@ export function rankWarehousesByUsage<T extends WarehouseUsageCandidate>(
     );
 }
 
-export async function listWarehousesByUsage() {
+export async function listWarehousesByUsage(projectId?: number | null) {
   const db = await requireDb();
   const [
     warehouseRows,
@@ -427,26 +438,50 @@ export async function listWarehousesByUsage() {
     transferSourcesUsage,
     transferDestinationsUsage,
   ] = await Promise.all([
-    db.select().from(warehouses).orderBy(warehouses.slot),
+    db
+      .select()
+      .from(warehouses)
+      .where(projectId == null ? undefined : eq(warehouses.projectId, projectId))
+      .orderBy(warehouses.slot),
     db
       .select({ warehouseId: additions.warehouseId, usageCount: count() })
       .from(additions)
-      .where(not(isNull(additions.warehouseId)))
+      .where(
+        and(
+          not(isNull(additions.warehouseId)),
+          projectId == null ? undefined : eq(additions.projectId, projectId)
+        )
+      )
       .groupBy(additions.warehouseId),
     db
       .select({ warehouseId: disbursements.warehouseId, usageCount: count() })
       .from(disbursements)
-      .where(not(isNull(disbursements.warehouseId)))
+      .where(
+        and(
+          not(isNull(disbursements.warehouseId)),
+          projectId == null ? undefined : eq(disbursements.projectId, projectId)
+        )
+      )
       .groupBy(disbursements.warehouseId),
     db
       .select({ warehouseId: transfers.fromWarehouseId, usageCount: count() })
       .from(transfers)
-      .where(not(isNull(transfers.fromWarehouseId)))
+      .where(
+        and(
+          not(isNull(transfers.fromWarehouseId)),
+          projectId == null ? undefined : eq(transfers.projectId, projectId)
+        )
+      )
       .groupBy(transfers.fromWarehouseId),
     db
       .select({ warehouseId: transfers.toWarehouseId, usageCount: count() })
       .from(transfers)
-      .where(not(isNull(transfers.toWarehouseId)))
+      .where(
+        and(
+          not(isNull(transfers.toWarehouseId)),
+          projectId == null ? undefined : eq(transfers.projectId, projectId)
+        )
+      )
       .groupBy(transfers.toWarehouseId),
   ]);
   return rankWarehousesByUsage(warehouseRows, [
@@ -457,9 +492,10 @@ export async function listWarehousesByUsage() {
   ]);
 }
 export async function listWarehousesByUsageForAccess(
-  allowedWarehouseIds: number[] | null
+  allowedWarehouseIds: number[] | null,
+  projectId?: number | null
 ) {
-  const rows = await listWarehousesByUsage();
+  const rows = await listWarehousesByUsage(projectId);
   return allowedWarehouseIds?.length
     ? rows.filter(row => allowedWarehouseIds.includes(row.id))
     : rows;
@@ -533,6 +569,29 @@ export async function updateWarehouse(input: { id: number; name: string }) {
     .limit(1);
   if (!rows[0]) throw new InventoryError("NOT_FOUND", "المخزن غير موجود");
   return rows[0];
+}
+
+/**
+ * Resolves the project a write should be attributed to.
+ * Falls back to the MAIN project when the caller did not supply one, so that
+ * newly created rows are never left with a NULL project_id (which would make
+ * them invisible to every project-scoped read).
+ */
+async function resolveWriteProjectId(
+  tx: any,
+  projectId?: number | null
+): Promise<number | null> {
+  if (projectId != null) return projectId;
+  try {
+    const rows = await tx
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.code, "MAIN"))
+      .limit(1);
+    return rows[0]?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function resolveWarehouseId(
@@ -828,31 +887,36 @@ async function nextItemCode(tx: any, _warehouseId?: number | null) {
   return selected.code;
 }
 
-export async function listItems(search?: string, warehouseId?: number) {
+export async function listItems(
+  search?: string,
+  warehouseId?: number,
+  projectId?: number | null
+) {
   const db = await requireDb();
   const normalizedSearch = search?.trim();
+  const projectCondition =
+    projectId == null ? undefined : eq(items.projectId, projectId);
   if (!normalizedSearch) {
-    return warehouseId
-      ? db
-          .select()
-          .from(items)
-          .where(eq(items.warehouseId, warehouseId))
-          .orderBy(desc(items.updatedAt))
-      : db.select().from(items).orderBy(desc(items.updatedAt));
+    const conditions = [];
+    if (warehouseId) conditions.push(eq(items.warehouseId, warehouseId));
+    if (projectCondition) conditions.push(projectCondition);
+    return db
+      .select()
+      .from(items)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(desc(items.updatedAt));
   }
 
   const pattern = `%${normalizedSearch}%`;
+  const conditions = [
+    or(like(items.code, pattern), like(items.name, pattern)),
+  ];
+  if (warehouseId) conditions.push(eq(items.warehouseId, warehouseId));
+  if (projectCondition) conditions.push(projectCondition);
   return db
     .select()
     .from(items)
-    .where(
-      warehouseId
-        ? and(
-            eq(items.warehouseId, warehouseId),
-            or(like(items.code, pattern), like(items.name, pattern))
-          )
-        : or(like(items.code, pattern), like(items.name, pattern))
-    )
+    .where(and(...conditions))
     .orderBy(desc(items.updatedAt));
 }
 
@@ -1030,15 +1094,19 @@ export function buildCompanyInventoryAuditReport(
 }
 
 export async function getCompanyInventoryAuditReport(
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
   const warehouseWhere = allowedWarehouseIds.length
     ? inArray(warehouses.id, allowedWarehouseIds)
-    : undefined;
+    : projectId != null
+      ? eq(warehouses.projectId, projectId)
+      : undefined;
   const balanceWhere = allowedWarehouseIds.length
     ? inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds)
     : undefined;
+  const itemWhere = projectId != null ? eq(items.projectId, projectId) : undefined;
   const [warehouseRows, sourceRows] = await Promise.all([
     db
       .select({
@@ -1065,7 +1133,7 @@ export async function getCompanyInventoryAuditReport(
         itemWarehouseBalances,
         eq(itemWarehouseBalances.itemId, items.id)
       )
-      .where(balanceWhere)
+      .where(and(balanceWhere, itemWhere))
       .orderBy(asc(items.code)),
   ]);
   return buildCompanyInventoryAuditReport(warehouseRows, sourceRows);
@@ -1081,7 +1149,8 @@ export async function listItemsPaged(
     page?: number;
     pageSize?: number;
   },
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
   const page = Math.max(1, Math.floor(input.page ?? 1));
@@ -1099,6 +1168,7 @@ export async function listItemsPaged(
     conditions.push(eq(items.warehouseId, input.warehouseId));
   if (allowedWarehouseIds.length)
     conditions.push(inArray(items.warehouseId, allowedWarehouseIds));
+  if (projectId != null) conditions.push(eq(items.projectId, projectId));
   if (input.category)
     conditions.push(
       input.category === "بدون تصنيف"
@@ -1371,6 +1441,7 @@ export async function createItem(input: {
   unitPrice?: number;
   imageKey?: string | null;
   imageUrl?: string | null;
+  projectId?: number | null;
 }) {
   const db = await requireDb();
   const name = normalizeItemName(input.name);
@@ -1386,10 +1457,12 @@ export async function createItem(input: {
       const code =
         input.code?.trim() || (await nextItemCode(tx, input.warehouseId));
       const warehouse = await resolveWarehouseId(tx, input.warehouseId);
+      const projectId = await resolveWriteProjectId(tx, input.projectId);
       normalizeItemCode(code);
       const result = await tx.insert(items).values({
         code,
         warehouseId: warehouse.id,
+        projectId,
         name,
         initialStock: fromScaled(initial),
         incomingStock: "0.000",
@@ -1433,7 +1506,8 @@ export async function importItems(
     category?: string | null;
     unit?: string | null;
     unitPrice?: number;
-  }>
+  }>,
+  projectId?: number | null
 ) {
   const db = await requireDb();
   const seen = new Set<string>();
@@ -1468,13 +1542,18 @@ export async function importItems(
   });
 
   return db.transaction(async (tx: any) => {
+    const writeProjectId = await resolveWriteProjectId(tx, projectId);
     let created = 0;
     let updated = 0;
     for (const row of normalizedRows) {
       const existingRows = await tx
         .select()
         .from(items)
-        .where(eq(items.code, row.code))
+        .where(
+          writeProjectId == null
+            ? eq(items.code, row.code)
+            : and(eq(items.code, row.code), eq(items.projectId, writeProjectId))
+        )
         .limit(1)
         .for("update");
       const existing = existingRows[0];
@@ -1490,6 +1569,7 @@ export async function importItems(
           category: row.category,
           unit: row.unit,
           unitPrice: fromMoneyScaled(row.unitPrice),
+          projectId: writeProjectId,
         });
         created += 1;
         continue;
@@ -1755,16 +1835,19 @@ export async function deleteItem(id: number) {
 
 export async function listAdditions(
   limit = 100,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
-  const where = allowedWarehouseIds.length
-    ? inArray(additions.warehouseId, allowedWarehouseIds)
-    : undefined;
+  const conditions = [];
+  if (allowedWarehouseIds.length)
+    conditions.push(inArray(additions.warehouseId, allowedWarehouseIds));
+  if (projectId != null) conditions.push(eq(additions.projectId, projectId));
+  if (projectId != null) conditions.push(eq(additions.projectId, projectId));
   return db
     .select()
     .from(additions)
-    .where(where)
+    .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(additions.id))
     .limit(limit);
 }
@@ -1833,7 +1916,8 @@ export function normalizeMovementPageTotals(
 
 export async function listAdditionsPaged(
   input: MovementPageInput,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
   const { page, pageSize } = normalizeMovementPageInput(input);
@@ -1960,21 +2044,28 @@ export async function listCustomerAccount(
 
 export async function getPermitDetails(
   permitNumber: string,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
   const normalizedPermit = permitNumber.trim();
   if (!normalizedPermit) return { permitNumber: normalizedPermit, additions: [], disbursements: [], transfers: [] };
 
   const additionWhere = allowedWarehouseIds.length
-    ? and(eq(additions.eznNum, normalizedPermit), inArray(additions.warehouseId, allowedWarehouseIds))
-    : eq(additions.eznNum, normalizedPermit);
+    ? and(eq(additions.eznNum, normalizedPermit), inArray(additions.warehouseId, allowedWarehouseIds), projectId != null ? eq(additions.projectId, projectId) : undefined)
+    : projectId != null
+      ? and(eq(additions.eznNum, normalizedPermit), eq(additions.projectId, projectId))
+      : eq(additions.eznNum, normalizedPermit);
   const disbursementWhere = allowedWarehouseIds.length
-    ? and(eq(disbursements.eznNum, normalizedPermit), inArray(disbursements.warehouseId, allowedWarehouseIds))
-    : eq(disbursements.eznNum, normalizedPermit);
+    ? and(eq(disbursements.eznNum, normalizedPermit), inArray(disbursements.warehouseId, allowedWarehouseIds), projectId != null ? eq(disbursements.projectId, projectId) : undefined)
+    : projectId != null
+      ? and(eq(disbursements.eznNum, normalizedPermit), eq(disbursements.projectId, projectId))
+      : eq(disbursements.eznNum, normalizedPermit);
   const transferWhere = allowedWarehouseIds.length
-    ? and(eq(transfers.eznNum, normalizedPermit), or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)))
-    : eq(transfers.eznNum, normalizedPermit);
+    ? and(eq(transfers.eznNum, normalizedPermit), or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)), projectId != null ? eq(transfers.projectId, projectId) : undefined)
+    : projectId != null
+      ? and(eq(transfers.eznNum, normalizedPermit), eq(transfers.projectId, projectId))
+      : eq(transfers.eznNum, normalizedPermit);
 
   const [additionRows, disbursementRows, transferRows] = await Promise.all([
     db.select().from(additions).where(additionWhere).orderBy(asc(additions.id)),
@@ -1997,6 +2088,7 @@ export async function createAddition(input: {
   category?: string | null;
   unitPrice?: number;
   clientRequestId?: string | null;
+  projectId?: number | null;
 }) {
   const db = await requireDb();
   const quantity = toScaled(input.quantity);
@@ -2046,6 +2138,7 @@ export async function createAddition(input: {
       supplierId: input.supplierId ?? null,
       category: input.category?.trim() || item.category || null,
       clientRequestId,
+      projectId: await resolveWriteProjectId(tx, input.projectId),
     });
     const id = resultInsertId(result);
     const rows = await tx
@@ -2287,23 +2380,29 @@ export async function deleteAddition(_id: number): Promise<never> {
 
 export async function listDisbursements(
   limit = 500,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
-  const where = allowedWarehouseIds.length
-    ? inArray(disbursements.warehouseId, allowedWarehouseIds)
-    : undefined;
+  const conditions = [];
+  if (allowedWarehouseIds.length)
+    conditions.push(inArray(disbursements.warehouseId, allowedWarehouseIds));
+  if (projectId != null)
+    conditions.push(eq(disbursements.projectId, projectId));
+  if (projectId != null)
+    conditions.push(eq(disbursements.projectId, projectId));
   return db
     .select()
     .from(disbursements)
-    .where(where)
+    .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(disbursements.id))
     .limit(limit);
 }
 
 export async function listDisbursementsPaged(
   input: Omit<MovementPageInput, "supplierId"> & { customerId?: number },
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
   const { page, pageSize } = normalizeMovementPageInput(input);
@@ -2375,6 +2474,7 @@ export async function createDisbursement(input: {
   disburseType?: string | null;
   unitPrice?: number;
   clientRequestId?: string | null;
+  projectId?: number | null;
 }) {
   const db = await requireDb();
   const enteredQuantity = toScaled(input.quantity);
@@ -2460,6 +2560,7 @@ export async function createDisbursement(input: {
       warehouseId: warehouse.id,
       disburseType: quantity < 0 ? "صرف تصحيح" : input.disburseType?.trim() || null,
       clientRequestId,
+      projectId: await resolveWriteProjectId(tx, input.projectId),
     });
     const id = resultInsertId(result);
     const rows = await tx
@@ -2795,26 +2896,32 @@ export async function deleteDisbursement(_id: number): Promise<never> {
 
 export async function listTransfers(
   limit = 100,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
-  const where = allowedWarehouseIds.length
-    ? or(
+  const conditions = [];
+  if (allowedWarehouseIds.length)
+    conditions.push(
+      or(
         inArray(transfers.fromWarehouseId, allowedWarehouseIds),
         inArray(transfers.toWarehouseId, allowedWarehouseIds)
       )
-    : undefined;
+    );
+  if (projectId != null) conditions.push(eq(transfers.projectId, projectId));
+  if (projectId != null) conditions.push(eq(transfers.projectId, projectId));
   return db
     .select()
     .from(transfers)
-    .where(where)
+    .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(transfers.id))
     .limit(limit);
 }
 
 export async function listTransfersPaged(
   input: Omit<MovementPageInput, "supplierId">,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
   const { page, pageSize } = normalizeMovementPageInput(input);
@@ -2908,7 +3015,8 @@ function normalizeReportAggregate(
 
 function reportWhereConditions(
   input: ReportDatasetInput,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const permit = input.permitSearch?.trim();
   const incoming = input.incomingFromSearch?.trim();
@@ -2937,6 +3045,11 @@ function reportWhereConditions(
         inArray(transfers.toWarehouseId, allowedWarehouseIds)
       )
     );
+  }
+  if (projectId != null) {
+    additionsConditions.push(eq(additions.projectId, projectId));
+    disbursementsConditions.push(eq(disbursements.projectId, projectId));
+    transfersConditions.push(eq(transfers.projectId, projectId));
   }
   if (permit) {
     additionsConditions.push(like(additions.eznNum, `%${permit}%`));
@@ -3041,11 +3154,12 @@ function reportWhereConditions(
 
 export async function getReportDataset(
   input: ReportDatasetInput,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
   const { additionsWhere, disbursementsWhere, transfersWhere } =
-    reportWhereConditions(input, allowedWarehouseIds);
+    reportWhereConditions(input, allowedWarehouseIds, projectId);
   const returnWhere = transfersWhere
     ? and(transfersWhere, inArray(transfers.transferType, reportReturnTypes))
     : inArray(transfers.transferType, reportReturnTypes);
@@ -3586,6 +3700,7 @@ export async function createTransfer(input: {
   transferType?: string | null;
   unitPrice?: number;
   clientRequestId?: string | null;
+  projectId?: number | null;
 }) {
   const db = await requireDb();
   const quantity = toScaled(input.quantity);
@@ -3636,6 +3751,7 @@ export async function createTransfer(input: {
       notes: input.notes?.trim() || null,
       transferType: input.transferType?.trim() || "transfer",
       clientRequestId,
+      projectId: await resolveWriteProjectId(tx, input.projectId),
     });
     const id = resultInsertId(result);
     const rows = await tx
@@ -3940,7 +4056,7 @@ export function buildMovementDuplicateKey(row: MovementImportRow) {
     .join("|");
 }
 
-export async function importMovements(rows: MovementImportRow[]) {
+export async function importMovements(rows: MovementImportRow[], projectId?: number | null) {
   const seen = new Set<string>();
   const errors: Array<{ row: number; message: string }> = [];
   let imported = 0;
@@ -3959,9 +4075,9 @@ export async function importMovements(rows: MovementImportRow[]) {
           "BAD_REQUEST",
           "التاريخ ورقم الإذن وكود الصنف حقول مطلوبة"
         );
-      if (row.type === "addition") await createAddition(row);
-      else if (row.type === "disbursement") await createDisbursement(row);
-      else await createTransfer(row);
+      if (row.type === "addition") await createAddition({ ...row, projectId });
+      else if (row.type === "disbursement") await createDisbursement({ ...row, projectId });
+      else await createTransfer({ ...row, projectId });
       imported += 1;
     } catch (error) {
       errors.push({
@@ -4517,8 +4633,22 @@ export function collectBackupAssetReferences(
   return Array.from(references.values());
 }
 
-export async function exportBackupSnapshot() {
+export async function exportBackupSnapshot(projectId?: number | null) {
   const db = await requireDb();
+  const scoped = projectId != null;
+  const warehouseWhere = scoped ? eq(warehouses.projectId, projectId!) : undefined;
+  const itemWhere = scoped ? eq(items.projectId, projectId!) : undefined;
+  const additionWhere = scoped ? eq(additions.projectId, projectId!) : undefined;
+  const disbursementWhere = scoped ? eq(disbursements.projectId, projectId!) : undefined;
+  const transferWhere = scoped ? eq(transfers.projectId, projectId!) : undefined;
+  const projectWarehouseIds = scoped
+    ? (await db.select({ id: warehouses.id }).from(warehouses).where(eq(warehouses.projectId, projectId!))).map(r => r.id)
+    : [];
+  const balanceWhere = scoped
+    ? projectWarehouseIds.length
+      ? inArray(itemWarehouseBalances.warehouseId, projectWarehouseIds)
+      : eq(itemWarehouseBalances.id, -1)
+    : undefined;
   const [
     usersRows,
     warehouseRows,
@@ -4543,14 +4673,14 @@ export async function exportBackupSnapshot() {
     revokedSessionRows,
   ] = await Promise.all([
     db.select().from(users),
-    db.select().from(warehouses),
+    db.select().from(warehouses).where(warehouseWhere),
     db.select().from(suppliers),
     db.select().from(customers),
-    db.select().from(items),
-    db.select().from(itemWarehouseBalances),
-    db.select().from(additions),
-    db.select().from(disbursements),
-    db.select().from(transfers),
+    db.select().from(items).where(itemWhere),
+    db.select().from(itemWarehouseBalances).where(balanceWhere),
+    db.select().from(additions).where(additionWhere),
+    db.select().from(disbursements).where(disbursementWhere),
+    db.select().from(transfers).where(transferWhere),
     db.select().from(settings),
     db.select().from(userPreferences),
     db.select().from(userPermissions),

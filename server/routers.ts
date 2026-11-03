@@ -149,6 +149,7 @@ import {
   updateUserDraft,
   deleteUserDraft,
 } from "./db";
+import { resolveProjectScope } from "./projectScope";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { whatsappRouter } from "./whatsappRouter";
@@ -341,13 +342,13 @@ export const appRouter = router({
   }),
 
   warehouses: router({
-    list: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); return safe(() => listWarehousesForAccess(permissions.allowedWarehouseIds)); }),
-    listByUsage: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); return safe(() => listWarehousesByUsageForAccess(permissions.allowedWarehouseIds)); }),
+    list: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => listWarehousesForAccess(permissions.allowedWarehouseIds, scope.projectId)); }),
+    listByUsage: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => listWarehousesByUsageForAccess(permissions.allowedWarehouseIds, scope.projectId)); }),
     update: adminProcedure.input(warehouseUpdateInput).mutation(({ input }) => safe(() => updateWarehouse(input))),
   }),
   buildings: router({
-    list: protectedProcedure.query(() => safe(() => listBuildings())),
-    create: protectedProcedure.input(buildingInput).mutation(({ input }) => safe(() => createBuilding(input))),
+    list: protectedProcedure.query(async ({ ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => listBuildings(scope.projectId)); }),
+    create: protectedProcedure.input(buildingInput).mutation(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => createBuilding({ ...input, projectId: scope.projectId })); }),
     update: protectedProcedure.input(buildingUpdateInput).mutation(({ input }) => safe(() => updateBuilding(input))),
   }),
   suppliers: router({
@@ -372,7 +373,7 @@ export const appRouter = router({
   items: router({
     list: permissionProcedure("inventory")
       .input(z.object({ search: z.string().optional(), warehouseId: z.number().int().positive().optional() }).optional())
-      .query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); if (input?.warehouseId && !canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" }); const rows = await safe(() => input?.warehouseId ? listItems(input.search, input.warehouseId) : listItems(input?.search)); return permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows; }),
+      .query(async ({ ctx, input }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); if (input?.warehouseId && !canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" }); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); const rows = await safe(() => input?.warehouseId ? listItems(input.search, input.warehouseId, scope.projectId) : listItems(input?.search, undefined, scope.projectId)); return permissions.allowedWarehouseIds.length ? rows.filter(row => canViewWarehouse(permissions.allowedWarehouseIds, row.warehouseId)) : rows; }),
     warehouseStocks: permissionProcedure("inventory")
       .input(z.object({ warehouseId: z.number().int().positive() }))
       .query(async ({ ctx, input }) => {
@@ -389,7 +390,8 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
         if (input.warehouseId && !canViewWarehouse(permissions.allowedWarehouseIds, input.warehouseId)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية رؤية هذا المخزن" });
-        const result = await safe(() => listItemsPaged(input, permissions.allowedWarehouseIds));
+        const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
+        const result = await safe(() => listItemsPaged(input, permissions.allowedWarehouseIds, scope.projectId));
         const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
         return canViewFinancialDetails ? result : { ...result, items: result.items.map(({ unitPrice: _unitPrice, ...item }) => item) };
       }),
@@ -421,13 +423,13 @@ export const appRouter = router({
     clearImage: writePermissionProcedure("inventory")
       .input(z.object({ itemId: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const item = await safe(() => getItemById(input.itemId)); if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "الصنف غير موجود" }); assertWarehouseAccess(ctx.permissions, [item.warehouseId]); return safe(() => updateItemImage(input.itemId, null, null)); }),
-    create: itemCreateProcedure.input(itemInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createItem(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "item", entityId: result?.id, details: { code: result?.code, name: result?.name } }); return result; }),
+    create: itemCreateProcedure.input(itemInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); const result = await safe(() => createItem({ ...input, projectId: scope.projectId })); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "item", entityId: result?.id, details: { code: result?.code, name: result?.name } }); return result; }),
     importBulk: itemCreateProcedure
       .input(z.object({ rows: z.array(importItemInput).min(1).max(5000) }))
-      .mutation(({ input, ctx }) => { if (ctx.permissions.allowedWarehouseIds.length) throw new TRPCError({ code: "FORBIDDEN", message: "الاستيراد الجماعي يتطلب صلاحية إدارة جميع المخازن" }); return safe(() => importItems(input.rows)); }),
+      .mutation(async ({ input, ctx }) => { if (ctx.permissions.allowedWarehouseIds.length) throw new TRPCError({ code: "FORBIDDEN", message: "الاستيراد الجماعي يتطلب صلاحية إدارة جميع المخازن" }); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => importItems(input.rows, scope.projectId)); }),
     importMovements: protectedProcedure
       .input(z.object({ rows: z.array(movementImportRow).min(1).max(5000) }))
-      .mutation(async ({ input, ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); if (permissions.allowedWarehouseIds.length || permissions.readOnly) throw new TRPCError({ code: "FORBIDDEN", message: "استيراد الحركات يتطلب صلاحية إدارة جميع المخازن" }); return safe(() => importMovements(input.rows)); }),
+      .mutation(async ({ input, ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); if (permissions.allowedWarehouseIds.length || permissions.readOnly) throw new TRPCError({ code: "FORBIDDEN", message: "استيراد الحركات يتطلب صلاحية إدارة جميع المخازن" }); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => importMovements(input.rows, scope.projectId)); }),
     update: writePermissionProcedure("inventory")
       .input(itemInput.partial().extend({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const existing = await safe(() => getItemById(input.id)); if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "الصنف غير موجود" }); assertWarehouseAccess(ctx.permissions, [existing.warehouseId, input.warehouseId]); const result = await safe(() => updateItem(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "item", entityId: input.id, details: input }); return result; }),
@@ -442,15 +444,15 @@ export const appRouter = router({
   additions: router({
     list: permissionProcedure("additions")
       .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
-      .query(({ input, ctx }) => safe(() => listAdditions(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds))),
-    listPaged: permissionProcedure("additions").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), supplierId: z.number().int().positive().optional() })).query(({ input, ctx }) => safe(() => listAdditionsPaged(input, ctx.permissions.allowedWarehouseIds))),
+      .query(({ input, ctx }) => safe(async () => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return listAdditions(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds, scope.projectId); })),
+    listPaged: permissionProcedure("additions").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), supplierId: z.number().int().positive().optional() })).query(({ input, ctx }) => safe(async () => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return listAdditionsPaged(input, ctx.permissions.allowedWarehouseIds, scope.projectId); })),
     account: reportPermissionProcedure("supplier-account").input(z.object({ supplierId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
       const rows = await safe(() => listSupplierAccount(input.supplierId, permissions.allowedWarehouseIds));
       const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
       return canViewFinancialDetails ? rows : rows.map(({ unitPrice: _unitPrice, totalValue: _totalValue, ...row }) => row);
     }),
-    create: writePermissionProcedure("additions").input(additionInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createAddition(input)); invalidateForecastCache(); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "addition", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
+    create: writePermissionProcedure("additions").input(additionInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); const result = await safe(() => createAddition({ ...input, projectId: scope.projectId })); invalidateForecastCache(); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "addition", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
     update: writePermissionProcedure("additions")
       .input(additionInput.partial().extend({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("addition", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const previousSnapshot = await safe(() => getMovementSnapshot("addition", input.id)); const result = await safe(() => updateAddition(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "addition", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
@@ -470,8 +472,8 @@ export const appRouter = router({
   disbursements: router({
     list: permissionProcedure("disbursements")
       .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
-      .query(({ input, ctx }) => safe(() => listDisbursements(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds))),
-    listPaged: permissionProcedure("disbursements").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), customerId: z.number().int().positive().optional() })).query(({ input, ctx }) => safe(() => listDisbursementsPaged(input, ctx.permissions.allowedWarehouseIds))),
+      .query(({ input, ctx }) => safe(async () => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return listDisbursements(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds, scope.projectId); })),
+    listPaged: permissionProcedure("disbursements").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), customerId: z.number().int().positive().optional() })).query(({ input, ctx }) => safe(async () => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return listDisbursementsPaged(input, ctx.permissions.allowedWarehouseIds, scope.projectId); })),
     account: reportPermissionProcedure("customer-account").input(z.object({ customerId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role));
       const rows = await safe(() => listCustomerAccount(input.customerId, permissions.allowedWarehouseIds));
@@ -480,7 +482,7 @@ export const appRouter = router({
     }),
     create: writePermissionProcedure("disbursements")
       .input(disbursementInput)
-      .mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createDisbursement(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "disbursement", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
+      .mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); const result = await safe(() => createDisbursement({ ...input, projectId: scope.projectId })); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "disbursement", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
     batch: writePermissionProcedure("disbursements").input(disbursementBatchInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); return safe(() => createDisbursementBatch({ ...input, userId: ctx.user.id, userName: ctx.user.name })); }),
     update: writePermissionProcedure("disbursements")
       .input(disbursementInput.partial().extend({ id: z.number().int().positive() }))
@@ -501,9 +503,9 @@ export const appRouter = router({
   transfers: router({
     list: permissionProcedure("transfers")
       .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
-      .query(({ input, ctx }) => safe(() => listTransfers(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds))),
-    listPaged: permissionProcedure("transfers").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional() })).query(({ input, ctx }) => safe(() => listTransfersPaged(input, ctx.permissions.allowedWarehouseIds))),
-    create: writePermissionProcedure("transfers").input(transferInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId, input.toWarehouseId]); const result = await safe(() => createTransfer(input)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "transfer", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity, transferType: input.transferType } }); return result; }),
+      .query(({ input, ctx }) => safe(async () => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return listTransfers(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds, scope.projectId); })),
+    listPaged: permissionProcedure("transfers").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional() })).query(({ input, ctx }) => safe(async () => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return listTransfersPaged(input, ctx.permissions.allowedWarehouseIds, scope.projectId); })),
+    create: writePermissionProcedure("transfers").input(transferInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId, input.toWarehouseId]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); const result = await safe(() => createTransfer({ ...input, projectId: scope.projectId })); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "transfer", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity, transferType: input.transferType } }); return result; }),
     update: writePermissionProcedure("transfers")
       .input(transferInput.partial().extend({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("transfer", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId ?? existing[0], input.toWarehouseId ?? existing[1]]); const previousSnapshot = await safe(() => getMovementSnapshot("transfer", input.id)); const result = await safe(() => updateTransfer(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "transfer", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
@@ -521,10 +523,10 @@ export const appRouter = router({
   }),
 
   reports: router({
-    dataset: permissionProcedure("reports").input(z.object({ includeRows: z.boolean().default(false), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), permitSearch: z.string().trim().optional(), incomingFromSearch: z.string().trim().optional(), outgoingToSearch: z.string().trim().optional(), additionPurposeSearch: z.string().trim().optional(), disbursementPurposeSearch: z.string().trim().optional(), returnPurposeSearch: z.string().trim().optional() })).query(({ input, ctx }) => safe(() => getReportDataset(input, ctx.permissions.allowedWarehouseIds))),
-    permitDetails: permissionProcedure("reports").input(z.object({ permitNumber: z.string().trim().min(1).max(64) })).query(({ input, ctx }) => safe(() => getPermitDetails(input.permitNumber, ctx.permissions.allowedWarehouseIds))),
-    inventoryAudit: permissionProcedure("reports").query(({ ctx }) => safe(() => getCompanyInventoryAuditReport(ctx.permissions.allowedWarehouseIds))),
-    buildingCostComparison: permissionProcedure("reports").input(z.object({ fromDate: z.string().trim().optional(), toDate: z.string().trim().optional() }).default({})).query(({ ctx, input }) => safe(() => getBuildingCostComparison(input, ctx.permissions.allowedWarehouseIds))),
+    dataset: permissionProcedure("reports").input(z.object({ includeRows: z.boolean().default(false), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional(), permitSearch: z.string().trim().optional(), incomingFromSearch: z.string().trim().optional(), outgoingToSearch: z.string().trim().optional(), additionPurposeSearch: z.string().trim().optional(), disbursementPurposeSearch: z.string().trim().optional(), returnPurposeSearch: z.string().trim().optional() })).query(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => getReportDataset(input, ctx.permissions.allowedWarehouseIds, scope.projectId)); }),
+    permitDetails: permissionProcedure("reports").input(z.object({ permitNumber: z.string().trim().min(1).max(64) })).query(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => getPermitDetails(input.permitNumber, ctx.permissions.allowedWarehouseIds, scope.projectId)); }),
+    inventoryAudit: permissionProcedure("reports").query(async ({ ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => getCompanyInventoryAuditReport(ctx.permissions.allowedWarehouseIds, scope.projectId)); }),
+    buildingCostComparison: permissionProcedure("reports").input(z.object({ fromDate: z.string().trim().optional(), toDate: z.string().trim().optional() }).default({})).query(async ({ ctx, input }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => getBuildingCostComparison(input, ctx.permissions.allowedWarehouseIds, scope.projectId)); }),
   }),
 
   dashboard: router({
@@ -659,7 +661,7 @@ export const appRouter = router({
     absenceCreate: adminProcedure.input(z.object({ userId: z.number().int().positive(), startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), days: z.number().int().min(1).max(366) })).mutation(async ({ input, ctx }) => { const result = await safe(() => createUserAbsence(input)); await createNotification({ recipientUserId: result.userId, createdBy: ctx.user.id, notificationType: "user_absence", title: "تم تسجيل غيابك", message: `تم تسجيل غيابك ابتداءً من ${result.startDate} لمدة ${result.days} يومًا.`, priority: "normal" }); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "user_absence", entityId: result.id, details: input }); return result; }),
     absenceUpdate: adminProcedure.input(z.object({ id: z.number().int().positive(), startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), days: z.number().int().min(1).max(366) })).mutation(async ({ input, ctx }) => { const result = await safe(() => updateUserAbsence(input)); await createNotification({ recipientUserId: result.userId, createdBy: ctx.user.id, notificationType: "user_absence", title: "تم تعديل غيابك", message: `تم تعديل غيابك ليبدأ في ${result.startDate} لمدة ${result.days} يومًا.`, priority: "normal" }); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "user_absence", entityId: input.id, details: input }); return result; }),
     absenceDelete: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => { const result = await safe(() => deleteUserAbsence(input.id)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "user_absence", entityId: input.id }); return result; }),
-    backupExport: adminProcedure.query(async ({ ctx }) => { const result = await safe(() => exportBackupSnapshot()); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "export", entity: "backup", details: { schemaVersion: result.schemaVersion } }); return result; }),
+    backupExport: adminProcedure.query(async ({ ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); const result = await safe(() => exportBackupSnapshot(scope.projectId)); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "export", entity: "backup", details: { schemaVersion: result.schemaVersion, projectId: scope.projectId } }); return result; }),
     backupCreate: adminProcedure.mutation(async ({ ctx }) => { const result = await safe(() => createBackupRecord({ userId: ctx.user.id, userName: ctx.user.name, backupType: "manual" })); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "backup", entityId: result.record.id, details: { fileName: result.record.fileName } }); return result; }),
     backupList: adminProcedure.query(() => safe(() => listBackupRecords(100))),
     backupDownload: adminProcedure.input(z.object({ id: z.number().int().positive() })).query(async ({ input }) => safe(() => getBackupSnapshotFromRecord(input.id))),
