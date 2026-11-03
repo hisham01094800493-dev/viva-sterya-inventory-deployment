@@ -17,6 +17,26 @@ import { formatInventoryDate, inventoryDateKey } from "@/lib/inventoryDate";
 import { resolveMovementDetail } from "@/lib/movementDetails";
 import { blankMovement, formatFileSize, isMovementCancellationReversal, isNetworkFailure, type MovementForm, type MovementKind, type MovementLine, type MovementRow } from "@/lib/movementModel";
 export { blankMovement, formatFileSize, isMovementCancellationReversal, isNetworkFailure } from "@/lib/movementModel";
+import {
+  clampMovementTableZoom,
+  getMovementTablePinchZoom,
+  getMovementTotalsScopeLabel,
+  getNextPinnedMovementColumn,
+  getNextPinnedMovementColumns,
+  getPinnedMovementColumnOffsets,
+  movementTableZoomLimits,
+  shouldShowMovementPageSkeleton,
+} from "@/lib/movementTableLayout";
+export {
+  clampMovementTableZoom,
+  getMovementTablePinchZoom,
+  getMovementTotalsScopeLabel,
+  getNextPinnedMovementColumn,
+  getNextPinnedMovementColumns,
+  getPinnedMovementColumnOffsets,
+  movementTableZoomLimits,
+  shouldShowMovementPageSkeleton,
+} from "@/lib/movementTableLayout";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
 import {
   AlertTriangle,
@@ -775,14 +795,6 @@ function MovementImportDialog({ kind, open, onOpenChange, onImported }: { kind: 
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-5xl rounded-2xl" dir="rtl"><DialogHeader><DialogTitle className="text-xl font-black text-[#102a43]">استيراد حركات المخزون</DialogTitle><DialogDescription>يُستخدم نوع الحركة الموجود في الملف، أو نوع الشاشة الحالية عند تركه فارغاً. سيتم رفض الحقول الأساسية الناقصة قبل الحفظ.</DialogDescription></DialogHeader><div className="space-y-5"><label className="flex cursor-pointer items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[#b9d4d9] bg-[#f7fbfc] px-6 py-8 text-center hover:border-[#0d4f62] hover:bg-[#eef7f7]"><input type="file" accept=".xlsx,.xls,.xlsb,.csv" className="hidden" onChange={readFile} /><FileSpreadsheet className="h-7 w-7 text-[#0d806c]" /><span><span className="block font-black text-[#102a43]">{fileName || "اختر ملف Excel أو XLSB أو CSV"}</span><span className="mt-1 block text-xs text-slate-400">الحقول الأساسية: التاريخ، رقم الإذن، كود الصنف، الكمية</span></span><Upload className="h-5 w-5 text-[#0d4f62]" /></label>{rows.length || rejected || previewIssues.length ? <div className="overflow-hidden rounded-xl border border-[#e5eef1]"><div className="flex flex-wrap gap-3 border-b border-[#e5eef1] bg-[#fbfdff] px-4 py-3 text-xs font-bold"><span className="text-[#0d806c]">{rows.length} صف جاهز</span>{rejected ? <span className="text-[#bd5147]">{rejected} مرفوض</span> : null}{duplicates ? <span className="text-[#a96821]">{duplicates} مكرر سيُرفض</span> : null}</div>{previewIssues.length ? <div className="max-h-28 overflow-auto border-b border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-6 text-amber-800">{previewIssues.map((issue, index) => <div key={`${issue}-${index}`}>{issue}</div>)}</div> : null}<div className="max-h-64 overflow-auto"><table className="w-full min-w-[850px] text-right text-xs"><thead className="sticky top-0 bg-white text-slate-400"><tr><th className="px-4 py-3">النوع</th><th className="px-4 py-3">التاريخ</th><th className="px-4 py-3">رقم الإذن</th><th className="px-4 py-3">الكود</th><th className="px-4 py-3">الكمية</th><th className="px-4 py-3">سعر الوحدة</th><th className="px-4 py-3">المخزن / الجهة</th></tr></thead><tbody className="divide-y divide-[#f0f4f6]">{rows.slice(0, 30).map((row, index) => <tr key={`${row.eznNum}-${index}`}><td className="px-4 py-3 font-bold">{row.type === "addition" ? "إضافة" : row.type === "disbursement" ? "صرف" : row.transferType === "مرتجع من عميل" ? "مرتجع من عميل" : row.transferType === "مرتجع" ? "مرتجع" : "تحويل"}</td><td className="px-4 py-3">{formatInventoryDate(row.date)}</td><td className="px-4 py-3">{row.eznNum}</td><td className="px-4 py-3 font-mono">{row.itemCode}</td><td className="px-4 py-3">{formatQuantity(row.quantity)}</td><td className="px-4 py-3 font-bold text-[#0d4f62]">{formatQuantity(row.unitPrice)} ج.م</td><td className="px-4 py-3">{row.store || row.destination || row.toStore || "—"}</td></tr>)}</tbody></table></div>{rows.length > 30 ? <p className="border-t border-[#e5eef1] px-4 py-3 text-xs text-slate-400">تظهر أول 30 صفاً في المعاينة، وسيتم إرسال جميع الصفوف الجاهزة.</p> : null}</div> : <div className="rounded-xl border border-[#edf2f5] bg-[#fbfdff] px-5 py-6 text-center text-sm text-slate-400">لم يتم اختيار ملف بعد.</div>}{resultErrors.length ? <div className="max-h-32 overflow-auto rounded-xl border border-red-100 bg-red-50 p-4 text-xs leading-6 text-red-700">{resultErrors.map(error => <div key={`${error.row}-${error.message}`}>الصف {error.row}: {error.message}</div>)}</div> : null}</div><DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">إلغاء</Button><Button type="button" onClick={submit} disabled={!rows.length || importMutation.isPending} className="rounded-xl bg-[#0d4f62] text-white hover:bg-[#0a4150]">{importMutation.isPending && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}استيراد {rows.length ? `${rows.length} حركة` : "الحركات"}</Button></DialogFooter></DialogContent></Dialog>;
 }
 
-export const movementTableZoomLimits = { min: 0.5, max: 1.6, step: 0.1 } as const;
-export function clampMovementTableZoom(value: number) { return Math.min(movementTableZoomLimits.max, Math.max(movementTableZoomLimits.min, Number(value.toFixed(2)))); }
-export function getMovementTablePinchZoom(startZoom: number, startDistance: number, nextDistance: number) { return startDistance > 0 && nextDistance > 0 ? clampMovementTableZoom(startZoom * (nextDistance / startDistance)) : clampMovementTableZoom(startZoom); }
-export function shouldShowMovementPageSkeleton(isFetching: boolean) { return isFetching; }
-export function getMovementTotalsScopeLabel(filters: { supplier: string; customer: string; item: string; permit: string; purpose: string; from: string; to: string }) { return filters.supplier !== "all" || filters.customer !== "all" || Boolean(filters.item.trim() || filters.permit.trim() || filters.purpose.trim() || filters.from.trim() || filters.to.trim()) ? "نتائج البحث" : "كل الحركات"; }
-export function getNextPinnedMovementColumn(currentColumn: number | null, selectedColumn: number) { return currentColumn === selectedColumn ? null : selectedColumn; }
-export function getNextPinnedMovementColumns(currentColumns: number[], selectedColumn: number) { return currentColumns.includes(selectedColumn) ? currentColumns.filter(column => column !== selectedColumn) : [...currentColumns, selectedColumn].slice(-2); }
-export function getPinnedMovementColumnOffsets(columns: number[], widths: Map<number, number>) { const offsets = new Map<number, number>(); let nextOffset = 0; [...columns].sort((left, right) => left - right).forEach(column => { offsets.set(column, nextOffset); nextOffset += Math.max(0, widths.get(column) ?? 0); }); return offsets; }
 function MovementPage({ kind }: { kind: MovementKind }) {
   const [location] = useLocation();
   const { user } = useAuth();
