@@ -634,6 +634,18 @@ async function resolveWarehouseId(
   return warehouse;
 }
 
+export function assertWarehouseBelongsToProject(
+  warehouse: { id: number; projectId: number | null },
+  projectId: number | null | undefined,
+) {
+  if (projectId != null && warehouse.projectId !== projectId) {
+    throw new InventoryError(
+      "BAD_REQUEST",
+      "المخزن المحدد لا يتبع المشروع النشط",
+    );
+  }
+}
+
 async function applyWarehouseBalanceDelta(
   tx: any,
   itemId: number,
@@ -1457,10 +1469,11 @@ export async function createItem(input: {
 
   try {
     return await db.transaction(async (tx: any) => {
-      const code =
-        input.code?.trim() || (await nextItemCode(tx, input.warehouseId));
       const warehouse = await resolveWarehouseId(tx, input.warehouseId);
       const projectId = await resolveWriteProjectId(tx, input.projectId);
+      assertWarehouseBelongsToProject(warehouse, projectId);
+      const code =
+        input.code?.trim() || (await nextItemCode(tx, warehouse.id));
       normalizeItemCode(code);
       const result = await tx.insert(items).values({
         code,
