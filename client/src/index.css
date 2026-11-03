@@ -517,6 +517,9 @@
   .smart-topbar-status { border-color: var(--app-border); background: var(--app-surface); color: var(--smart-teal-deep); }
   .smart-topbar-action { border-color: var(--app-border); background: var(--app-surface); color: var(--smart-teal-deep); }
   .smart-topbar-action:hover { background: var(--app-surface-muted); }
+  .smart-topbar-heading { min-width: 0; }
+  .smart-topbar-actions { min-width: 0; justify-content: flex-end; flex-wrap: wrap; }
+  .smart-topbar-project { display: contents; }
   .smart-dialog-surface { border-color: var(--app-border) !important; background: var(--app-surface) !important; box-shadow: 0 24px 70px rgba(18, 44, 84, 0.18) !important; }
   .smart-dialog-header { border-bottom: 1px solid var(--app-border); background: linear-gradient(135deg, var(--app-surface-muted), var(--app-surface)); }
   .smart-table-shell { border: 1px solid var(--app-border); border-radius: 1.25rem; overflow: auto; background: var(--app-surface); }
@@ -604,6 +607,13 @@
   .dark .overflow-x-auto > table th:first-child, .dark .overflow-x-auto > table td:first-child { background: #183744; box-shadow: -1px 0 0 rgba(142, 211, 209, 0.24); }
   .dark .overflow-x-auto > table thead th:first-child { background: #1e4652; }
   .dark .bg-\[\#fbfdff\], .dark .bg-\[\#f7fbfc\], .dark .bg-\[\#fffaf0\], .dark .bg-\[\#fffafa\] { background-color: #1e4652 !important; }
+  @media (max-width: 639px) {
+    .smart-topbar { align-items: flex-start !important; }
+    .smart-topbar-heading { flex: 1 1 auto; min-width: 0; }
+    .smart-topbar-actions { flex: 1 1 100%; width: 100%; justify-content: flex-start; align-items: center; row-gap: 0.4rem; }
+    .smart-topbar-project { display: block; flex: 1 1 100%; min-width: 0; }
+    .smart-topbar-project > button { width: 100%; max-width: none !important; justify-content: space-between; }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
