@@ -263,7 +263,7 @@ async function applyMigration(conn, baseline) {
   );
   log("VERIFY", `null project_id counts: ${JSON.stringify(nulls[0])}`);
   const [perm] = await conn.query(
-    "SELECT COUNT(*) AS total, SUM(allowed_projects = '[]') AS empty FROM user_permissions",
+    "SELECT COUNT(*) AS total, SUM(allowed_projects = '[]') AS empty_count FROM user_permissions",
   );
   log("VERIFY", `user_permissions: ${JSON.stringify(perm[0])}`);
 }
