@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, Check, ChevronDown, Loader2, ShieldAlert } from "lucide-react";
+import { Building2, Boxes, Check, ChevronDown, Factory, Layers3, Loader2, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import {
   projectLabel,
   projectOptionLabel,
+  projectVisual,
   resolveActiveProject,
   selectableProjects,
   type ProjectOption,
   type ResolvedActiveProject,
 } from "@/lib/projectSelection";
+
+export function ProjectVisualIcon({ project, size = "h-3.5 w-3.5" }: { project: ProjectOption; size?: string }) {
+  const visual = projectVisual(project);
+  const Icon = visual.icon === "main" ? Boxes : visual.icon === "building" ? Building2 : visual.icon === "factory" ? Factory : Layers3;
+  const tone = visual.tone === "teal" ? "bg-[#d9f3ef] text-[#0d7180] dark:bg-[#235157] dark:text-[#bff1eb]" : visual.tone === "blue" ? "bg-[#e1efff] text-[#2866a8] dark:bg-[#203b50] dark:text-[#bfe5ff]" : visual.tone === "orange" ? "bg-[#fff0d2] text-[#a96821] dark:bg-[#453722] dark:text-[#ffe2a3]" : "bg-[#eee5ff] text-[#7050a8] dark:bg-[#352d4c] dark:text-[#e0d4ff]";
+  return <span className={`inline-flex shrink-0 items-center justify-center rounded-lg p-1 ${tone}`}><Icon className={size} /></span>;
+}
 
 export type ActiveProjectState = {
   /** هل نظام المشاريع متاح على الخادم؟ (يكون false إذا لم تُرحّل قاعدة البيانات بعد) */
@@ -124,11 +132,12 @@ export function ProjectSwitcher({ state, className = "" }: ProjectSwitcherProps)
       aria-expanded={canSwitch ? open : undefined}
       disabled={!canSwitch || setActive.isPending}
       title={canSwitch ? "تبديل المشروع النشط" : "المشروع المخصص لحسابك"}
-      className={`inline-flex max-w-[10rem] items-center gap-1.5 rounded-xl border border-[#dce7ee] bg-white px-2.5 py-1.5 text-[11px] font-black text-[#0d4f62] shadow-sm transition sm:max-w-[14rem] ${
+      aria-label={canSwitch ? "تبديل المشروع النشط" : "المشروع النشط"}
+      className={`inline-flex max-w-[min(70vw,14rem)] items-center gap-1.5 rounded-xl border border-[#dce7ee] bg-white px-2.5 py-2 text-[11px] font-black text-[#0d4f62] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#65c2c8] dark:border-[#486673] dark:bg-[#182934] dark:text-[#bff1eb] sm:max-w-[14rem] ${
         canSwitch ? "hover:bg-[#e8f1f2]" : "cursor-default"
       } ${className}`}
     >
-      {setActive.isPending ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : <Boxes className="h-3.5 w-3.5 shrink-0" />}
+      {setActive.isPending ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : current ? <ProjectVisualIcon project={current} /> : <Boxes className="h-3.5 w-3.5 shrink-0" />}
       <span className="truncate">
         {current ? projectLabel(current) : active.resolved.needsExplicitSelection ? "اختر مشروعًا" : "لا مشروع نشط"}
       </span>
@@ -145,9 +154,9 @@ export function ProjectSwitcher({ state, className = "" }: ProjectSwitcherProps)
         <div
           role="menu"
           dir="rtl"
-          className="absolute left-0 top-11 z-50 w-[min(88vw,17rem)] overflow-hidden rounded-2xl border border-[#dce7ee] bg-white shadow-2xl"
+          className="absolute right-0 top-12 z-50 w-[min(88vw,19rem)] overflow-hidden rounded-2xl border border-[#dce7ee] bg-white shadow-2xl dark:border-[#486673] dark:bg-[#182934] sm:left-0 sm:right-auto"
         >
-          <div className="border-b border-[#eef3f5] px-3 py-2">
+          <div className="border-b border-[#eef3f5] px-3 py-2 dark:border-[#486673]">
             <p className="text-[11px] font-black text-[#102a43]">المشاريع المسموح بها</p>
             <p className="mt-0.5 text-[10px] font-bold text-slate-400">يتم تبديل البيانات والتقارير بالكامل عند التغيير</p>
           </div>
@@ -165,11 +174,11 @@ export function ProjectSwitcher({ state, className = "" }: ProjectSwitcherProps)
                     if (isCurrent) return;
                     setActive.mutate({ projectId: project.id });
                   }}
-                  className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-right text-[11px] font-black transition ${
-                    isCurrent ? "bg-[#e8f7f6] text-[#0d4f62]" : "text-slate-600 hover:bg-[#f4f8fa]"
+                    className={`flex min-h-10 w-full items-center justify-between gap-2 px-3 py-2 text-right text-[11px] font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#65c2c8] ${
+                    isCurrent ? "bg-[#e8f7f6] text-[#0d4f62] dark:bg-[#235157] dark:text-[#bff1eb]" : "text-slate-600 hover:bg-[#f4f8fa] dark:text-[#d8e9ee] dark:hover:bg-[#294650]"
                   }`}
                 >
-                  <span className="truncate">{projectOptionLabel(project)}</span>
+                  <span className="flex min-w-0 items-center gap-2"><ProjectVisualIcon project={project} /><span className="truncate">{projectOptionLabel(project)}</span></span>
                   {isCurrent && <Check className="h-3.5 w-3.5 shrink-0" />}
                 </button>
               );

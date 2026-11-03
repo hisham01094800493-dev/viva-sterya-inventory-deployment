@@ -5,6 +5,20 @@ export type ProjectOption = {
   status: "active" | "archived";
 };
 
+export type ProjectVisualKey = "main" | "building" | "factory" | "layers";
+
+/** يختار هوية ثابتة للمشروع من الكود؛ لا يحتاج عمودًا جديدًا ولا يغيّر البيانات. */
+export function projectVisual(project: Pick<ProjectOption, "id" | "code">): { icon: ProjectVisualKey; tone: "teal" | "blue" | "orange" | "purple" } {
+  if (project.code.trim().toUpperCase() === "MAIN") return { icon: "main", tone: "teal" };
+  const hash = Array.from(`${project.code}:${project.id}`).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const options: Array<{ icon: ProjectVisualKey; tone: "teal" | "blue" | "orange" | "purple" }> = [
+    { icon: "building", tone: "blue" },
+    { icon: "factory", tone: "orange" },
+    { icon: "layers", tone: "purple" },
+  ];
+  return options[hash % options.length];
+}
+
 export type ResolvedActiveProject = {
   /** المشروع النشط الفعلي، أو null إذا لم يكن هناك مشروع صالح. */
   project: ProjectOption | null;
