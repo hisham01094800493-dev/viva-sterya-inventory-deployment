@@ -203,19 +203,37 @@ export type BackupVerificationRun = typeof backupVerificationRuns.$inferSelect;
 /**
  * Items table (الأصناف)
  */
+export const projects = mysqlTable("projects", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 180 }).notNull(),
+  code: varchar("code", { length: 64 }).notNull().unique(),
+  description: text("description"),
+  status: mysqlEnum("status", ["active", "archived"]).notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = typeof projects.$inferInsert;
+
 export const warehouses = mysqlTable("warehouses", {
   id: int("id").autoincrement().primaryKey(),
-  slot: int("slot").notNull().unique(),
+  projectId: int("project_id"),
+  slot: int("slot").notNull(),
   name: varchar("name", { length: 128 }).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, table => [
+  uniqueIndex("warehouses_project_slot_uq").on(table.projectId, table.slot),
+  index("warehouses_project_id_idx").on(table.projectId),
+]);
 
 export type Warehouse = typeof warehouses.$inferSelect;
 export type InsertWarehouse = typeof warehouses.$inferInsert;
 
 export const buildings = mysqlTable("buildings", {
   id: int("id").autoincrement().primaryKey(),
+  projectId: int("project_id"),
   name: varchar("name", { length: 180 }).notNull().unique(),
   code: varchar("code", { length: 64 }).notNull().unique(),
   type: mysqlEnum("type", ["owned_building", "subcontractor"]).notNull().default("owned_building"),
@@ -244,7 +262,8 @@ export type InsertSupplier = typeof suppliers.$inferInsert;
 
 export const items = mysqlTable("items", {
   id: int("id").autoincrement().primaryKey(),
-  code: varchar("code", { length: 64 }).notNull().unique(), // كود الصنف
+  code: varchar("code", { length: 64 }).notNull(), // كود الصنف داخل المشروع
+  projectId: int("project_id"),
   warehouseId: int("warehouse_id"), // المخزن الأساسي للصنف
   name: text("name").notNull(), // بيان / اسم الصنف
   initialStock: decimal("initial_stock", { precision: 12, scale: 3 }).default("0").notNull(), // الرصيد الأولي
@@ -259,7 +278,11 @@ export const items = mysqlTable("items", {
   unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).default("0").notNull(), // سعر الوحدة
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, table => [index("items_warehouse_id_idx").on(table.warehouseId)]);
+}, table => [
+  uniqueIndex("items_project_code_uq").on(table.projectId, table.code),
+  index("items_warehouse_id_idx").on(table.warehouseId),
+  index("items_project_id_idx").on(table.projectId),
+]);
 
 export type Item = typeof items.$inferSelect;
 export type InsertItem = typeof items.$inferInsert;
@@ -303,6 +326,7 @@ export type InsertCustomer = typeof customers.$inferInsert;
 
 export const additions = mysqlTable("additions", {
   id: int("id").autoincrement().primaryKey(),
+  projectId: int("project_id"),
   date: varchar("date", { length: 32 }).notNull(), // التاريخ
   eznNum: varchar("ezn_num", { length: 64 }).notNull(), // رقم الإذن
   itemCode: varchar("item_code", { length: 64 }).notNull(), // كود الصنف
@@ -330,6 +354,7 @@ export type InsertAddition = typeof additions.$inferInsert;
  */
 export const disbursements = mysqlTable("disbursements", {
   id: int("id").autoincrement().primaryKey(),
+  projectId: int("project_id"),
   date: varchar("date", { length: 32 }).notNull(), // التاريخ
   eznNum: varchar("ezn_num", { length: 64 }).notNull(), // رقم إذن الصرف
   itemCode: varchar("item_code", { length: 64 }).notNull(), // كود الصنف
@@ -358,6 +383,7 @@ export type InsertDisbursement = typeof disbursements.$inferInsert;
  */
 export const transfers = mysqlTable("transfers", {
   id: int("id").autoincrement().primaryKey(),
+  projectId: int("project_id"),
   date: varchar("date", { length: 32 }).notNull(),
   eznNum: varchar("ezn_num", { length: 64 }).notNull(),
   itemCode: varchar("item_code", { length: 64 }).notNull(),
@@ -412,6 +438,7 @@ export type InsertReportSchedulerRun = typeof reportSchedulerRuns.$inferInsert;
 export const userPreferences = mysqlTable("user_preferences", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull().unique(),
+  activeProjectId: int("active_project_id"),
   quickActions: text("quick_actions").notNull(),
   hapticEnabled: boolean("haptic_enabled").default(true).notNull(),
   reportColumnOrder: text("report_column_order"),
@@ -437,6 +464,7 @@ export type InsertDraft = typeof drafts.$inferInsert;
 export const userPermissions = mysqlTable("user_permissions", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("user_id").notNull().unique(),
+  allowedProjects: varchar("allowed_projects", { length: 2000 }).notNull().default("[]"),
   allowedScreens: text("allowed_screens").notNull(),
   allowedReports: text("allowed_reports").notNull(),
   allowedWarehouses: varchar("allowed_warehouses", { length: 2000 }).notNull().default("[]"),
