@@ -202,6 +202,20 @@
     .pwa-bottom-banner { bottom: calc(8.5rem + env(safe-area-inset-bottom)) !important; max-width: calc(100vw - 1rem); }
     .smart-topbar { min-height: 3.5rem !important; padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
   }
+  @media (max-width: 639px) {
+    .smart-topbar { gap: 0.25rem !important; padding-inline: 0.5rem !important; overflow: visible !important; }
+    .smart-topbar-leading { gap: 0.25rem !important; flex: 0 1 auto; }
+    .smart-topbar-leading .smart-topbar-action { height: 2.25rem !important; width: 2.25rem !important; }
+    .smart-topbar-heading { max-width: 5.75rem; }
+    .smart-topbar-eyebrow { display: none; }
+    .smart-topbar-title { display: block; max-width: 5.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.95rem !important; }
+    .topbar-project-switcher { max-width: 7.5rem !important; min-width: 0; padding-inline: 0.5rem !important; }
+    .topbar-project-switcher > span { min-width: 0; }
+    .topbar-project-switcher .project-switcher-label { max-width: 4.5rem; }
+    .smart-topbar-notifications { height: 2.25rem !important; width: 2.25rem !important; }
+    .smart-topbar-avatar { display: none !important; }
+    .smart-topbar > .flex:last-child { gap: 0.25rem !important; flex: 0 1 auto; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .quick-actions-settling { transition: none; }
   }

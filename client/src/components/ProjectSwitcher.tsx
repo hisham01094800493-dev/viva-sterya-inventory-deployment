@@ -138,7 +138,7 @@ export function ProjectSwitcher({ state, className = "" }: ProjectSwitcherProps)
       } ${className}`}
     >
       {setActive.isPending ? <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" /> : current ? <ProjectVisualIcon project={current} /> : <Boxes className="h-3.5 w-3.5 shrink-0" />}
-      <span className="truncate">
+      <span className="project-switcher-label truncate">
         {current ? projectLabel(current) : active.resolved.needsExplicitSelection ? "اختر مشروعًا" : "لا مشروع نشط"}
       </span>
       {canSwitch && <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition ${open ? "rotate-180" : ""}`} />}
