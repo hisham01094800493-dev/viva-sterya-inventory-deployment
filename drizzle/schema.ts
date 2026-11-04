@@ -234,14 +234,18 @@ export type InsertWarehouse = typeof warehouses.$inferInsert;
 export const buildings = mysqlTable("buildings", {
   id: int("id").autoincrement().primaryKey(),
   projectId: int("project_id"),
-  name: varchar("name", { length: 180 }).notNull().unique(),
-  code: varchar("code", { length: 64 }).notNull().unique(),
+  name: varchar("name", { length: 180 }).notNull(),
+  code: varchar("code", { length: 64 }).notNull(),
   type: mysqlEnum("type", ["owned_building", "subcontractor"]).notNull().default("owned_building"),
   budget: decimal("budget", { precision: 14, scale: 2 }).default("0").notNull(),
   status: mysqlEnum("status", ["active", "inactive"]).notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
+}, table => [
+  uniqueIndex("buildings_project_name_uq").on(table.projectId, table.name),
+  uniqueIndex("buildings_project_code_uq").on(table.projectId, table.code),
+  index("buildings_project_id_idx").on(table.projectId),
+]);
 
 export type Building = typeof buildings.$inferSelect;
 export type InsertBuilding = typeof buildings.$inferInsert;
