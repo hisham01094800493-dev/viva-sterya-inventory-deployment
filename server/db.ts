@@ -575,6 +575,116 @@ export async function updateWarehouse(input: { id: number; name: string }) {
 }
 
 /**
+ * يختار أصغر رقم مخزن موجب غير مستخدم داخل المشروع.
+ * يعتمد على مجموعة الأرقام المستخدمة (وليس أعلى رقم فقط) حتى يُعاد استخدام
+ * الفجوات الناتجة عن حذف مخازن، مع منع التكرار داخل المشروع نفسه.
+ */
+export function pickNextWarehouseSlot(usedSlots: Array<number | string | null | undefined>): number {
+  const used = new Set<number>();
+  for (const value of usedSlots) {
+    const slot = Number(value);
+    if (Number.isInteger(slot) && slot > 0) used.add(slot);
+  }
+  let candidate = 1;
+  while (used.has(candidate)) candidate += 1;
+  return candidate;
+}
+
+/**
+ * إنشاء مخزن جديد داخل مشروع محدد.
+ *
+ * - يتحقق من أن الاسم غير فارغ وبحد قاعدة البيانات (128 حرفًا).
+ * - يتحقق من وجود المشروع وأن حالته active.
+ * - يمنع تكرار اسم المخزن داخل المشروع نفسه.
+ * - إذا لم يُمرَّر slot يختار أصغر رقم متاح داخل المشروع.
+ * - يعالج تعارضات السباق على القيد الفريد (project_id, slot) بإعادة المحاولة
+ *   عند اختيار الرقم تلقائيًا، ويرفض التعارض صراحةً عند تمرير slot يدويًا.
+ * - لا يغيّر أي أرصدة أو أصناف أو حركات.
+ */
+export async function createWarehouse(input: {
+  name: string;
+  projectId: number;
+  slot?: number;
+}) {
+  const db = await requireDb();
+  const name = input.name.trim();
+  if (!name) throw new InventoryError("BAD_REQUEST", "اسم المخزن مطلوب");
+  if (name.length > 128)
+    throw new InventoryError("BAD_REQUEST", "اسم المخزن يجب ألا يتجاوز 128 حرفًا");
+  if (!Number.isInteger(input.projectId) || input.projectId <= 0)
+    throw new InventoryError("BAD_REQUEST", "المشروع غير موجود");
+
+  const project = await getProjectById(input.projectId);
+  if (!project) throw new InventoryError("NOT_FOUND", "المشروع غير موجود");
+  if (project.status !== "active")
+    throw new InventoryError("BAD_REQUEST", "لا يمكن إنشاء مخزن داخل مشروع مؤرشف");
+
+  const explicitSlot = input.slot;
+  if (explicitSlot != null && (!Number.isInteger(explicitSlot) || explicitSlot <= 0))
+    throw new InventoryError("BAD_REQUEST", "رقم المخزن يجب أن يكون رقمًا صحيحًا موجبًا");
+
+  const assertNameAvailable = async () => {
+    const duplicateName = await db
+      .select({ id: warehouses.id })
+      .from(warehouses)
+      .where(and(eq(warehouses.projectId, input.projectId), eq(warehouses.name, name)))
+      .limit(1);
+    if (duplicateName[0])
+      throw new InventoryError("CONFLICT", "اسم المخزن مستخدم داخل هذا المشروع");
+  };
+
+  if (explicitSlot != null) {
+    const duplicateSlot = await db
+      .select({ id: warehouses.id })
+      .from(warehouses)
+      .where(and(eq(warehouses.projectId, input.projectId), eq(warehouses.slot, explicitSlot)))
+      .limit(1);
+    if (duplicateSlot[0])
+      throw new InventoryError("CONFLICT", "رقم المخزن مستخدم داخل هذا المشروع");
+  }
+
+  // عند اختيار الرقم تلقائيًا نعيد المحاولة عند تعارض القيد الفريد الناتج عن طلب متزامن.
+  const maxAttempts = explicitSlot != null ? 1 : 5;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await assertNameAvailable();
+
+    let slot = explicitSlot;
+    if (slot == null) {
+      const usedRows = await db
+        .select({ slot: warehouses.slot })
+        .from(warehouses)
+        .where(eq(warehouses.projectId, input.projectId));
+      slot = pickNextWarehouseSlot(usedRows.map(row => row.slot));
+    }
+
+    try {
+      const result = await db.insert(warehouses).values({
+        name,
+        projectId: input.projectId,
+        slot,
+      });
+      const id = resultInsertId(result);
+      const row = (
+        await db.select().from(warehouses).where(eq(warehouses.id, id)).limit(1)
+      )[0];
+      if (!row) throw new InventoryError("UNAVAILABLE", "تعذر قراءة المخزن بعد الإنشاء");
+      return row;
+    } catch (error: any) {
+      if (error?.code === "ER_DUP_ENTRY") {
+        if (explicitSlot != null)
+          throw new InventoryError("CONFLICT", "رقم المخزن مستخدم داخل هذا المشروع");
+        // قد يكون الاسم أُضيف بواسطة طلب متزامن، أو أن رقم المخزن المختار سُبق.
+        // نعيد المحاولة بعد إعادة قراءة الأرقام المستخدمة.
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new InventoryError("CONFLICT", "تعذر اختيار رقم مخزن متاح، حاول مرة أخرى");
+}
+
+/**
  * Resolves the project a write should be attributed to.
  * Falls back to the MAIN project when the caller did not supply one, so that
  * newly created rows are never left with a NULL project_id (which would make

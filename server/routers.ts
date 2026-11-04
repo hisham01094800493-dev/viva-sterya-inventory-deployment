@@ -62,6 +62,7 @@ import {
   getBuildingCostComparison,
   createBuilding,
   updateBuilding,
+  createWarehouse,
   updateWarehouse,
   listSuppliers,
   createSupplier,
@@ -276,6 +277,11 @@ const importItemInput = z.object({
 });
 
 const warehouseUpdateInput = z.object({ id: z.number().int().positive(), name: z.string().trim().min(1).max(128) });
+const warehouseCreateInput = z.object({
+  name: z.string().trim().min(1, "اسم المخزن مطلوب").max(128),
+  slot: z.number().int().positive().optional(),
+  projectId: z.number().int().positive().optional(),
+});
 const buildingInput = z.object({ name: z.string().trim().min(1).max(180), code: z.string().trim().min(1).max(64), type: z.enum(["owned_building", "subcontractor"]).default("owned_building"), budget: z.coerce.number().min(0).default(0) });
 const buildingUpdateInput = buildingInput.partial().extend({ id: z.number().int().positive() });
 const supplierInput = z.object({ name: z.string().trim().min(1).max(180), phone: z.string().trim().max(64).nullable().optional(), email: z.string().trim().email().max(320).nullable().optional(), address: z.string().trim().max(1000).nullable().optional(), notes: z.string().trim().max(2000).nullable().optional() });
@@ -392,6 +398,19 @@ export const appRouter = router({
   warehouses: router({
     list: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => listWarehousesForAccess(permissions.allowedWarehouseIds, scope.projectId)); }),
     listByUsage: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => listWarehousesByUsageForAccess(permissions.allowedWarehouseIds, scope.projectId)); }),
+    create: managementProcedure.input(warehouseCreateInput).mutation(async ({ input, ctx }) => {
+      const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
+      let projectId = scope.projectId;
+      if (input.projectId != null) {
+        // اختيار مشروع آخر متاح للمدير العام فقط، مع التحقق من حالة المشروع داخل createWarehouse.
+        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية إنشاء مخزن في مشروع آخر" });
+        projectId = input.projectId;
+      }
+      if (projectId == null) throw new TRPCError({ code: "BAD_REQUEST", message: "لا يوجد مشروع نشط لإنشاء المخزن" });
+      const result = await safe(() => createWarehouse({ name: input.name, projectId, slot: input.slot }));
+      await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "warehouse", entityId: result?.id, details: { userId: ctx.user.id, projectId, warehouseId: result?.id, name: result?.name, slot: result?.slot } });
+      return result;
+    }),
     update: adminProcedure.input(warehouseUpdateInput).mutation(({ input }) => safe(() => updateWarehouse(input))),
   }),
   buildings: router({
