@@ -3339,3 +3339,85 @@ body {
 .settings-page.settings-view-user .settings-manager-card,
 .settings-page.settings-view-manager .settings-user-card { display: none; }
 @media (max-width: 640px) { .settings-section-switcher { position: sticky; top: 0.5rem; z-index: 25; } .settings-section-switcher button { min-height: 4.25rem; } }
+
+/* ============================================================
+   Responsive & dark-mode hardening (mobile / tablet / desktop)
+   ============================================================ */
+
+/* منع أي تمرير أفقي غير مقصود على الشاشات الصغيرة.
+   نستخدم `clip` بدل `hidden` لأنه لا ينشئ حاوية تمرير
+   وبالتالي لا يكسر العناصر اللاصقة (sticky) داخل الجداول. */
+html,
+body {
+  overflow-x: clip;
+}
+
+@supports not (overflow-x: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* احترام الحواف الآمنة (notch) في الأجهزة الحديثة */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* الشريط العلوي: لا يلمس حافة الشاشة على الأجهزة ذات النوتش */
+@media (max-width: 767px) {
+  .smart-topbar {
+    padding-top: calc(0.5rem + var(--safe-top));
+  }
+  /* مساحة سفلية كافية حتى لا يغطي الشريط السفلي العائم آخر عنصر */
+  main,
+  .modern-shell {
+    padding-bottom: calc(1rem + var(--safe-bottom));
+  }
+}
+
+/* أهداف لمس مريحة على الأجهزة اللمسية دون تغيير مظهر الدسكتوب */
+@media (hover: none) and (pointer: coarse) {
+  button,
+  [role="button"],
+  a[href],
+  select,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 2.25rem;
+  }
+  /* لا نكبّر الأيقونات داخل الجداول المضغوطة */
+  table button,
+  table [role="button"] {
+    min-height: 0;
+  }
+}
+
+/* صور ووسائط لا تتجاوز عرض الشاشة أبدًا */
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+/* النصوص الطويلة (أسماء أصناف/موردين) لا تكسر التخطيط */
+.break-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* تحسين قراءة الجداول على التابلت: تمرير أفقي سلس مع تلميح بصري */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .overflow-x-auto {
+    scrollbar-width: thin;
+  }
+}
+
+/* في الوضع الداكن: حدود أوضح للعناصر القابلة للتركيز */
+.dark :focus-visible {
+  outline-color: #7fd8e8;
+}
