@@ -231,6 +231,18 @@ async function assertWarehousesInProject(
   }
 }
 
+/** يضمن أن المبنى المراد تعديله يتبع المشروع النشط. */
+async function assertBuildingInProject(buildingId: number, projectId: number | null) {
+  if (projectId == null) return;
+  const buildingProjectId = await safe(() => getBuildingProjectId(buildingId));
+  if (buildingProjectId === undefined) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "المبنى غير موجود" });
+  }
+  if (buildingProjectId != null && buildingProjectId !== projectId) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "لا يمكن تعديل مبنى تابع لمشروع آخر" });
+  }
+}
+
 /** يضمن أن الحركة المراد تعديلها/إلغاؤها تتبع المشروع النشط. */
 async function assertMovementInProject(
   type: "addition" | "disbursement" | "transfer",
@@ -416,7 +428,7 @@ export const appRouter = router({
   buildings: router({
     list: protectedProcedure.query(async ({ ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => listBuildings(scope.projectId)); }),
     create: protectedProcedure.input(buildingInput).mutation(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => createBuilding({ ...input, projectId: scope.projectId })); }),
-    update: protectedProcedure.input(buildingUpdateInput).mutation(({ input }) => safe(() => updateBuilding(input))),
+    update: protectedProcedure.input(buildingUpdateInput).mutation(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertBuildingInProject(input.id, scope.projectId); return safe(() => updateBuilding(input)); }),
   }),
   suppliers: router({
     list: protectedProcedure.query(() => safe(() => listSuppliers())),
