@@ -536,7 +536,7 @@ export const appRouter = router({
       const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
       return canViewFinancialDetails ? rows : rows.map(({ unitPrice: _unitPrice, totalValue: _totalValue, ...row }) => row);
     }),
-    create: writePermissionProcedure("additions").input(additionInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); const result = await safe(() => createAddition({ ...input, projectId: scope.projectId })); invalidateForecastCache(); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "addition", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
+    create: writePermissionProcedure("additions").input(additionInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); const result = await safe(() => createAddition({ ...input, projectId: scope.projectId })); invalidateForecastCache(); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "addition", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity, projectId: scope.projectId } }); return result; }),
     update: writePermissionProcedure("additions")
       .input(additionInput.partial().extend({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("addition", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("addition", input.id, scope.projectId); await assertWarehousesInProject(scope.projectId, [input.warehouseId ?? existing[0]]); const previousSnapshot = await safe(() => getMovementSnapshot("addition", input.id)); const result = await safe(() => updateAddition(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "addition", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
@@ -552,7 +552,7 @@ export const appRouter = router({
       await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "addition", entityId: input.movementId });
       return result;
     }),
-    cancel: adminProcedure.input(cancelMovementInput).mutation(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("addition", input.id, scope.projectId); return safe(() => cancelAddition({ ...input, userId: ctx.user.id, userName: ctx.user.name })); }),
+    cancel: adminProcedure.input(cancelMovementInput).mutation(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("addition", input.id, scope.projectId); const result = await safe(() => cancelAddition({ ...input, userId: ctx.user.id, userName: ctx.user.name })); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "cancel_movement", entity: "addition", entityId: input.id, details: { projectId: scope.projectId, reason: input.reason ?? null } }); return result; }),
   }),
 
   disbursements: router({
@@ -569,7 +569,7 @@ export const appRouter = router({
     }),
     create: writePermissionProcedure("disbursements")
       .input(disbursementInput)
-      .mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertWarehousesInProject(scope.projectId, [input.warehouseId]); const result = await safe(() => createDisbursement({ ...input, projectId: scope.projectId })); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "disbursement", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
+      .mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertWarehousesInProject(scope.projectId, [input.warehouseId]); const result = await safe(() => createDisbursement({ ...input, projectId: scope.projectId })); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "disbursement", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity, projectId: scope.projectId } }); return result; }),
     batch: writePermissionProcedure("disbursements").input(disbursementBatchInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertWarehousesInProject(scope.projectId, [input.warehouseId]); return safe(() => createDisbursementBatch({ ...input, projectId: scope.projectId, userId: ctx.user.id, userName: ctx.user.name })); }),
     update: writePermissionProcedure("disbursements")
       .input(disbursementInput.partial().extend({ id: z.number().int().positive() }))
@@ -586,7 +586,7 @@ export const appRouter = router({
       await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "disbursement", entityId: input.movementId });
       return result;
     }),
-    cancel: adminProcedure.input(cancelMovementInput).mutation(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("disbursement", input.id, scope.projectId); return safe(() => cancelDisbursement({ ...input, userId: ctx.user.id, userName: ctx.user.name })); }),
+    cancel: adminProcedure.input(cancelMovementInput).mutation(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("disbursement", input.id, scope.projectId); const result = await safe(() => cancelDisbursement({ ...input, userId: ctx.user.id, userName: ctx.user.name })); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "cancel_movement", entity: "disbursement", entityId: input.id, details: { projectId: scope.projectId, reason: input.reason ?? null } }); return result; }),
   }),
 
   transfers: router({
@@ -594,7 +594,7 @@ export const appRouter = router({
       .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
       .query(({ input, ctx }) => safe(async () => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return listTransfers(input?.limit ?? 100, ctx.permissions.allowedWarehouseIds, scope.projectId); })),
     listPaged: permissionProcedure("transfers").input(z.object({ page: z.number().int().positive().default(1), pageSize: z.number().int().min(10).max(100).default(50), itemSearch: z.string().trim().optional(), permitSearch: z.string().trim().optional(), purposeSearch: z.string().trim().optional(), fromDate: z.string().trim().optional(), toDate: z.string().trim().optional() })).query(({ input, ctx }) => safe(async () => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return listTransfersPaged(input, ctx.permissions.allowedWarehouseIds, scope.projectId); })),
-    create: writePermissionProcedure("transfers").input(transferInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId, input.toWarehouseId]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertWarehousesInProject(scope.projectId, [input.fromWarehouseId, input.toWarehouseId]); const result = await safe(() => createTransfer({ ...input, projectId: scope.projectId })); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "transfer", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity, transferType: input.transferType } }); return result; }),
+    create: writePermissionProcedure("transfers").input(transferInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId, input.toWarehouseId]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertWarehousesInProject(scope.projectId, [input.fromWarehouseId, input.toWarehouseId]); const result = await safe(() => createTransfer({ ...input, projectId: scope.projectId })); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "transfer", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity, transferType: input.transferType, projectId: scope.projectId } }); return result; }),
     update: writePermissionProcedure("transfers")
       .input(transferInput.partial().extend({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("transfer", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId ?? existing[0], input.toWarehouseId ?? existing[1]]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("transfer", input.id, scope.projectId); await assertWarehousesInProject(scope.projectId, [input.fromWarehouseId ?? existing[0], input.toWarehouseId ?? existing[1]]); const previousSnapshot = await safe(() => getMovementSnapshot("transfer", input.id)); const result = await safe(() => updateTransfer(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "transfer", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
@@ -610,7 +610,7 @@ export const appRouter = router({
       await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "transfer", entityId: input.movementId });
       return result;
     }),
-    cancel: adminProcedure.input(cancelMovementInput).mutation(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("transfer", input.id, scope.projectId); return safe(() => cancelTransfer({ ...input, userId: ctx.user.id, userName: ctx.user.name })); }),
+    cancel: adminProcedure.input(cancelMovementInput).mutation(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("transfer", input.id, scope.projectId); const result = await safe(() => cancelTransfer({ ...input, userId: ctx.user.id, userName: ctx.user.name })); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "cancel_movement", entity: "transfer", entityId: input.id, details: { projectId: scope.projectId, reason: input.reason ?? null } }); return result; }),
   }),
 
   reports: router({
@@ -857,7 +857,18 @@ export const appRouter = router({
 
   preferences: router({
     get: protectedProcedure.query(({ ctx }) => safe(() => getUserPreferences(ctx.user.id))),
-    update: protectedProcedure.input(z.object({ quickActions: z.array(z.string().trim().min(1).max(64)).min(1).max(10), hapticEnabled: z.boolean(), reportColumnOrder: z.record(z.string().trim().min(1).max(64), z.array(z.string().trim().min(1).max(64)).max(20)).optional(), activeProjectId: z.number().int().positive().nullable().optional() })).mutation(({ ctx, input }) => safe(() => upsertUserPreferences({ userId: ctx.user.id, ...input }))),
+    update: protectedProcedure
+      .input(z.object({ quickActions: z.array(z.string().trim().min(1).max(64)).min(1).max(10), hapticEnabled: z.boolean(), reportColumnOrder: z.record(z.string().trim().min(1).max(64), z.array(z.string().trim().min(1).max(64)).max(20)).optional(), activeProjectId: z.number().int().positive().nullable().optional() }))
+      .mutation(({ ctx, input }) =>
+        safe(async () => {
+          // عزل الصلاحيات: لا يجوز تغيير المشروع النشط عبر تحديث التفضيلات إلا بعد التحقق من
+          // أن المستخدم يملك صلاحية الوصول لهذا المشروع (نفس تحقق setActiveProjectForUser).
+          if (input.activeProjectId != null) {
+            await setActiveProjectForUser({ userId: ctx.user.id, role: ctx.user.role, projectId: input.activeProjectId });
+          }
+          return upsertUserPreferences({ userId: ctx.user.id, ...input });
+        }),
+      ),
     setOnboardingCompleted: protectedProcedure.input(z.object({ completed: z.boolean() })).mutation(({ ctx, input }) => safe(() => setUserOnboardingCompleted(ctx.user.id, input.completed))),
   }),
   drafts: router({
