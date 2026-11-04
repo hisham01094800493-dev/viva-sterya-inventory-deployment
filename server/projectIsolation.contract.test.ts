@@ -108,3 +108,24 @@ describe("phase 3: item and warehouse isolation", () => {
     expect(body).toContain("eq(warehouses.projectId, projectId)");
   });
 });
+
+describe("phase 4: movement isolation keeps the balance logic intact", () => {
+  it("resolves every movement item by code inside the movement project", () => {
+    const calls = dbSource.split("\n").filter(line => line.includes("getItemForUpdate(tx,"));
+    expect(calls.length).toBeGreaterThanOrEqual(13);
+    for (const line of calls) {
+      expect(line.includes("projectId") || line.includes("writeProjectId")).toBe(true);
+    }
+  });
+
+  it("guards disbursement buildings against another project", () => {
+    expect(dbSource).toContain("eq(buildings.projectId, writeProjectId)");
+    expect(dbSource).toContain("eq(buildings.projectId, input.projectId)");
+    expect(dbSource).toContain("eq(buildings.projectId, old.projectId)");
+  });
+
+  it("guards disbursement cancellation and transfer document images by project", () => {
+    expect(routerSource).toMatch(/assertMovementInProject\("disbursement", input\.id, scope\.projectId\)/);
+    expect(routerSource).toMatch(/assertMovementInProject\("transfer", input\.movementId, scope\.projectId\)/);
+  });
+});

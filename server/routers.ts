@@ -574,7 +574,7 @@ export const appRouter = router({
       await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "clear_document_image", entity: "disbursement", entityId: input.movementId });
       return result;
     }),
-    cancel: adminProcedure.input(cancelMovementInput).mutation(({ input, ctx }) => safe(() => cancelDisbursement({ ...input, userId: ctx.user.id, userName: ctx.user.name }))),
+    cancel: adminProcedure.input(cancelMovementInput).mutation(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("disbursement", input.id, scope.projectId); return safe(() => cancelDisbursement({ ...input, userId: ctx.user.id, userName: ctx.user.name })); }),
   }),
 
   transfers: router({
@@ -588,7 +588,7 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("transfer", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.fromWarehouseId ?? existing[0], input.toWarehouseId ?? existing[1]]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("transfer", input.id, scope.projectId); await assertWarehousesInProject(scope.projectId, [input.fromWarehouseId ?? existing[0], input.toWarehouseId ?? existing[1]]); const previousSnapshot = await safe(() => getMovementSnapshot("transfer", input.id)); const result = await safe(() => updateTransfer(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "transfer", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
     uploadDocumentImage: writePermissionProcedure("transfers")
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
-      .mutation(async ({ input, ctx }) => { await assertExistingMovementAccess("transfer", input.movementId, ctx.permissions); return safe(() => uploadDocumentImage({ ...input, movementType: "transfer" })); }),
+      .mutation(async ({ input, ctx }) => { await assertExistingMovementAccess("transfer", input.movementId, ctx.permissions); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("transfer", input.movementId, scope.projectId); return safe(() => uploadDocumentImage({ ...input, movementType: "transfer" })); }),
     clearDocumentImage: writePermissionProcedure("transfers").input(z.object({ movementId: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
       await assertExistingMovementAccess("transfer", input.movementId, ctx.permissions);
       const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
