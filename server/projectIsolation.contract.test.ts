@@ -75,3 +75,13 @@ describe("project scope is resolved from the server, never trusted from the clie
     expect(routerSource).toMatch(/getItemCard\([^)]*scope\.projectId/s);
   });
 });
+
+describe("write paths stamp the resolved project onto inserted rows", () => {
+  it("createDisbursementBatch persists the resolved projectId", () => {
+    const start = dbSource.indexOf("export async function createDisbursementBatch");
+    expect(start).toBeGreaterThan(-1);
+    const body = dbSource.slice(start, start + 9000);
+    expect(body).toContain("const writeProjectId = await resolveWriteProjectId(tx, input.projectId)");
+    expect(body).toMatch(/projectId:\s*writeProjectId/);
+  });
+});
