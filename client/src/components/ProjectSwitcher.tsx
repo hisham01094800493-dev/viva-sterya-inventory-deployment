@@ -23,6 +23,8 @@ export type ActiveProjectState = {
   /** هل نظام المشاريع متاح على الخادم؟ (يكون false إذا لم تُرحّل قاعدة البيانات بعد) */
   projectsAvailable: boolean;
   isLoading: boolean;
+  /** يكون true أثناء إعادة جلب المشروع النشط بعد التبديل (لتعطيل الحفظ مؤقتًا) */
+  isSwitching: boolean;
   projects: ProjectOption[];
   resolved: ResolvedActiveProject;
 };
@@ -55,6 +57,7 @@ export function useActiveProjectState(): ActiveProjectState {
   return {
     projectsAvailable: !listQuery.isError && !activeQuery.isError,
     isLoading: listQuery.isLoading || activeQuery.isLoading,
+    isSwitching: activeQuery.isFetching && !activeQuery.isLoading,
     projects,
     resolved,
   };

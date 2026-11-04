@@ -2747,6 +2747,7 @@ export async function createDisbursementBatch(input: {
         warehouseId: warehouse.id,
         disburseType: input.disburseType?.trim() || "صرف",
         clientRequestId: requestIds[index],
+        projectId: writeProjectId,
       });
       const id = resultInsertId(insertResult);
       const rowResult = await tx.select().from(disbursements).where(eq(disbursements.id, id)).limit(1);
