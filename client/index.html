@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#101b24" />
     <meta name="description" content="منصة Smart Inventory الاحترافية لإدارة المخزون" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -20,6 +20,11 @@
       @keyframes pwa-word-enter { 0% { transform: translateX(115vw); opacity: 0; } 65% { opacity: 1; } 100% { transform: translateX(0); opacity: 1; } }
       @keyframes pwa-line-grow { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
       @media (prefers-color-scheme: light) { #pwa-word-splash { background: #eef6f7; color: #0d4f62; } #pwa-word-splash .pwa-word-line { background: linear-gradient(90deg, #8ca7b5, #40c7e5, #8ca7b5); box-shadow: 0 0 18px rgba(64,199,229,.42); } }
+      /* أولوية أعلى لخيار المستخدم داخل التطبيق على تفضيل النظام */
+      html.dark #pwa-word-splash { background: #101b24; color: #d9e7ee; }
+      html.dark #pwa-word-splash .pwa-word-line { background: linear-gradient(90deg, #8ca7b5, #72e5f2, #8ca7b5); box-shadow: 0 0 22px rgba(114,229,242,.58); }
+      html:not(.dark) #pwa-word-splash { background: #eef6f7; color: #0d4f62; }
+      html:not(.dark) #pwa-word-splash .pwa-word-line { background: linear-gradient(90deg, #8ca7b5, #40c7e5, #8ca7b5); box-shadow: 0 0 18px rgba(64,199,229,.42); }
       @media (prefers-reduced-motion: reduce) { #pwa-word-splash .pwa-word-mark, #pwa-word-splash .pwa-word-line { animation: none; transform: none; opacity: 1; } #pwa-word-splash { transition: none; } }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -34,7 +39,17 @@
     <script>
       (function () {
         try {
-          if (localStorage.getItem("theme") === "dark") document.documentElement.classList.add("dark");
+          // نقرأ المفتاح الأساسي والقديم معًا حتى يُطبَّق الوضع الداكن قبل أول رسم
+          var stored = localStorage.getItem("smart-inventory-theme") || localStorage.getItem("theme");
+          var root = document.documentElement;
+          if (stored === "dark") {
+            root.classList.add("dark");
+            root.style.colorScheme = "dark";
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute("content", "#101b24");
+          } else {
+            root.style.colorScheme = "light";
+          }
         } catch (_) {}
       })();
     </script>

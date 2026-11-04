@@ -38,6 +38,7 @@ import {
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTheme } from "@/contexts/ThemeContext";
 import { canCreateInventoryItems } from "@/lib/itemCreatePermission";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import OfflineDataNotice from "@/components/OfflineDataNotice";
@@ -359,6 +360,30 @@ function NotificationBell({ chatEnabled = true }: { chatEnabled?: boolean }) {
   const clearMine = trpc.notifications.clearMine.useMutation({ onSuccess: result => { void notifications.refetch(); toast.success(result.deleted ? `تم حذف ${result.deleted} إشعار` : "لا توجد إشعارات مباشرة للحذف"); }, onError: error => toast.error(error.message || "تعذر حذف الإشعارات") });
   const rows = notifications.data ?? [];
   const unreadCount = rows.filter(row => !row.isRead).length;
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const bellRef = useRef<HTMLButtonElement | null>(null);
+  // إغلاق لوحة الإشعارات بالنقر خارجها أو بمفتاح Escape، مع إعادة التركيز للجرس
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent | MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (panelRef.current?.contains(target)) return;
+      if (bellRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      bellRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
   useEffect(() => {
     enableNotificationAudioPreference();
     const unlock = () => { enableNotificationAudioPreference(); unlockNotificationAudio(); };
@@ -395,11 +420,12 @@ function NotificationBell({ chatEnabled = true }: { chatEnabled?: boolean }) {
   return <div className="relative">
     {incomingNotice && <button type="button" onClick={() => window.location.assign("/alerts")} role="status" aria-live="polite" title="فتح صفحة التنبيهات" className="fixed left-1/2 top-16 z-[60] w-[min(calc(100vw-2rem),380px)] -translate-x-1/2 rounded-2xl border border-[#b9d4d9] bg-white px-4 py-3 text-center text-sm font-black text-[#0d4f62] shadow-2xl transition hover:-translate-y-0.5 hover:border-[#0d7180] hover:shadow-[0_16px_35px_rgba(13,79,98,0.18)] dark:border-cyan-900 dark:bg-slate-950 dark:text-cyan-100">{incomingNotice}<span className="mt-1 block text-[11px] font-bold text-slate-400">اضغط لفتح صفحة التنبيهات</span></button>}
     {incomingChatNotice && <button type="button" onClick={() => window.location.assign("/chat")} role="status" aria-live="polite" title="فتح محادثات فريق العمل" className="fixed left-1/2 top-[8.75rem] z-[60] w-[min(calc(100vw-2rem),420px)] -translate-x-1/2 rounded-2xl border border-[#8fd1d0] bg-[#e8f7f6] px-4 py-3 text-center text-sm font-black text-[#0d4f62] shadow-2xl transition hover:-translate-y-0.5 hover:border-[#0d7180] dark:border-teal-900 dark:bg-teal-950/80 dark:text-teal-100">رسالة جديدة في محادثات فريق العمل<span className="mt-1 block truncate text-xs font-bold text-slate-600">{incomingChatNotice}</span><span className="mt-1 block text-[11px] font-bold text-[#0d7180]">اضغط لفتح المحادثة</span></button>}
-    <button type="button" onPointerDown={() => unlockNotificationAudio()} onClick={() => setOpen(value => !value)} aria-label={`الإشعارات${unreadCount ? ` (${unreadCount} غير مقروءة)` : ""}`} className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-[#dce7ee] bg-white text-[#0d4f62] shadow-sm transition hover:bg-[#e8f1f2]">
+    <button ref={bellRef} type="button" onPointerDown={() => unlockNotificationAudio()} onClick={() => setOpen(value => !value)} aria-expanded={open} aria-haspopup="dialog" aria-controls="notification-panel" aria-label={`الإشعارات${unreadCount ? ` (${unreadCount} غير مقروءة)` : ""}`} title={open ? "إغلاق الإشعارات" : "عرض الإشعارات"} className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-[#dce7ee] bg-white text-[#0d4f62] shadow-sm transition hover:bg-[#e8f1f2]">
       <BellRing className="h-4 w-4" />{unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#bd5147] px-1 text-[10px] font-black text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
     </button>
-    {open && <div className="fixed left-1/2 top-16 z-50 w-[min(calc(100vw-1.5rem),360px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-[#dce7ee] bg-white shadow-2xl md:absolute md:left-0 md:top-11 md:w-[min(92vw,360px)] md:translate-x-0 dark:border-slate-700 dark:bg-slate-950" dir="rtl">
-      <div className="flex items-center justify-between gap-3 border-b border-[#eef3f5] px-4 py-3 dark:border-slate-800"><div><p className="font-black text-[#102a43] dark:text-slate-100">الإشعارات</p><p className="mt-1 text-[11px] text-slate-400">{unreadCount ? `${unreadCount} غير مقروءة` : "لا توجد إشعارات غير مقروءة"}</p></div><div className="flex flex-wrap items-center justify-end gap-2">{unreadCount > 0 && <button type="button" onClick={() => markAllRead.mutate()} disabled={markAllRead.isPending} className="text-[11px] font-black text-[#0d7180]">تحديد الكل كمقروء</button>}{user?.role === "admin" && rows.some(row => row.isRead) && <button type="button" onClick={() => { if (window.confirm("سيتم حذف الإشعارات المقروءة لهذا الحساب فقط، ولن تُحذف الإشعارات غير المقروءة أو سجل تتبع قراءة المستلمين. هل تريد المتابعة؟")) clearRead.mutate(); }} disabled={clearRead.isPending} title="حذف الإشعارات المقروءة فقط" className="text-[11px] font-black text-[#bd5147]">{clearRead.isPending ? "جارٍ المسح..." : "مسح المقروءة"}</button>}{rows.some(row => row.recipientUserId && row.recipientUserId > 0) && <button type="button" onClick={() => { if (window.confirm("سيتم حذف إشعارات حسابك المباشرة فقط. هل تريد المتابعة؟")) clearMine.mutate(); }} disabled={clearMine.isPending} title="حذف إشعارات حسابك المباشرة" className="text-[11px] font-black text-[#bd5147]">{clearMine.isPending ? "جارٍ المسح..." : "حذف إشعاراتي"}</button>}</div></div>
+    {open && <button type="button" tabIndex={-1} aria-label="إغلاق الإشعارات" onClick={() => setOpen(false)} className="fixed inset-0 z-40 cursor-default bg-slate-900/25 backdrop-blur-[1px] md:hidden" />}
+    {open && <div ref={panelRef} id="notification-panel" role="dialog" aria-label="الإشعارات" aria-modal="false" className="fixed left-1/2 top-16 z-50 w-[min(calc(100vw-1.5rem),360px)] -translate-x-1/2 overflow-hidden rounded-2xl border border-[#dce7ee] bg-white shadow-2xl md:absolute md:left-0 md:top-11 md:w-[min(92vw,360px)] md:translate-x-0 dark:border-slate-700 dark:bg-slate-950" dir="rtl">
+      <div className="flex items-center justify-between gap-3 border-b border-[#eef3f5] px-4 py-3 dark:border-slate-800"><div><p className="font-black text-[#102a43] dark:text-slate-100">الإشعارات</p><p className="mt-1 text-[11px] text-slate-400">{unreadCount ? `${unreadCount} غير مقروءة` : "لا توجد إشعارات غير مقروءة"}</p></div><div className="flex flex-wrap items-center justify-end gap-2">{unreadCount > 0 && <button type="button" onClick={() => markAllRead.mutate()} disabled={markAllRead.isPending} className="text-[11px] font-black text-[#0d7180]">تحديد الكل كمقروء</button>}{user?.role === "admin" && rows.some(row => row.isRead) && <button type="button" onClick={() => { if (window.confirm("سيتم حذف الإشعارات المقروءة لهذا الحساب فقط، ولن تُحذف الإشعارات غير المقروءة أو سجل تتبع قراءة المستلمين. هل تريد المتابعة؟")) clearRead.mutate(); }} disabled={clearRead.isPending} title="حذف الإشعارات المقروءة فقط" className="text-[11px] font-black text-[#bd5147]">{clearRead.isPending ? "جارٍ المسح..." : "مسح المقروءة"}</button>}{rows.some(row => row.recipientUserId && row.recipientUserId > 0) && <button type="button" onClick={() => { if (window.confirm("سيتم حذف إشعارات حسابك المباشرة فقط. هل تريد المتابعة؟")) clearMine.mutate(); }} disabled={clearMine.isPending} title="حذف إشعارات حسابك المباشرة" className="text-[11px] font-black text-[#bd5147]">{clearMine.isPending ? "جارٍ المسح..." : "حذف إشعاراتي"}</button>}<button type="button" onClick={() => { setOpen(false); bellRef.current?.focus(); }} aria-label="إغلاق الإشعارات" title="إغلاق" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#dce7ee] bg-white text-[#0d4f62] transition hover:bg-[#e8f1f2] dark:border-slate-700 dark:bg-slate-900 dark:text-cyan-200 dark:hover:bg-slate-800"><X className="h-4 w-4" /></button></div></div>
       <div className="max-h-80 overflow-y-auto">{notifications.isLoading ? <p className="p-6 text-center text-sm text-slate-400">جاري تحميل الإشعارات...</p> : !rows.length ? <p className="p-6 text-center text-sm text-slate-400">لا توجد إشعارات مخصصة حالياً.</p> : rows.slice(0, 20).map(row => <button key={row.id} type="button" onClick={() => { if (!row.isRead) markRead.mutate({ id: row.id }); window.location.assign(row.link || "/alerts"); }} className={`block w-full border-b border-[#f1f5f6] px-4 py-3 text-right transition hover:bg-[#f7fbfc] dark:border-slate-800 dark:hover:bg-slate-900 ${row.isRead ? "bg-white dark:bg-slate-950" : "bg-[#fffaf0] dark:bg-amber-950/30"}`}><div className="flex items-start gap-3"><span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${row.priority === "critical" ? "bg-red-600" : row.priority === "high" ? "bg-orange-500" : "bg-[#0d7180]"}`} /><span className="min-w-0 flex-1"><span className="block font-black text-[#102a43] dark:text-slate-100">{row.title}</span><span className="mt-1 block text-xs leading-6 text-slate-600 dark:text-slate-300">{row.message}</span><span className="mt-1 block text-[10px] text-slate-400">{new Date(row.createdAt).toLocaleString("ar-EG")}</span></span></div></button>)}</div>
     </div>}
   </div>;
@@ -585,10 +611,11 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   const [location, setLocation] = useLocation();
   const [previewPermissions, setPreviewPermissions] = useState<PreviewPermissions | null>(() => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); return raw ? JSON.parse(raw) : null; } catch { return null; } });
   useEffect(() => { const syncPreview = () => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); setPreviewPermissions(raw ? JSON.parse(raw) : null); } catch { setPreviewPermissions(null); } }; window.addEventListener("smart-inventory-preview", syncPreview); return () => window.removeEventListener("smart-inventory-preview", syncPreview); }, []);
-  const [darkMode, setDarkMode] = useState(() => typeof window !== "undefined" && window.localStorage.getItem("smart-inventory-theme") === "dark");
+  // الوضع الداكن يُدار مركزيًا من ThemeProvider حتى لا يتعارض مع أي شاشة أخرى
+  const { theme, toggleTheme } = useTheme();
+  const darkMode = theme === "dark";
   const [showBackToTop, setShowBackToTop] = useState(false);
   const { state, toggleSidebar } = useSidebar();
-  useEffect(() => { document.documentElement.classList.toggle("dark", darkMode); window.localStorage.setItem("smart-inventory-theme", darkMode ? "dark" : "light"); }, [darkMode]);
   useEffect(() => { const applyNumberScale = () => { document.documentElement.dataset.numberScale = window.localStorage.getItem("smart-inventory-number-scale") || "normal"; }; applyNumberScale(); window.addEventListener("smart-inventory-number-scale", applyNumberScale); return () => window.removeEventListener("smart-inventory-number-scale", applyNumberScale); }, []);
   const activeProjectState = useActiveProjectState();
   const projectBlocked = shouldBlockOperationalScreen({ path: location, projectsAvailable: activeProjectState.projectsAvailable, resolved: activeProjectState.resolved });
@@ -725,7 +752,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
       <SidebarInset className="w-full max-w-full min-w-0 flex-1 bg-transparent">
         <header className="smart-topbar dark-surface sticky top-0 z-30 flex min-h-16 flex-wrap items-center justify-between gap-3 border-b px-4 py-2 backdrop-blur-xl md:px-8">
           <div className="smart-topbar-heading flex min-w-0 items-center gap-3">
-            <SidebarTrigger className="smart-topbar-action h-9 w-9 rounded-xl shadow-sm transition-transform hover:-translate-y-0.5" /><Button type="button" variant="ghost" size="icon" onClick={() => setDarkMode(value => !value)} className={`smart-topbar-action theme-toggle-icon h-9 w-9 rounded-xl shadow-sm transition-transform hover:-translate-y-0.5 ${darkMode ? "" : ""}`} aria-label={darkMode ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"} title={darkMode ? "الانتقال إلى الوضع الفاتح" : "الانتقال إلى الوضع الليلي"}><span className="theme-toggle-glyph-wrap" aria-hidden="true">{darkMode ? <Sun key="sun" className="theme-toggle-glyph theme-toggle-sun h-4 w-4" /> : <Moon key="moon" className="theme-toggle-glyph theme-toggle-moon h-4 w-4" />}</span></Button>
+            <SidebarTrigger className="smart-topbar-action h-9 w-9 rounded-xl shadow-sm transition-transform hover:-translate-y-0.5" /><Button type="button" variant="ghost" size="icon" onClick={() => toggleTheme?.()} className={`smart-topbar-action theme-toggle-icon h-9 w-9 rounded-xl shadow-sm transition-transform hover:-translate-y-0.5 ${darkMode ? "" : ""}`} aria-label={darkMode ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"} title={darkMode ? "الانتقال إلى الوضع الفاتح" : "الانتقال إلى الوضع الليلي"}><span className="theme-toggle-glyph-wrap" aria-hidden="true">{darkMode ? <Sun key="sun" className="theme-toggle-glyph theme-toggle-sun h-4 w-4" /> : <Moon key="moon" className="theme-toggle-glyph theme-toggle-moon h-4 w-4" />}</span></Button>
             <div>
               <p className="smart-topbar-eyebrow text-[10px] font-black uppercase tracking-[0.2em]">Smart Inventory / إدارة المخزون</p>
               <h1 className="smart-topbar-title text-lg font-black">{activeMenuItem.label}</h1>
