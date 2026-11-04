@@ -129,3 +129,20 @@ describe("phase 4: movement isolation keeps the balance logic intact", () => {
     expect(routerSource).toMatch(/assertMovementInProject\("transfer", input\.movementId, scope\.projectId\)/);
   });
 });
+
+describe("phase 5: building isolation and cost comparison", () => {
+  it("guards building edits against another project", () => {
+    expect(routerSource).toContain("async function assertBuildingInProject");
+    expect(routerSource).toMatch(/assertBuildingInProject\(input\.id, scope\.projectId\)/);
+    expect(routerSource).toContain("لا يمكن تعديل مبنى تابع لمشروع آخر");
+  });
+
+  it("scopes the building cost comparison to the active project", () => {
+    const start = dbSource.indexOf("export async function getBuildingCostComparison");
+    expect(start).toBeGreaterThan(-1);
+    const body = dbSource.slice(start, start + 1600);
+    expect(body).toContain("eq(buildings.projectId, projectId)");
+    expect(body).toContain("eq(disbursements.projectId, projectId)");
+    expect(body).toContain("eq(items.projectId, projectId)");
+  });
+});
