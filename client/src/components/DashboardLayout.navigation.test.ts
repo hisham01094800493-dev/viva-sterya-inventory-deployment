@@ -41,15 +41,15 @@ describe("buildGovernanceNavigationItems", () => {
 });
 
 describe("buildMobileNavigationItems", () => {
-  it("shows the main sections and excludes movement shortcuts from the bottom dock", () => {
+  it("shows the current mobile shortcuts and keeps the dock compact", () => {
     const items = buildMobileNavigationItems();
     expect(items.map(({ mobileLabel, path }) => [mobileLabel, path])).toEqual([
       ["الرئيسية", "/"],
       ["الأصناف", "/items"],
-      ["المخازن", "/warehouses"],
-      ["التقارير", "/reports"],
-      ["الإعدادات", "/settings"],
+      ["إضافة", "/additions"],
+      ["صرف", "/disbursements"],
+      ["الجرد", "/inventory-audit"],
     ]);
-    expect(items.some(({ path }) => ["/additions", "/disbursements"].includes(path))).toBe(false);
+    expect(items).toHaveLength(5);
   });
 });
