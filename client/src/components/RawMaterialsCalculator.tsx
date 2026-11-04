@@ -10,8 +10,6 @@ import {
   type RebarCalculation,
 } from "@/lib/materialsCalculator";
 
-type AreaMode = "tile" | "carton";
-
 const materialNumber = new Intl.NumberFormat("ar-EG", {
   maximumFractionDigits: 3,
 });
@@ -59,7 +57,7 @@ function ResultMetric({
 }) {
   return (
     <div
-      className={`min-w-0 rounded-xl border p-3 ${emphasis ? "border-teal-500/40 bg-teal-500/10" : "border-border bg-muted/50"}`}
+      className={`min-w-0 rounded-xl border p-3 ${emphasis ? "border-teal-600 bg-teal-50 dark:border-teal-400 dark:bg-teal-950" : "border-border bg-card"}`}
     >
       <p className="text-[11px] font-semibold leading-5 text-muted-foreground">
         {label}
@@ -127,12 +125,12 @@ function rebarLines(name: string, result: RebarCalculation) {
 
 export function RawMaterialsCalculator() {
   const [materialTab, setMaterialTab] = useState("ceramic");
-  const [areaMode, setAreaMode] = useState<AreaMode>("tile");
   const [ceramicName, setCeramicName] = useState("");
-  const [tileCount, setTileCount] = useState("");
+  const [palletCount, setPalletCount] = useState("");
+  const [cartonsPerPallet, setCartonsPerPallet] = useState("");
   const [tilesPerCarton, setTilesPerCarton] = useState("");
-  const [areaPerTile, setAreaPerTile] = useState("");
-  const [areaPerCarton, setAreaPerCarton] = useState("");
+  const [tileLengthCm, setTileLengthCm] = useState("");
+  const [tileWidthCm, setTileWidthCm] = useState("");
   const [ceramicWastage, setCeramicWastage] = useState("5");
   const [rebarName, setRebarName] = useState("");
   const [diameter, setDiameter] = useState("16");
@@ -143,26 +141,28 @@ export function RawMaterialsCalculator() {
   const [rebarWastage, setRebarWastage] = useState("0");
   const [actionMessage, setActionMessage] = useState("");
 
-  const ceramic = useMemo(
-    () =>
-      calculateCeramicMaterials({
-        tileCount: Number(tileCount),
-        tilesPerCarton: tilesPerCarton ? Number(tilesPerCarton) : null,
-        areaPerTile:
-          areaMode === "tile" && areaPerTile ? Number(areaPerTile) : null,
-        areaPerCarton:
-          areaMode === "carton" && areaPerCarton ? Number(areaPerCarton) : null,
-        wastagePercent: Number(ceramicWastage),
-      }),
-    [
-      tileCount,
-      tilesPerCarton,
-      areaMode,
-      areaPerTile,
-      areaPerCarton,
-      ceramicWastage,
-    ]
-  );
+  const ceramic = useMemo(() => {
+    const pallets = Number(palletCount);
+    const cartons = Number(cartonsPerPallet);
+    const tiles = Number(tilesPerCarton);
+    const length = Number(tileLengthCm);
+    const width = Number(tileWidthCm);
+    if (![pallets, cartons, tiles, length, width].every(value => value > 0))
+      return null;
+    return calculateCeramicMaterials({
+      tileCount: pallets * cartons * tiles,
+      tilesPerCarton: tiles,
+      areaPerTile: (length * width) / 10000,
+      wastagePercent: Number(ceramicWastage),
+    });
+  }, [
+    palletCount,
+    cartonsPerPallet,
+    tilesPerCarton,
+    tileLengthCm,
+    tileWidthCm,
+    ceramicWastage,
+  ]);
 
   const activeDiameter =
     diameter === "custom" ? Number(customDiameter) : Number(diameter);
@@ -210,8 +210,11 @@ export function RawMaterialsCalculator() {
   };
 
   return (
-    <div className="space-y-3" dir="rtl">
-      <div className="rounded-xl border border-border bg-muted/30 p-3">
+    <div
+      className="space-y-3 rounded-2xl bg-background p-1 text-foreground"
+      dir="rtl"
+    >
+      <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
         <div className="flex items-start gap-2">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-700 dark:text-teal-300">
             <Ruler className="h-4 w-4" />
@@ -234,7 +237,7 @@ export function RawMaterialsCalculator() {
           setActionMessage("");
         }}
       >
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-muted p-1">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl border border-border bg-muted p-1">
           <TabsTrigger
             value="ceramic"
             className="min-h-10 rounded-lg font-bold"
@@ -246,7 +249,14 @@ export function RawMaterialsCalculator() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="ceramic" className="mt-3 space-y-3">
+        <TabsContent
+          value="ceramic"
+          className="mt-3 space-y-3 rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4"
+        >
+          <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold leading-5 text-sky-950 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100">
+            أدخل عدد البالتات ومحتوى البالتة وأبعاد البلاطة؛ تُحسب المساحة
+            بالمتر المربع تلقائيًا.
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field
               label="اسم الصنف أو المقاس"
@@ -259,23 +269,33 @@ export function RawMaterialsCalculator() {
                 className="h-10 rounded-xl bg-background"
               />
             </Field>
-            <Field label="عدد البلاطات المطلوبة">
+            <Field label="عدد البالتات">
               <Input
                 type="number"
                 min="1"
                 step="1"
                 inputMode="numeric"
-                value={tileCount}
-                onChange={event => setTileCount(event.target.value)}
-                placeholder="مثال: 100"
+                value={palletCount}
+                onChange={event => setPalletCount(event.target.value)}
+                placeholder="مثال: 2"
                 className="h-10 rounded-xl bg-background text-left"
                 dir="ltr"
               />
             </Field>
-            <Field
-              label="البلاطات في الكرتونة"
-              hint="اتركه فارغًا إذا كنت لا تحسب بالكراتين."
-            >
+            <Field label="عدد الكراتين في البالتة">
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                inputMode="numeric"
+                value={cartonsPerPallet}
+                onChange={event => setCartonsPerPallet(event.target.value)}
+                placeholder="مثال: 40"
+                className="h-10 rounded-xl bg-background text-left"
+                dir="ltr"
+              />
+            </Field>
+            <Field label="البلاطات في الكرتونة">
               <Input
                 type="number"
                 min="1"
@@ -288,51 +308,34 @@ export function RawMaterialsCalculator() {
                 dir="ltr"
               />
             </Field>
-            <Field label="طريقة إدخال المساحة">
-              <select
-                value={areaMode}
-                onChange={event => setAreaMode(event.target.value as AreaMode)}
-                className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="tile">مساحة البلاطة الواحدة (م²)</option>
-                <option value="carton">مساحة الكرتونة (م²)</option>
-              </select>
-            </Field>
-            {areaMode === "tile" ? (
-              <Field
-                label="مساحة البلاطة الواحدة (م²)"
-                hint="مثال: بلاطة 60 × 60 سم = 0.36 م²."
-              >
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="طول البلاطة (سم)">
                 <Input
                   type="number"
-                  min="0.0001"
-                  step="0.0001"
+                  min="0.1"
+                  step="0.1"
                   inputMode="decimal"
-                  value={areaPerTile}
-                  onChange={event => setAreaPerTile(event.target.value)}
-                  placeholder="مثال: 0.36"
+                  value={tileLengthCm}
+                  onChange={event => setTileLengthCm(event.target.value)}
+                  placeholder="60"
                   className="h-10 rounded-xl bg-background text-left"
                   dir="ltr"
                 />
               </Field>
-            ) : (
-              <Field
-                label="مساحة الكرتونة (م²)"
-                hint="يلزم إدخال عدد البلاطات في الكرتونة للتحويل."
-              >
+              <Field label="عرض البلاطة (سم)">
                 <Input
                   type="number"
-                  min="0.0001"
-                  step="0.0001"
+                  min="0.1"
+                  step="0.1"
                   inputMode="decimal"
-                  value={areaPerCarton}
-                  onChange={event => setAreaPerCarton(event.target.value)}
-                  placeholder="مثال: 1.44"
+                  value={tileWidthCm}
+                  onChange={event => setTileWidthCm(event.target.value)}
+                  placeholder="60"
                   className="h-10 rounded-xl bg-background text-left"
                   dir="ltr"
                 />
               </Field>
-            )}
+            </div>
             <Field
               label="نسبة الهالك (%)"
               hint="تُقرّب البلاطات الإضافية لأعلى حتى تكون كمية صحيحة."
@@ -352,7 +355,7 @@ export function RawMaterialsCalculator() {
           </div>
 
           {ceramic ? (
-            <div className="space-y-2 rounded-2xl border border-border p-3 sm:p-4">
+            <div className="space-y-2 rounded-2xl border border-border bg-background p-3 shadow-sm sm:p-4">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="text-xs font-black text-foreground">النتيجة</h4>
                 <span className="rounded-full bg-teal-500/10 px-2.5 py-1 text-[10px] font-bold text-teal-700 dark:text-teal-300">
@@ -382,8 +385,17 @@ export function RawMaterialsCalculator() {
                   }
                 />
                 <ResultMetric
+                  label="البالتات المدخلة"
+                  value={`${showNumber(Number(palletCount))} بالتة`}
+                />
+                <ResultMetric
+                  label="الكراتين في البالتة"
+                  value={`${showNumber(Number(cartonsPerPallet))} كرتونة`}
+                />
+                <ResultMetric
                   label="المساحة قبل الهالك"
                   value={`${showNumber(ceramic.baseAreaSquareMeters)} م²`}
+                  emphasis
                 />
                 <ResultMetric
                   label="مساحة الهالك"
@@ -410,13 +422,16 @@ export function RawMaterialsCalculator() {
             </div>
           ) : (
             <p className="rounded-xl border border-dashed border-border px-3 py-4 text-center text-xs leading-5 text-muted-foreground">
-              أدخل عدد البلاطات ومساحة البلاطة، أو مساحة الكرتونة مع عدد
-              البلاطات فيها، لعرض الحساب.
+              أدخل عدد البالتات والكراتين في كل بالتة وعدد البلاطات في الكرتونة
+              وأبعاد البلاطة لعرض المساحة بالمتر المربع.
             </p>
           )}
         </TabsContent>
 
-        <TabsContent value="rebar" className="mt-3 space-y-3">
+        <TabsContent
+          value="rebar"
+          className="mt-3 space-y-3 rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-4"
+        >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="اسم الصنف أو الوصف">
               <Input
@@ -519,7 +534,7 @@ export function RawMaterialsCalculator() {
           </div>
 
           {rebar ? (
-            <div className="space-y-2 rounded-2xl border border-border p-3 sm:p-4">
+            <div className="space-y-2 rounded-2xl border border-border bg-background p-3 shadow-sm sm:p-4">
               <div className="flex items-center justify-between gap-2">
                 <h4 className="text-xs font-black text-foreground">النتيجة</h4>
                 <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">
