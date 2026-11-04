@@ -128,13 +128,19 @@ export function createDailyReportStatusHandler() {
     if (!isScheduledMethodAllowed(req)) return res.status(405).json({ error: "method-not-allowed" });
     if (!hasCronSecret(req)) return res.status(401).json({ error: "invalid-cron-secret" });
     try {
-      const config = await getReportSchedulerConfig();
-      const recipientsRaw = await getSettingValue("report_recipients", process.env.INVENTORY_REPORT_EMAILS ?? process.env.ADMIN_EMAIL ?? "");
+      // عزل المشاريع: يمكن الاستعلام عن حالة مشروع بعينه عبر ?projectId=، وإلا تُعاد الحالة العامة.
+      const rawProjectId = typeof req.query?.projectId === "string" ? Number(req.query.projectId) : NaN;
+      const projectId = Number.isInteger(rawProjectId) && rawProjectId > 0 ? rawProjectId : null;
+      const config = await getReportSchedulerConfig(projectId);
+      const recipientsKey = projectId == null ? "report_recipients" : `report_recipients:${projectId}`;
+      const recipientsRaw = await getSettingValue(recipientsKey, projectId == null ? process.env.INVENTORY_REPORT_EMAILS ?? process.env.ADMIN_EMAIL ?? "" : "");
       const recipients = recipientsRaw.split(/[;,\n]/).map(value => value.trim()).filter(Boolean);
       const emailConfigured = Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD && (process.env.SMTP_FROM || process.env.SMTP_USER));
       const whatsappConfigured = Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_RECIPIENT_PHONE);
       return res.status(200).json({
         ok: true,
+        projectId,
+        projectName: config.projectName,
         enabled: config.enabled,
         time: config.time,
         timeZone: config.timeZone,

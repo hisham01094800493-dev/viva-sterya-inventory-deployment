@@ -39,6 +39,8 @@ export type ReportEmailSummary = {
 
 export type ReportEmailInput = {
   reportDate: string;
+  /** اسم المشروع — يظهر في عنوان الرسالة ورأس التقرير حتى لا تختلط تقارير المشاريع. */
+  projectName?: string;
   thresholdPercentage: number;
   inventoryTotal: number;
   minimumStockItems: ReportEmailRow[];
@@ -137,6 +139,7 @@ function kpiCard(label: string, value: string, accent: string, sub?: string) {
 export function buildDailyReportEmail(input: ReportEmailInput): string {
   const {
     reportDate,
+    projectName,
     thresholdPercentage,
     inventoryTotal,
     minimumStockItems,
@@ -258,7 +261,7 @@ export function buildDailyReportEmail(input: ReportEmailInput): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="x-apple-disable-message-reformatting">
-<title>التقرير اليومي للمخزون — ${esc(reportDate)}</title>
+<title>${projectName ? `${esc(projectName)} — ` : ""}التقرير اليومي للمخزون — ${esc(reportDate)}</title>
 <style>
   body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
   table,td{mso-table-lspace:0pt;mso-table-rspace:0pt}
@@ -293,6 +296,7 @@ export function buildDailyReportEmail(input: ReportEmailInput): string {
           <td align="right" valign="middle">
             <div style="font-size:10px;letter-spacing:3px;color:${GOLD};font-weight:700">SMART&nbsp;INVENTORY</div>
             <div class="h1" style="font-size:23px;font-weight:700;color:#ffffff;margin-top:8px;line-height:1.4">التقرير اليومي للمخزون</div>
+            ${projectName ? `<div style="font-size:12px;color:#cfe6ec;margin-top:6px;line-height:1.5">المشروع: <b style="color:${GOLD}">${esc(projectName)}</b></div>` : ""}
           </td>
           <td align="left" valign="middle" width="110">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background:rgba(255,255,255,.12);border-radius:10px">
