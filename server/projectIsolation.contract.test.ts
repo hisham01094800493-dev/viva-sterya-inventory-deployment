@@ -85,3 +85,26 @@ describe("write paths stamp the resolved project onto inserted rows", () => {
     expect(body).toMatch(/projectId:\s*writeProjectId/);
   });
 });
+
+describe("phase 3: item and warehouse isolation", () => {
+  it("guards item edits against cross-project warehouse moves", () => {
+    expect(routerSource).toMatch(
+      /assertItemInProject\(existing, scope\.projectId\); if \(input\.warehouseId != null\) await assertWarehousesInProject\(scope\.projectId, \[input\.warehouseId\]\)/,
+    );
+  });
+
+  it("guards the suggested item code against a warehouse from another project", () => {
+    expect(routerSource).toMatch(
+      /if \(input\?\.warehouseId != null\) await assertWarehousesInProject\(scope\.projectId, \[input\.warehouseId\]\)/,
+    );
+  });
+
+  it("resolves the main warehouse per project instead of hardcoding warehouse id 1", () => {
+    expect(routerSource).not.toContain("!permissions.allowedWarehouseIds.includes(1)");
+    const start = dbSource.indexOf("export async function getMainWarehouseItemCards");
+    expect(start).toBeGreaterThan(-1);
+    const body = dbSource.slice(start, start + 1200);
+    expect(body).toContain("eq(warehouses.slot, 1)");
+    expect(body).toContain("eq(warehouses.projectId, projectId)");
+  });
+});
