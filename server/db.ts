@@ -6269,6 +6269,12 @@ export async function createProject(input: { name: string; code: string; descrip
   const code = assertProjectCode(input.code);
   const name = input.name.trim();
   if (!name) throw new InventoryError("BAD_REQUEST", "اسم المشروع مطلوب");
+  const duplicateName = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(sql`lower(trim(${projects.name})) = ${name.toLowerCase()}`)
+    .limit(1);
+  if (duplicateName[0]) throw new InventoryError("CONFLICT", "اسم المشروع مستخدم بالفعل");
   try {
     const result = await db.insert(projects).values({ name, code, description: input.description?.trim() || null, status: "active" });
     return getProjectById(resultInsertId(result));
@@ -6287,6 +6293,14 @@ export async function updateProject(input: { id: number; name?: string; code?: s
     code: input.code == null ? current.code : assertProjectCode(input.code),
     description: input.description === undefined ? current.description : input.description?.trim() || null,
   };
+  if (values.name.toLowerCase() !== current.name.toLowerCase()) {
+    const duplicateName = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(and(sql`lower(trim(${projects.name})) = ${values.name.toLowerCase()}`, sql`${projects.id} <> ${input.id}`))
+      .limit(1);
+    if (duplicateName[0]) throw new InventoryError("CONFLICT", "اسم المشروع مستخدم بالفعل");
+  }
   try {
     await db.update(projects).set(values).where(eq(projects.id, input.id));
     return getProjectById(input.id);
@@ -6397,6 +6411,17 @@ export async function upsertUserPermissionSettings(input: {
   readOnly: boolean;
 }) {
   const db = await requireDb();
+  const projectIds = Array.from(new Set(input.allowedProjectIds ?? []));
+  if (projectIds.length > 0) {
+    const available = await db
+      .select({ id: projects.id, status: projects.status })
+      .from(projects)
+      .where(inArray(projects.id, projectIds));
+    const activeIds = new Set(available.filter(project => project.status === "active").map(project => project.id));
+    if (projectIds.some(id => !activeIds.has(id))) {
+      throw new InventoryError("BAD_REQUEST", "لا يمكن إسناد المستخدم إلى مشروع مؤرشف أو غير موجود");
+    }
+  }
   await db
     .insert(userPermissions)
     .values({
@@ -6404,7 +6429,7 @@ export async function upsertUserPermissionSettings(input: {
       allowedScreens: JSON.stringify(input.allowedScreens),
       allowedReports: JSON.stringify(input.allowedReports),
       allowedWarehouses: JSON.stringify(input.allowedWarehouseIds),
-      allowedProjects: JSON.stringify(input.allowedProjectIds ?? []),
+      allowedProjects: JSON.stringify(projectIds),
       readOnly: input.readOnly,
     })
     .onDuplicateKeyUpdate({
@@ -6412,7 +6437,7 @@ export async function upsertUserPermissionSettings(input: {
         allowedScreens: JSON.stringify(input.allowedScreens),
         allowedReports: JSON.stringify(input.allowedReports),
         allowedWarehouses: JSON.stringify(input.allowedWarehouseIds),
-        ...(input.allowedProjectIds === undefined ? {} : { allowedProjects: JSON.stringify(input.allowedProjectIds) }),
+        ...(input.allowedProjectIds === undefined ? {} : { allowedProjects: JSON.stringify(projectIds) }),
         readOnly: input.readOnly,
       },
     });
