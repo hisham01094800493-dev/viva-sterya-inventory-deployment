@@ -56,6 +56,7 @@ import {
   listTransfersPaged,
   listWarehouses,
   listWarehousesForAccess,
+  listWarehousesForProject,
   listWarehousesByUsage,
   listWarehousesByUsageForAccess,
   listBuildings,
@@ -196,6 +197,16 @@ function canViewWarehouse(allowedWarehouseIds: number[], warehouseId: number | n
 function assertWarehouseAccess(permissions: { allowedWarehouseIds: number[] }, warehouseIds: Array<number | null | undefined>) {
   if (!canAccessWarehouses(permissions.allowedWarehouseIds, warehouseIds)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الوصول إلى هذا المخزن" });
+  }
+}
+
+async function assertActiveProjectWarehouse(userId: number, role: string, allowedWarehouseIds: number[], warehouseId: number | null | undefined) {
+  if (warehouseId == null) return;
+  const activeProject = await safe(() => getActiveProjectForUser(userId, role));
+  if (!activeProject) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "لا يوجد مشروع نشط لاختيار مخزن منه" });
+  const projectWarehouses = await safe(() => listWarehousesForProject(activeProject.id, allowedWarehouseIds));
+  if (!projectWarehouses.some(warehouse => warehouse.id === warehouseId)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "اختر مخزناً تابعاً للمشروع النشط" });
   }
 }
 
@@ -342,6 +353,7 @@ export const appRouter = router({
 
   warehouses: router({
     list: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); return safe(() => listWarehousesForAccess(permissions.allowedWarehouseIds)); }),
+    listForActiveProject: protectedProcedure.query(async ({ ctx }) => { const [activeProject, permissions] = await Promise.all([safe(() => getActiveProjectForUser(ctx.user.id, ctx.user.role)), safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role))]); return activeProject ? safe(() => listWarehousesForProject(activeProject.id, permissions.allowedWarehouseIds)) : []; }),
     listByUsage: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); return safe(() => listWarehousesByUsageForAccess(permissions.allowedWarehouseIds)); }),
     update: adminProcedure.input(warehouseUpdateInput).mutation(({ input }) => safe(() => updateWarehouse(input))),
   }),
@@ -450,10 +462,10 @@ export const appRouter = router({
       const canViewFinancialDetails = permissions.allowedReports.includes("warehouse-financial-details");
       return canViewFinancialDetails ? rows : rows.map(({ unitPrice: _unitPrice, totalValue: _totalValue, ...row }) => row);
     }),
-    create: writePermissionProcedure("additions").input(additionInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); const result = await safe(() => createAddition(input)); invalidateForecastCache(); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "addition", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity } }); return result; }),
+    create: writePermissionProcedure("additions").input(additionInput).mutation(async ({ input, ctx }) => { assertWarehouseAccess(ctx.permissions, [input.warehouseId]); await assertActiveProjectWarehouse(ctx.user.id, ctx.user.role, ctx.permissions.allowedWarehouseIds, input.warehouseId); const result = await safe(() => createAddition(input)); invalidateForecastCache(); await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "create", entity: "addition", entityId: result?.id, details: { itemCode: input.itemCode, quantity: input.quantity, warehouseId: input.warehouseId } }); return result; }),
     update: writePermissionProcedure("additions")
       .input(additionInput.partial().extend({ id: z.number().int().positive() }))
-      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("addition", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const previousSnapshot = await safe(() => getMovementSnapshot("addition", input.id)); const result = await safe(() => updateAddition(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "addition", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
+      .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("addition", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); await assertActiveProjectWarehouse(ctx.user.id, ctx.user.role, ctx.permissions.allowedWarehouseIds, input.warehouseId ?? existing[0]); const previousSnapshot = await safe(() => getMovementSnapshot("addition", input.id)); const result = await safe(() => updateAddition(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "addition", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
     uploadDocumentImage: writePermissionProcedure("additions")
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
       .mutation(async ({ input, ctx }) => { await assertExistingMovementAccess("addition", input.movementId, ctx.permissions); return safe(() => uploadDocumentImage({ ...input, movementType: "addition" })); }),

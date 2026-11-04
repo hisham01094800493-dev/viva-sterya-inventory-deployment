@@ -392,6 +392,14 @@ export async function listWarehousesForAccess(
     : rows;
 }
 
+export async function listWarehousesForProject(
+  projectId: number,
+  allowedWarehouseIds: number[] | null
+) {
+  const rows = await listWarehousesForAccess(allowedWarehouseIds);
+  return rows.filter(row => row.projectId === projectId);
+}
+
 type WarehouseUsageCandidate = { id: number; slot: number; name: string };
 type WarehouseUsageRow = { warehouseId: number | null; usageCount: unknown };
 
