@@ -99,7 +99,10 @@ export function summarizeDailyDisbursements(rows: DailyDisbursementRow[]): Daily
   };
 }
 
-export function buildInventoryReportHtml(rows: InventoryReportRow[], thresholdPercentage: number, title: string) {
+export function buildInventoryReportHtml(rows: InventoryReportRow[], thresholdPercentage: number, title: string, projectName?: string | null) {
+  const projectLine = projectName?.trim()
+    ? `<div style="display:inline-block;margin-top:10px;background:rgba(255,255,255,.14);border-radius:999px;padding:5px 14px;font-size:12px;font-weight:700;color:#ffffff">المشروع: ${escapeHtml(projectName.trim())}</div>`
+    : "";
   const lowStock = getLowStockItems(rows, thresholdPercentage);
   const lowStockCodes = new Set(lowStock.map(row => row.code));
   const bodyRows = rows.map(row => {
@@ -114,7 +117,7 @@ export function buildInventoryReportHtml(rows: InventoryReportRow[], thresholdPe
   }).join("");
   return `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f4f7fb;font-family:Arial,Tahoma,sans-serif;color:#102a43"><style>
 .report-mobile-cards{display:none}.report-desktop-table{display:block}.report-desktop-table table{table-layout:fixed;word-break:normal}.report-desktop-table th,.report-desktop-table td{border-bottom:1px solid #edf2f5;vertical-align:middle;line-height:1.7}.report-mobile-card{border:1px solid #dce7ee;border-radius:14px;margin:0 0 10px;padding:13px;box-sizing:border-box}.report-mobile-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;font-size:14px;line-height:1.6}.report-mobile-card-head strong{max-width:75%;overflow-wrap:anywhere}.report-mobile-card-head span{font-size:12px;color:#64748b;white-space:nowrap}.report-mobile-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px}.report-mobile-grid div{background:#f6fafb;border-radius:9px;padding:8px}.report-mobile-grid small{display:block;color:#64748b;font-size:10px;margin-bottom:3px}.report-mobile-grid b{display:block;font-size:12px;overflow-wrap:anywhere}.report-mobile-status{margin-top:10px;font-size:12px;font-weight:700}@media screen and (max-width:600px){.report-page{padding:12px!important}.report-page h1{font-size:21px!important;line-height:1.45!important}.report-page .report-summary{display:block!important}.report-page .report-summary>div{margin:0 0 8px!important}.report-desktop-table{display:none!important}.report-mobile-cards{display:block!important}.report-page .report-footer{font-size:11px!important}}
-</style><div class="report-page" style="max-width:900px;margin:0 auto;padding:28px"><div style="background:#0d4f62;color:#fff;padding:26px;border-radius:18px"><div style="font-size:11px;letter-spacing:3px;color:#f1c27d">SMART INVENTORY</div><h1 style="margin:12px 0 5px;font-size:24px">${escapeHtml(title)}</h1><p style="margin:0;color:#dceff2">نسبة التنبيه الحالية: ${formatNumber(thresholdPercentage)}%</p></div><div class="report-summary" style="display:flex;gap:12px;margin:18px 0"><div style="background:#fff;border-radius:14px;padding:16px;flex:1"><b>إجمالي الأصناف</b><div style="font-size:24px;margin-top:8px">${rows.length}</div></div><div style="background:#fff7ed;border-radius:14px;padding:16px;flex:1"><b>تحتاج متابعة</b><div style="font-size:24px;margin-top:8px;color:#b45309">${lowStock.length}</div></div></div><div class="report-desktop-table" style="background:#fff;border-radius:14px;padding:10px;overflow:hidden"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الرصيد</th><th style="padding:12px">الوارد</th><th style="padding:12px">المنصرف</th><th style="padding:12px">حد الطلب</th><th style="padding:12px">الحالة</th></tr></thead><tbody>${bodyRows}</tbody></table></div><div class="report-mobile-cards">${mobileRows}</div><p class="report-footer" style="color:#8291a1;font-size:12px;margin-top:18px">تم إنشاء هذا التقرير تلقائياً بواسطة نظام Smart Inventory.</p></div></body></html>`;
+</style><div class="report-page" style="max-width:900px;margin:0 auto;padding:28px"><div style="background:#0d4f62;color:#fff;padding:26px;border-radius:18px"><div style="font-size:11px;letter-spacing:3px;color:#f1c27d">SMART INVENTORY</div><h1 style="margin:12px 0 5px;font-size:24px">${escapeHtml(title)}</h1><p style="margin:0;color:#dceff2">نسبة التنبيه الحالية: ${formatNumber(thresholdPercentage)}%</p>${projectLine}</div><div class="report-summary" style="display:flex;gap:12px;margin:18px 0"><div style="background:#fff;border-radius:14px;padding:16px;flex:1"><b>إجمالي الأصناف</b><div style="font-size:24px;margin-top:8px">${rows.length}</div></div><div style="background:#fff7ed;border-radius:14px;padding:16px;flex:1"><b>تحتاج متابعة</b><div style="font-size:24px;margin-top:8px;color:#b45309">${lowStock.length}</div></div></div><div class="report-desktop-table" style="background:#fff;border-radius:14px;padding:10px;overflow:hidden"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الرصيد</th><th style="padding:12px">الوارد</th><th style="padding:12px">المنصرف</th><th style="padding:12px">حد الطلب</th><th style="padding:12px">الحالة</th></tr></thead><tbody>${bodyRows}</tbody></table></div><div class="report-mobile-cards">${mobileRows}</div><p class="report-footer" style="color:#8291a1;font-size:12px;margin-top:18px">تم إنشاء هذا التقرير تلقائياً بواسطة نظام Smart Inventory.</p></div></body></html>`;
 }
 export function buildDailyInventoryReportHtml(
   rows: InventoryReportRow[],
@@ -122,7 +125,11 @@ export function buildDailyInventoryReportHtml(
   summary: DailyDisbursementSummary,
   reportDate: string,
   forecastRows: ForecastRow[] = [],
+  projectName?: string | null,
 ) {
+  const projectLine = projectName?.trim()
+    ? `<div style="display:inline-block;margin-top:10px;background:rgba(255,255,255,.14);border-radius:999px;padding:5px 14px;font-size:12px;font-weight:700;color:#ffffff">المشروع: ${escapeHtml(projectName.trim())}</div>`
+    : "";
   const minimumStockItems = getItemsAtOrBelowMinimum(rows);
   const severeLowStockCodes = new Set(getLowStockItems(rows, thresholdPercentage).map(row => row.code));
   const stockRows = minimumStockItems.length
@@ -146,7 +153,7 @@ export function buildDailyInventoryReportHtml(
     ? criticalForecastRows.map(row => `<tr><td>${escapeHtml(row.code)}</td><td>${escapeHtml(row.name)}</td><td>${formatNumber(row.currentStock)} ${escapeHtml(row.unit || "وحدة")}</td><td>${row.daysOfCover == null ? "غير محدد" : `${formatNumber(row.daysOfCover)} يوم`}</td><td>${formatNumber(row.suggestedOrderQty)} ${escapeHtml(row.unit || "وحدة")}</td><td style="color:#b42318;font-weight:700">حرج</td></tr>`).join("")
     : `<tr><td colspan="6" style="padding:16px;text-align:center;color:#0f766e">لا توجد أصناف متوقع نفادها خلال 3 أيام.</td></tr>`;
 
-  return `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#102a43"><div style="max-width:900px;margin:0 auto;padding:28px"><div style="background:#0d4f62;color:#fff;padding:26px;border-radius:18px"><div style="font-size:11px;letter-spacing:3px;color:#f1c27d">SMART INVENTORY</div><h1 style="margin:12px 0 5px;font-size:24px">ملخص المخزون والصرف اليومي</h1><p style="margin:0;color:#dceff2">تاريخ التقرير: ${escapeHtml(reportDate)} · نسبة تمييز الانخفاض الحاد: ${formatNumber(thresholdPercentage)}%</p></div><div style="display:flex;flex-wrap:wrap;gap:12px;margin:18px 0"><div style="background:#fff7ed;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>عند حد الطلب أو دونه</b><div style="font-size:24px;margin-top:8px;color:#b45309">${minimumStockItems.length}</div></div><div style="background:#fff1f0;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>انخفاض حاد</b><div style="font-size:24px;margin-top:8px;color:#b42318">${criticalCount}</div></div><div style="background:#fff;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>أذونات الصرف</b><div style="font-size:24px;margin-top:8px">${summary.permitCount}</div></div><div style="background:#eef7f7;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>صافي قيمة الصرف</b><div style="font-size:24px;margin-top:8px;color:#0d4f62">${formatNumber(summary.netValue)} ج.م</div></div></div><section style="margin-top:22px"><h2 style="font-size:18px">الأصناف التي وصلت للحد الأدنى أو دونه</h2><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الرصيد الحالي</th><th style="padding:12px">حد الطلب</th><th style="padding:12px">الحالة</th></tr></thead><tbody>${stockRows}</tbody></table></div></section><section style="margin-top:22px"><h2 style="font-size:18px">الأصناف الحرجة المتوقعة</h2><p style="font-size:12px;color:#64748b">توقع مبني على معدل الصرف الفعلي، ويحتاج مراجعة عند وجود بيانات تاريخية قليلة.</p><div style="background:#fff1f0;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#fde8e7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الرصيد</th><th style="padding:12px">يكفي</th><th style="padding:12px">طلب مقترح</th><th style="padding:12px">الخطورة</th></tr></thead><tbody>${forecastRowsHtml}</tbody></table></div></section><section style="margin-top:22px"><h2 style="font-size:18px">كميات الصرف حسب الوحدة</h2><p style="font-size:12px;color:#64748b">تُجمع كل وحدة على حدة ولا تُخلط الأطنان بالأمتار أو بالعدد. الكميات والقيم صافية من أي تصحيح سالب مسجل.</p><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الوحدة</th><th style="padding:12px">صافي الكمية</th></tr></thead><tbody>${unitRows}</tbody></table></div></section><section style="margin-top:22px"><h2 style="font-size:18px">تفاصيل الصرف اليومي حسب الصنف</h2><p style="font-size:12px;color:#64748b">عدد بنود الصرف: ${summary.lineCount} · عدد التصحيحات السالبة: ${summary.correctionCount}</p><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الكمية الصافية</th><th style="padding:12px">القيمة الصافية</th></tr></thead><tbody>${disbursementRows}</tbody></table></div></section><p style="color:#8291a1;font-size:12px;margin-top:18px">تم إنشاء هذا التقرير تلقائياً بواسطة نظام Smart Inventory.</p></div></body></html>`;
+  return `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#102a43"><div style="max-width:900px;margin:0 auto;padding:28px"><div style="background:#0d4f62;color:#fff;padding:26px;border-radius:18px"><div style="font-size:11px;letter-spacing:3px;color:#f1c27d">SMART INVENTORY</div><h1 style="margin:12px 0 5px;font-size:24px">ملخص المخزون والصرف اليومي</h1><p style="margin:0;color:#dceff2">تاريخ التقرير: ${escapeHtml(reportDate)} · نسبة تمييز الانخفاض الحاد: ${formatNumber(thresholdPercentage)}%</p>${projectLine}</div><div style="display:flex;flex-wrap:wrap;gap:12px;margin:18px 0"><div style="background:#fff7ed;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>عند حد الطلب أو دونه</b><div style="font-size:24px;margin-top:8px;color:#b45309">${minimumStockItems.length}</div></div><div style="background:#fff1f0;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>انخفاض حاد</b><div style="font-size:24px;margin-top:8px;color:#b42318">${criticalCount}</div></div><div style="background:#fff;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>أذونات الصرف</b><div style="font-size:24px;margin-top:8px">${summary.permitCount}</div></div><div style="background:#eef7f7;border-radius:14px;padding:16px;flex:1;min-width:150px"><b>صافي قيمة الصرف</b><div style="font-size:24px;margin-top:8px;color:#0d4f62">${formatNumber(summary.netValue)} ج.م</div></div></div><section style="margin-top:22px"><h2 style="font-size:18px">الأصناف التي وصلت للحد الأدنى أو دونه</h2><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الرصيد الحالي</th><th style="padding:12px">حد الطلب</th><th style="padding:12px">الحالة</th></tr></thead><tbody>${stockRows}</tbody></table></div></section><section style="margin-top:22px"><h2 style="font-size:18px">الأصناف الحرجة المتوقعة</h2><p style="font-size:12px;color:#64748b">توقع مبني على معدل الصرف الفعلي، ويحتاج مراجعة عند وجود بيانات تاريخية قليلة.</p><div style="background:#fff1f0;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#fde8e7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الرصيد</th><th style="padding:12px">يكفي</th><th style="padding:12px">طلب مقترح</th><th style="padding:12px">الخطورة</th></tr></thead><tbody>${forecastRowsHtml}</tbody></table></div></section><section style="margin-top:22px"><h2 style="font-size:18px">كميات الصرف حسب الوحدة</h2><p style="font-size:12px;color:#64748b">تُجمع كل وحدة على حدة ولا تُخلط الأطنان بالأمتار أو بالعدد. الكميات والقيم صافية من أي تصحيح سالب مسجل.</p><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الوحدة</th><th style="padding:12px">صافي الكمية</th></tr></thead><tbody>${unitRows}</tbody></table></div></section><section style="margin-top:22px"><h2 style="font-size:18px">تفاصيل الصرف اليومي حسب الصنف</h2><p style="font-size:12px;color:#64748b">عدد بنود الصرف: ${summary.lineCount} · عدد التصحيحات السالبة: ${summary.correctionCount}</p><div style="background:#fff;border-radius:14px;padding:10px;overflow:auto"><table style="width:100%;border-collapse:collapse;text-align:right;font-size:13px"><thead><tr style="background:#edf6f7"><th style="padding:12px">الكود</th><th style="padding:12px">الصنف</th><th style="padding:12px">الكمية الصافية</th><th style="padding:12px">القيمة الصافية</th></tr></thead><tbody>${disbursementRows}</tbody></table></div></section><p style="color:#8291a1;font-size:12px;margin-top:18px">تم إنشاء هذا التقرير تلقائياً بواسطة نظام Smart Inventory.</p></div></body></html>`;
 }
 
 export function buildDailyReportWhatsAppMessage(
@@ -187,16 +194,29 @@ export async function verifySmtpConnection() {
   return verifyConfiguredSmtp();
 }
 
-export async function runInventoryReport(kind: "low_stock" | "daily" | "weekly") {
+/**
+ * تشغيل تقرير مخزون (تنبيه/يومي/أسبوعي).
+ *
+ * العزل: كل تقرير يجب أن يُبنى من بيانات مشروع واحد فقط. عند تمرير `projectId`
+ * تُحصر الأصناف والحركات والتوقعات في هذا المشروع، ويظهر اسمه في عنوان البريد
+ * وفي رأس التقرير وفي رسالة واتساب. بدون `projectId` نحتفظ بالسلوك القديم
+ * (نطاق كامل) للتوافق مع أي استدعاء لم يُحدَّث بعد.
+ */
+export async function runInventoryReport(
+  kind: "low_stock" | "daily" | "weekly",
+  projectId?: number | null,
+  projectName?: string | null,
+) {
+  const scopedProjectId = projectId ?? null;
   const [rows, thresholdRaw, recipientsRaw] = await Promise.all([
-    getInventoryRows(),
+    getInventoryRows([], scopedProjectId),
     getSettingValue("threshold_percentage", "20"),
     getSettingValue("report_recipients", process.env.INVENTORY_REPORT_EMAILS ?? ""),
   ]);
   const thresholdPercentage = Math.min(100, Math.max(0, Number(thresholdRaw) || 20));
   const reportDate = new Date().toISOString().slice(0, 10);
-  const dailyDisbursementRows = kind === "daily" ? await getDailyDisbursementRows(reportDate) : [];
-  const forecastRows = kind === "daily" ? await getForecastRows([], { leadTimeDays: 7, safetyStockDays: 3 }) : [];
+  const dailyDisbursementRows = kind === "daily" ? await getDailyDisbursementRows(reportDate, [], scopedProjectId) : [];
+  const forecastRows = kind === "daily" ? await getForecastRows([], { leadTimeDays: 7, safetyStockDays: 3 }, scopedProjectId) : [];
   const dailySummary = summarizeDailyDisbursements(dailyDisbursementRows);
   const configuredLowStock = getLowStockItems(rows, thresholdPercentage);
   const lowStock = kind === "daily" ? getItemsAtOrBelowMinimum(rows) : configuredLowStock;
@@ -206,14 +226,15 @@ export async function runInventoryReport(kind: "low_stock" | "daily" | "weekly")
 
   const title = kind === "low_stock" ? "تنبيه أصناف تحتاج متابعة" : kind === "daily" ? "التقرير اليومي للمخزون" : "التقرير الأسبوعي للمخزون";
   const reportRows = kind === "low_stock" ? configuredLowStock : rows;
+  const projectLabel = projectName?.trim() ? ` — ${projectName.trim()}` : "";
   const html = kind === "daily"
-    ? buildDailyInventoryReportHtml(rows, thresholdPercentage, dailySummary, reportDate, forecastRows)
-    : buildInventoryReportHtml(reportRows, thresholdPercentage, title);
+    ? buildDailyInventoryReportHtml(rows, thresholdPercentage, dailySummary, reportDate, forecastRows, projectName)
+    : buildInventoryReportHtml(reportRows, thresholdPercentage, title, projectName);
   const recipients = configuredRecipients(recipientsRaw);
   let sent = false;
   let fallbackNotified = false;
   try {
-    sent = await sendConfiguredEmail({ subject: `Smart Inventory — ${title}${kind === "daily" ? ` — ${reportDate}` : ""}`, html, recipients });
+    sent = await sendConfiguredEmail({ subject: `Smart Inventory — ${title}${projectLabel}${kind === "daily" ? ` — ${reportDate}` : ""}`, html, recipients });
   } catch (error) {
     console.error("[Reports] SMTP send failed:", error);
   }

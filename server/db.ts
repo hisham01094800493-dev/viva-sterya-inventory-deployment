@@ -3598,7 +3598,7 @@ export async function getReportDataset(
     disbursementPurposeSearch: undefined,
     returnPurposeSearch: undefined,
   };
-  const optionWhere = reportWhereConditions(optionInput, allowedWarehouseIds);
+  const optionWhere = reportWhereConditions(optionInput, allowedWarehouseIds, projectId);
   const optionReturnWhere = optionWhere.transfersWhere
     ? and(
         optionWhere.transfersWhere,
@@ -6717,8 +6717,27 @@ export async function getInventoryRows(allowedWarehouseIds: number[] = [], proje
     .orderBy(desc(items.updatedAt));
 }
 
-export async function getDailyDisbursementRows(reportDate: string) {
+/**
+ * صرف يوم واحد — محصور بالمشروع والمخازن المسموح بها.
+ *
+ * مهم للعزل: ربط الصنف لا يجوز أن يكون على `item_code` وحده لأن نفس الكود قد
+ * يتكرر بين المشاريع، فيجب أن يكون الربط على (project_id, code) حتى لا تُسحب
+ * وحدة قياس مشروع آخر أو تُدمج الكميات.
+ */
+export async function getDailyDisbursementRows(
+  reportDate: string,
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
+) {
   const db = await requireDb();
+  const itemJoin = projectId != null
+    ? and(eq(disbursements.itemCode, items.code), eq(items.projectId, projectId))
+    : eq(disbursements.itemCode, items.code);
+  const conditions = [
+    eq(disbursements.date, reportDate),
+    allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(disbursements.projectId, projectId) : undefined,
+  ].filter(Boolean);
   return db
     .select({
       date: disbursements.date,
@@ -6730,8 +6749,8 @@ export async function getDailyDisbursementRows(reportDate: string) {
       unit: items.unit,
     })
     .from(disbursements)
-    .leftJoin(items, eq(disbursements.itemCode, items.code))
-    .where(eq(disbursements.date, reportDate))
+    .leftJoin(items, itemJoin)
+    .where(and(...(conditions as any[])))
     .orderBy(asc(disbursements.eznNum), asc(disbursements.itemCode));
 }
 
