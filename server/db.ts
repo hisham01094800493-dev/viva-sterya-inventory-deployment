@@ -716,27 +716,32 @@ async function resolveWriteProjectId(
 async function resolveWarehouseId(
   tx: any,
   warehouseId?: number | null,
-  warehouseName?: string | null
+  warehouseName?: string | null,
+  projectId?: number | null
 ) {
   const normalizedName = warehouseName?.trim();
+  // عزل المشاريع: أسماء المخازن قد تتكرر بين المشاريع، لذلك عند توفر projectId
+  // يجب حصر البحث داخل المشروع نفسه حتى لا تُرحَّل حركة إلى مخزن مشروع آخر.
+  const projectCondition =
+    projectId != null ? eq(warehouses.projectId, projectId) : undefined;
   const rows = warehouseId
     ? await tx
         .select()
         .from(warehouses)
-        .where(eq(warehouses.id, warehouseId))
+        .where(and(eq(warehouses.id, warehouseId), projectCondition))
         .limit(1)
         .for("update")
     : normalizedName
       ? await tx
           .select()
           .from(warehouses)
-          .where(eq(warehouses.name, normalizedName))
+          .where(and(eq(warehouses.name, normalizedName), projectCondition))
           .limit(1)
           .for("update")
       : await tx
           .select()
           .from(warehouses)
-          .where(eq(warehouses.slot, 1))
+          .where(and(eq(warehouses.slot, 1), projectCondition))
           .limit(1)
           .for("update");
   const warehouse = rows[0];
@@ -1067,7 +1072,12 @@ export async function listWarehouseStockRows(warehouseId: number, projectId?: nu
     .select({ item: items, warehouseStock: itemWarehouseBalances.currentStock })
     .from(itemWarehouseBalances)
     .innerJoin(items, eq(items.id, itemWarehouseBalances.itemId))
-    .where(eq(itemWarehouseBalances.warehouseId, warehouseId))
+    .where(
+      and(
+        eq(itemWarehouseBalances.warehouseId, warehouseId),
+        projectId != null ? eq(items.projectId, projectId) : undefined
+      )
+    )
     .orderBy(desc(items.updatedAt));
   return rows.map(row => ({ ...row.item, currentStock: row.warehouseStock }));
 }
@@ -1616,8 +1626,13 @@ export async function createItem(input: {
     return await db.transaction(async (tx: any) => {
       const code =
         input.code?.trim() || (await nextItemCode(tx, input.warehouseId));
-      const warehouse = await resolveWarehouseId(tx, input.warehouseId);
       const projectId = await resolveWriteProjectId(tx, input.projectId);
+      const warehouse = await resolveWarehouseId(
+        tx,
+        input.warehouseId,
+        null,
+        projectId
+      );
       normalizeItemCode(code);
       const result = await tx.insert(items).values({
         code,
@@ -1769,13 +1784,23 @@ export async function updateItem(input: {
   return db.transaction(async (tx: any) => {
     const current = await getItemByIdForUpdate(tx, input.id);
     const updates: Record<string, unknown> = {};
-    const currentWarehouse = await resolveWarehouseId(tx, current.warehouseId);
+    const currentWarehouse = await resolveWarehouseId(
+      tx,
+      current.warehouseId,
+      null,
+      current.projectId
+    );
     let stockWarehouse = currentWarehouse;
 
     if (input.code !== undefined) updates.code = normalizeItemCode(input.code);
     if (input.name !== undefined) updates.name = normalizeItemName(input.name);
     if (input.warehouseId !== undefined) {
-      const nextWarehouse = await resolveWarehouseId(tx, input.warehouseId);
+      const nextWarehouse = await resolveWarehouseId(
+        tx,
+        input.warehouseId,
+        null,
+        current.projectId
+      );
       if (
         nextWarehouse.id !== currentWarehouse.id &&
         toScaled(current.currentStock) > 0
@@ -2311,13 +2336,15 @@ export async function createAddition(input: {
         .for("update");
       if (existing[0]) return existing[0];
     }
-    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), input.projectId);
+    const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
+    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), writeProjectId);
     const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
     const totalValue = calculateTotalValue(unitPrice, quantity);
     const warehouse = await resolveWarehouseId(
       tx,
       input.warehouseId,
-      input.store
+      input.store,
+      writeProjectId
     );
     await applyStockDelta(tx, item, {
       incoming: quantity,
@@ -2396,12 +2423,14 @@ export async function updateAddition(input: {
     const oldWarehouse = await resolveWarehouseId(
       tx,
       old.warehouseId,
-      old.store
+      old.store,
+      old.projectId
     );
     const nextWarehouse = await resolveWarehouseId(
       tx,
       input.warehouseId ?? old.warehouseId,
-      input.store === undefined ? old.store : input.store
+      input.store === undefined ? old.store : input.store,
+      old.projectId
     );
     const stockAffectingChange =
       oldCode !== nextCode ||
@@ -2542,7 +2571,12 @@ export async function cancelAddition(input: { id: number; reason: string } & Mov
     if (!addition) throw new InventoryError("NOT_FOUND", "سجل الإضافة غير موجود");
     await assertMovementNotCanceled(tx, "addition", input.id);
     const item = await getItemForUpdate(tx, addition.itemCode, addition.projectId);
-    const warehouse = await resolveWarehouseId(tx, addition.warehouseId, addition.store);
+    const warehouse = await resolveWarehouseId(
+      tx,
+      addition.warehouseId,
+      addition.store,
+      addition.projectId
+    );
     const quantity = toScaled(addition.quantity);
     const stockBefore = toScaled(item.currentStock);
     const warehouseRows = await tx.select({ currentStock: itemWarehouseBalances.currentStock }).from(itemWarehouseBalances).where(and(eq(itemWarehouseBalances.itemId, item.id), eq(itemWarehouseBalances.warehouseId, warehouse.id))).limit(1).for("update");
@@ -2589,8 +2623,6 @@ export async function listDisbursements(
   const conditions = [];
   if (allowedWarehouseIds.length)
     conditions.push(inArray(disbursements.warehouseId, allowedWarehouseIds));
-  if (projectId != null)
-    conditions.push(eq(disbursements.projectId, projectId));
   if (projectId != null)
     conditions.push(eq(disbursements.projectId, projectId));
   return db
@@ -2701,7 +2733,8 @@ export async function createDisbursement(input: {
         .for("update");
       if (existing[0]) return existing[0];
     }
-    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), input.projectId);
+    const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
+    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), writeProjectId);
     const buildingRows = await tx
       .select({ id: buildings.id })
       .from(buildings)
@@ -2709,7 +2742,7 @@ export async function createDisbursement(input: {
         and(
           eq(buildings.id, buildingId),
           eq(buildings.status, "active"),
-          input.projectId != null ? eq(buildings.projectId, input.projectId) : undefined
+          writeProjectId != null ? eq(buildings.projectId, writeProjectId) : undefined
         )
       )
       .limit(1);
@@ -2743,7 +2776,8 @@ export async function createDisbursement(input: {
     const warehouse = await resolveWarehouseId(
       tx,
       input.warehouseId,
-      input.store
+      input.store,
+      writeProjectId
     );
     if (!isAccountOnlyDisbursement({ eznNum: input.eznNum })) {
       await applyStockDelta(tx, item, {
@@ -2857,7 +2891,12 @@ export async function createDisbursementBatch(input: {
       )
       .limit(1);
     if (!buildingRows[0]) throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
-    const warehouse = await resolveWarehouseId(tx, input.warehouseId);
+    const warehouse = await resolveWarehouseId(
+      tx,
+      input.warehouseId,
+      null,
+      writeProjectId
+    );
     const lockedItems = new Map<string, any>();
     for (const code of Array.from(new Set(normalizedLines.map(line => line.itemCode))).sort())
       lockedItems.set(code, await getItemForUpdate(tx, code, writeProjectId));
@@ -2954,12 +2993,14 @@ export async function updateDisbursement(input: {
     const oldWarehouse = await resolveWarehouseId(
       tx,
       old.warehouseId,
-      old.store
+      old.store,
+      old.projectId
     );
     const nextWarehouse = await resolveWarehouseId(
       tx,
       input.warehouseId ?? old.warehouseId,
-      input.store === undefined ? old.store : input.store
+      input.store === undefined ? old.store : input.store,
+      old.projectId
     );
     const oldIsAccountOnly = isAccountOnlyDisbursement(old);
     const nextIsAccountOnly = isAccountOnlyDisbursement({ eznNum: input.eznNum ?? old.eznNum });
@@ -3077,7 +3118,12 @@ export async function cancelDisbursement(input: { id: number; reason: string } &
     const item = await getItemForUpdate(tx, disbursement.itemCode, disbursement.projectId);
     const quantity = toScaled(disbursement.quantity);
     const stockBefore = toScaled(item.currentStock);
-    const warehouse = await resolveWarehouseId(tx, disbursement.warehouseId, disbursement.store);
+    const warehouse = await resolveWarehouseId(
+      tx,
+      disbursement.warehouseId,
+      disbursement.store,
+      disbursement.projectId
+    );
     const warehouseRows = await tx.select({ currentStock: itemWarehouseBalances.currentStock }).from(itemWarehouseBalances).where(and(eq(itemWarehouseBalances.itemId, item.id), eq(itemWarehouseBalances.warehouseId, warehouse.id))).limit(1).for("update");
     const warehouseBefore = toScaled(warehouseRows[0]?.currentStock ?? 0);
     if (!isAccountOnlyDisbursement(disbursement)) {
@@ -3848,6 +3894,7 @@ async function applyTransferWarehouseEffect(
     fromStore?: string | null;
     toStore?: string | null;
     quantity: number;
+    projectId?: number | null;
   }
 ) {
   if (isCustomerTransfer(input.transferType)) {
@@ -3861,12 +3908,14 @@ async function applyTransferWarehouseEffect(
     const source = await resolveWarehouseId(
       tx,
       input.fromWarehouseId,
-      input.fromStore
+      input.fromStore,
+      input.projectId
     );
     const destination = await resolveWarehouseId(
       tx,
       input.toWarehouseId,
-      input.toStore
+      input.toStore,
+      input.projectId
     );
     if (source.id === destination.id)
       throw new InventoryError(
@@ -3886,7 +3935,8 @@ async function applyTransferWarehouseEffect(
     const destination = await resolveWarehouseId(
       tx,
       input.toWarehouseId,
-      input.toStore
+      input.toStore,
+      input.projectId
     );
     await applyStockDelta(
       tx,
@@ -3946,7 +3996,8 @@ export async function createTransfer(input: {
         .for("update");
       if (existing[0]) return existing[0];
     }
-    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), input.projectId);
+    const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
+    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), writeProjectId);
     const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
     const totalValue = calculateTotalValue(unitPrice, quantity);
     const warehouseLinks = await applyTransferWarehouseEffect(tx, item, {
@@ -3958,6 +4009,7 @@ export async function createTransfer(input: {
       fromStore: input.fromStore,
       toStore: input.toStore,
       quantity,
+      projectId: writeProjectId,
     });
     const result = await tx.insert(transfers).values({
       date: input.date.trim(),
@@ -4060,6 +4112,7 @@ export async function updateTransfer(input: {
         fromCustomerId: old.fromCustomerId,
         toCustomerId: old.toCustomerId,
         quantity: -oldQuantity,
+        projectId: old.projectId,
       });
     }
     if (stockAffectingChange && (nextFromWarehouseId || nextToWarehouseId)) {
@@ -4070,6 +4123,7 @@ export async function updateTransfer(input: {
         fromCustomerId: nextFromCustomerId,
         toCustomerId: nextToCustomerId,
         quantity: nextQuantity,
+        projectId: old.projectId,
       });
     }
 
@@ -4133,6 +4187,7 @@ export async function cancelTransfer(input: { id: number; reason: string } & Mov
         toCustomerId: transfer.toCustomerId,
         fromStore: transfer.fromStore,
         toStore: transfer.toStore,
+        projectId: transfer.projectId,
         quantity: -quantity,
       });
     }
@@ -4192,14 +4247,24 @@ export async function undoDeletedMovement(auditLogId: number) {
     const { id: _id, createdAt: _createdAt, ...values } = snapshot;
     if (log.entity === "addition") {
       const item = await getItemForUpdate(tx, snapshot.itemCode, snapshot.projectId);
-      const warehouse = await resolveWarehouseId(tx, snapshot.warehouseId, snapshot.store);
+      const warehouse = await resolveWarehouseId(
+        tx,
+        snapshot.warehouseId,
+        snapshot.store,
+        snapshot.projectId
+      );
       const quantity = toScaled(snapshot.quantity);
       await applyStockDelta(tx, item, { incoming: quantity, outgoing: 0, current: quantity });
       await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity);
       await tx.insert(additions).values(values);
     } else if (log.entity === "disbursement") {
       const item = await getItemForUpdate(tx, snapshot.itemCode, snapshot.projectId);
-      const warehouse = await resolveWarehouseId(tx, snapshot.warehouseId, snapshot.store);
+      const warehouse = await resolveWarehouseId(
+        tx,
+        snapshot.warehouseId,
+        snapshot.store,
+        snapshot.projectId
+      );
       const quantity = toScaled(snapshot.quantity);
       await applyStockDelta(tx, item, { incoming: 0, outgoing: quantity, current: -quantity });
       await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, -quantity);
@@ -4207,7 +4272,7 @@ export async function undoDeletedMovement(auditLogId: number) {
     } else {
       const item = await getItemForUpdate(tx, snapshot.itemCode, snapshot.projectId);
       const quantity = toScaled(snapshot.quantity);
-      if (snapshot.fromWarehouseId || snapshot.toWarehouseId) await applyTransferWarehouseEffect(tx, item, { transferType: snapshot.transferType, fromWarehouseId: snapshot.fromWarehouseId, toWarehouseId: snapshot.toWarehouseId, quantity });
+      if (snapshot.fromWarehouseId || snapshot.toWarehouseId) await applyTransferWarehouseEffect(tx, item, { transferType: snapshot.transferType, fromWarehouseId: snapshot.fromWarehouseId, toWarehouseId: snapshot.toWarehouseId, quantity, projectId: snapshot.projectId });
       await tx.insert(transfers).values(values);
     }
     return { auditLogId, entity: log.entity, originalId: Number(log.entityId) };

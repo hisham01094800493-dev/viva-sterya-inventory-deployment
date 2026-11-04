@@ -119,8 +119,10 @@ describe("phase 4: movement isolation keeps the balance logic intact", () => {
   });
 
   it("guards disbursement buildings against another project", () => {
-    expect(dbSource).toContain("eq(buildings.projectId, writeProjectId)");
-    expect(dbSource).toContain("eq(buildings.projectId, input.projectId)");
+    // بعد المرحلة 9 صار حارس المبنى يستخدم معرّف المشروع المحسوب للكتابة (writeProjectId)
+    // في الإنشاء الفردي والجماعي، بدل الاعتماد على input.projectId مباشرة.
+    const guards = dbSource.match(/eq\(buildings\.projectId, writeProjectId\)/g) ?? [];
+    expect(guards.length).toBeGreaterThanOrEqual(2);
     expect(dbSource).toContain("eq(buildings.projectId, old.projectId)");
   });
 
