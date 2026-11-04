@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RawMaterialsCalculator } from "@/components/RawMaterialsCalculator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -101,6 +103,7 @@ function HomeHeroDateTime() {
 function QuickCalculator() {
   const [open, setOpen] = useState(false);
   const [expression, setExpression] = useState("0");
+  const [calculatorTab, setCalculatorTab] = useState("quick");
   const isOperator = (value: string) => ["+", "-", "×", "÷"].includes(value);
   const appendNumber = (value: string) => setExpression(current => {
     if (current === "خطأ") return value === "." ? "0." : value;
@@ -126,19 +129,28 @@ function QuickCalculator() {
 
   return <Dialog open={open} onOpenChange={setOpen}>
     <Button type="button" variant="outline" size="icon" onClick={() => setOpen(true)} className="home-calculator-trigger h-10 w-10 rounded-xl border-white/35 bg-white/10 text-white hover:bg-white/18 hover:text-white" aria-label="فتح الآلة الحاسبة" title="آلة حاسبة"><Calculator className="h-4.5 w-4.5" /></Button>
-    <DialogContent className="home-calculator-dialog w-[calc(100vw-2rem)] max-w-[31rem] rounded-[2rem] border-0 p-4 shadow-2xl sm:p-5" dir="rtl">
+    <DialogContent className="home-calculator-dialog max-h-[92dvh] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto rounded-[2rem] border p-3 shadow-2xl sm:w-[calc(100vw-2rem)] sm:p-5" dir="rtl">
       <div className="home-calculator-handle" aria-hidden="true" />
-      <DialogHeader className="sr-only"><DialogTitle>آلة حاسبة سريعة</DialogTitle><DialogDescription>للحسابات السريعة أثناء تسجيل الحركات.</DialogDescription></DialogHeader>
-      <output aria-live="polite" className="home-calculator-display block min-h-36 break-all rounded-[1.5rem] px-5 py-6 text-left font-mono text-4xl font-black tracking-wide" dir="ltr">{display}</output>
-      <div className="home-calculator-functions mt-3 grid grid-cols-5 gap-2 px-2" dir="ltr">{[")", "!", "^", "π", "√"].map(symbol => <button key={symbol} type="button" className="home-calculator-function" aria-label={`رمز ${symbol}`}>{symbol}</button>)}</div>
-      <div className="mt-2 grid grid-cols-4 gap-2 sm:gap-2.5">
-        <button type="button" onClick={clear} className="home-calculator-key home-calculator-key--clear">AC</button><button type="button" className="home-calculator-key">( )</button><button type="button" className="home-calculator-key">%</button><button type="button" onClick={() => appendOperator("÷")} className="home-calculator-key home-calculator-key--operator">÷</button>
-        {["7", "8", "9"].map(key => <button key={key} type="button" onClick={() => press(key)} className="home-calculator-key">{key}</button>)}<button type="button" onClick={() => appendOperator("×")} className="home-calculator-key home-calculator-key--operator">×</button>
-        {["4", "5", "6"].map(key => <button key={key} type="button" onClick={() => press(key)} className="home-calculator-key">{key}</button>)}<button type="button" onClick={() => appendOperator("-")} className="home-calculator-key home-calculator-key--operator">−</button>
-        {["1", "2", "3"].map(key => <button key={key} type="button" onClick={() => press(key)} className="home-calculator-key">{key}</button>)}<button type="button" onClick={() => appendOperator("+")} className="home-calculator-key home-calculator-key--operator">+</button>
-        <button type="button" onClick={() => press("0")} className="home-calculator-key">0</button><button type="button" onClick={() => press(".")} className="home-calculator-key">.</button><button type="button" onClick={erase} className="home-calculator-key" aria-label="حذف الرقم الأخير"><Delete className="h-5 w-5" /></button><button type="button" onClick={calculate} className="home-calculator-key home-calculator-key--equal">=</button>
-      </div>
-      <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="mt-2 w-full rounded-xl text-xs font-bold text-slate-400 hover:bg-white/10 hover:text-white"><RotateCcw className="ml-1.5 h-3.5 w-3.5" />إغلاق</Button>
+      <DialogHeader className="sr-only"><DialogTitle>الآلة الحاسبة</DialogTitle><DialogDescription>آلة حاسبة سريعة وحاسبة للخامات تشمل السيراميك والحديد.</DialogDescription></DialogHeader>
+      <Tabs value={calculatorTab} onValueChange={setCalculatorTab}>
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-muted p-1">
+          <TabsTrigger value="quick" className="min-h-10 rounded-lg font-bold">آلة حاسبة سريعة</TabsTrigger>
+          <TabsTrigger value="materials" className="min-h-10 rounded-lg font-bold">حاسبة الخامات</TabsTrigger>
+        </TabsList>
+        <TabsContent value="quick" className="mx-auto mt-3 w-full max-w-[31rem]">
+          <output aria-live="polite" className="home-calculator-display block min-h-32 break-all rounded-[1.5rem] border border-border px-5 py-6 text-left font-mono text-4xl font-black tracking-wide" dir="ltr">{display}</output>
+          <div className="home-calculator-functions mt-3 grid grid-cols-5 gap-2 px-2" dir="ltr">{[")", "!", "^", "π", "√"].map(symbol => <button key={symbol} type="button" className="home-calculator-function" aria-label={`رمز ${symbol}`}>{symbol}</button>)}</div>
+          <div className="mt-2 grid grid-cols-4 gap-2 sm:gap-2.5">
+            <button type="button" onClick={clear} className="home-calculator-key home-calculator-key--clear">AC</button><button type="button" className="home-calculator-key">( )</button><button type="button" className="home-calculator-key">%</button><button type="button" onClick={() => appendOperator("÷")} className="home-calculator-key home-calculator-key--operator">÷</button>
+            {["7", "8", "9"].map(key => <button key={key} type="button" onClick={() => press(key)} className="home-calculator-key">{key}</button>)}<button type="button" onClick={() => appendOperator("×")} className="home-calculator-key home-calculator-key--operator">×</button>
+            {["4", "5", "6"].map(key => <button key={key} type="button" onClick={() => press(key)} className="home-calculator-key">{key}</button>)}<button type="button" onClick={() => appendOperator("-")} className="home-calculator-key home-calculator-key--operator">−</button>
+            {["1", "2", "3"].map(key => <button key={key} type="button" onClick={() => press(key)} className="home-calculator-key">{key}</button>)}<button type="button" onClick={() => appendOperator("+")} className="home-calculator-key home-calculator-key--operator">+</button>
+            <button type="button" onClick={() => press("0")} className="home-calculator-key">0</button><button type="button" onClick={() => press(".")} className="home-calculator-key">.</button><button type="button" onClick={erase} className="home-calculator-key" aria-label="حذف الرقم الأخير"><Delete className="h-5 w-5" /></button><button type="button" onClick={calculate} className="home-calculator-key home-calculator-key--equal">=</button>
+          </div>
+        </TabsContent>
+        <TabsContent value="materials" className="mt-3"><RawMaterialsCalculator /></TabsContent>
+      </Tabs>
+      <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="mt-3 w-full rounded-xl text-xs font-bold text-muted-foreground hover:bg-muted"><RotateCcw className="ml-1.5 h-3.5 w-3.5" />إغلاق</Button>
     </DialogContent>
   </Dialog>;
 }
