@@ -111,11 +111,17 @@ function resultInsertId(result: unknown): number {
   return insertId;
 }
 
-async function getItemForUpdate(tx: any, code: string) {
+async function getItemForUpdate(tx: any, code: string, projectId?: number | null) {
+  // الكود مسموح بتكراره بين المشاريع، لذا يجب حصر البحث داخل مشروع الحركة.
   const rows = await tx
     .select()
     .from(items)
-    .where(eq(items.code, code))
+    .where(
+      and(
+        eq(items.code, code),
+        projectId != null ? eq(items.projectId, projectId) : undefined
+      )
+    )
     .limit(1)
     .for("update");
   const item = rows[0];
@@ -2305,7 +2311,7 @@ export async function createAddition(input: {
         .for("update");
       if (existing[0]) return existing[0];
     }
-    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode));
+    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), input.projectId);
     const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
     const totalValue = calculateTotalValue(unitPrice, quantity);
     const warehouse = await resolveWarehouseId(
@@ -2386,7 +2392,7 @@ export async function updateAddition(input: {
     const codes = Array.from(new Set([oldCode, nextCode])).sort();
     const lockedItems = new Map<string, any>();
     for (const code of codes)
-      lockedItems.set(code, await getItemForUpdate(tx, code));
+      lockedItems.set(code, await getItemForUpdate(tx, code, old.projectId));
     const oldWarehouse = await resolveWarehouseId(
       tx,
       old.warehouseId,
@@ -2535,7 +2541,7 @@ export async function cancelAddition(input: { id: number; reason: string } & Mov
     const addition = rows[0];
     if (!addition) throw new InventoryError("NOT_FOUND", "سجل الإضافة غير موجود");
     await assertMovementNotCanceled(tx, "addition", input.id);
-    const item = await getItemForUpdate(tx, addition.itemCode);
+    const item = await getItemForUpdate(tx, addition.itemCode, addition.projectId);
     const warehouse = await resolveWarehouseId(tx, addition.warehouseId, addition.store);
     const quantity = toScaled(addition.quantity);
     const stockBefore = toScaled(item.currentStock);
@@ -2695,11 +2701,17 @@ export async function createDisbursement(input: {
         .for("update");
       if (existing[0]) return existing[0];
     }
-    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode));
+    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), input.projectId);
     const buildingRows = await tx
       .select({ id: buildings.id })
       .from(buildings)
-      .where(and(eq(buildings.id, buildingId), eq(buildings.status, "active")))
+      .where(
+        and(
+          eq(buildings.id, buildingId),
+          eq(buildings.status, "active"),
+          input.projectId != null ? eq(buildings.projectId, input.projectId) : undefined
+        )
+      )
       .limit(1);
     if (!buildingRows[0]) {
       throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
@@ -2832,17 +2844,23 @@ export async function createDisbursementBatch(input: {
       throw new InventoryError("CONFLICT", "مفتاح الإذن مستخدم لطلب آخر أو حُفظ جزء غير متوقع منه");
     }
 
+    const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
     const buildingRows = await tx
       .select({ id: buildings.id })
       .from(buildings)
-      .where(and(eq(buildings.id, input.buildingId), eq(buildings.status, "active")))
+      .where(
+        and(
+          eq(buildings.id, input.buildingId),
+          eq(buildings.status, "active"),
+          writeProjectId != null ? eq(buildings.projectId, writeProjectId) : undefined
+        )
+      )
       .limit(1);
     if (!buildingRows[0]) throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
     const warehouse = await resolveWarehouseId(tx, input.warehouseId);
-    const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
     const lockedItems = new Map<string, any>();
     for (const code of Array.from(new Set(normalizedLines.map(line => line.itemCode))).sort())
-      lockedItems.set(code, await getItemForUpdate(tx, code));
+      lockedItems.set(code, await getItemForUpdate(tx, code, writeProjectId));
 
     const created: any[] = [];
     for (let index = 0; index < normalizedLines.length; index += 1) {
@@ -2932,7 +2950,7 @@ export async function updateDisbursement(input: {
     const codes = Array.from(new Set([oldCode, nextCode])).sort();
     const lockedItems = new Map<string, any>();
     for (const code of codes)
-      lockedItems.set(code, await getItemForUpdate(tx, code));
+      lockedItems.set(code, await getItemForUpdate(tx, code, old.projectId));
     const oldWarehouse = await resolveWarehouseId(
       tx,
       old.warehouseId,
@@ -2995,7 +3013,13 @@ export async function updateDisbursement(input: {
       const buildingRows = await tx
         .select({ id: buildings.id })
         .from(buildings)
-        .where(and(eq(buildings.id, input.buildingId), eq(buildings.status, "active")))
+        .where(
+          and(
+            eq(buildings.id, input.buildingId),
+            eq(buildings.status, "active"),
+            old.projectId != null ? eq(buildings.projectId, old.projectId) : undefined
+          )
+        )
         .limit(1);
       if (!buildingRows[0]) throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
     }
@@ -3050,7 +3074,7 @@ export async function cancelDisbursement(input: { id: number; reason: string } &
     const disbursement = rows[0];
     if (!disbursement) throw new InventoryError("NOT_FOUND", "سجل الصرف غير موجود");
     await assertMovementNotCanceled(tx, "disbursement", input.id);
-    const item = await getItemForUpdate(tx, disbursement.itemCode);
+    const item = await getItemForUpdate(tx, disbursement.itemCode, disbursement.projectId);
     const quantity = toScaled(disbursement.quantity);
     const stockBefore = toScaled(item.currentStock);
     const warehouse = await resolveWarehouseId(tx, disbursement.warehouseId, disbursement.store);
@@ -3922,7 +3946,7 @@ export async function createTransfer(input: {
         .for("update");
       if (existing[0]) return existing[0];
     }
-    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode));
+    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), input.projectId);
     const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
     const totalValue = calculateTotalValue(unitPrice, quantity);
     const warehouseLinks = await applyTransferWarehouseEffect(tx, item, {
@@ -4026,7 +4050,7 @@ export async function updateTransfer(input: {
     const codes = Array.from(new Set([oldCode, nextCode])).sort();
     const lockedItems = new Map<string, any>();
     for (const code of codes)
-      lockedItems.set(code, await getItemForUpdate(tx, code));
+      lockedItems.set(code, await getItemForUpdate(tx, code, old.projectId));
 
     if (stockAffectingChange && (old.fromWarehouseId || old.toWarehouseId)) {
       await applyTransferWarehouseEffect(tx, lockedItems.get(oldCode), {
@@ -4097,7 +4121,7 @@ export async function cancelTransfer(input: { id: number; reason: string } & Mov
     const transfer = rows[0];
     if (!transfer) throw new InventoryError("NOT_FOUND", "سجل التحويل غير موجود");
     await assertMovementNotCanceled(tx, "transfer", input.id);
-    const item = await getItemForUpdate(tx, transfer.itemCode);
+    const item = await getItemForUpdate(tx, transfer.itemCode, transfer.projectId);
     const quantity = toScaled(transfer.quantity);
     const stockBefore = toScaled(item.currentStock);
     if (transfer.fromWarehouseId || transfer.toWarehouseId || isInternalTransfer(transfer.transferType) || isReturnTransfer(transfer.transferType)) {
@@ -4167,21 +4191,21 @@ export async function undoDeletedMovement(auditLogId: number) {
     if (!snapshot || !snapshot.itemCode || snapshot.quantity == null) throw new InventoryError("CONFLICT", "لا توجد نسخة كاملة من الإذن لاستعادتها");
     const { id: _id, createdAt: _createdAt, ...values } = snapshot;
     if (log.entity === "addition") {
-      const item = await getItemForUpdate(tx, snapshot.itemCode);
+      const item = await getItemForUpdate(tx, snapshot.itemCode, snapshot.projectId);
       const warehouse = await resolveWarehouseId(tx, snapshot.warehouseId, snapshot.store);
       const quantity = toScaled(snapshot.quantity);
       await applyStockDelta(tx, item, { incoming: quantity, outgoing: 0, current: quantity });
       await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, quantity);
       await tx.insert(additions).values(values);
     } else if (log.entity === "disbursement") {
-      const item = await getItemForUpdate(tx, snapshot.itemCode);
+      const item = await getItemForUpdate(tx, snapshot.itemCode, snapshot.projectId);
       const warehouse = await resolveWarehouseId(tx, snapshot.warehouseId, snapshot.store);
       const quantity = toScaled(snapshot.quantity);
       await applyStockDelta(tx, item, { incoming: 0, outgoing: quantity, current: -quantity });
       await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, -quantity);
       await tx.insert(disbursements).values(values);
     } else {
-      const item = await getItemForUpdate(tx, snapshot.itemCode);
+      const item = await getItemForUpdate(tx, snapshot.itemCode, snapshot.projectId);
       const quantity = toScaled(snapshot.quantity);
       if (snapshot.fromWarehouseId || snapshot.toWarehouseId) await applyTransferWarehouseEffect(tx, item, { transferType: snapshot.transferType, fromWarehouseId: snapshot.fromWarehouseId, toWarehouseId: snapshot.toWarehouseId, quantity });
       await tx.insert(transfers).values(values);
