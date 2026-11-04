@@ -35,6 +35,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
+import { useActiveProjectState } from "@/components/ProjectSwitcher";
+import { projectLabel } from "@/lib/projectSelection";
+import { inventoryQueryOptions } from "@/lib/queryOptions";
 import { toast } from "sonner";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -74,6 +77,9 @@ function downloadCsv(rows: Array<Record<string, unknown>>, from: string, to: str
 }
 
 export default function BuildingCostComparisonPage() {
+  const activeProjectState = useActiveProjectState();
+  const activeProject = activeProjectState.resolved.project;
+  const projectDataEnabled = !activeProjectState.projectsAvailable || Boolean(activeProject);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState(today());
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>("");
@@ -83,10 +89,10 @@ export default function BuildingCostComparisonPage() {
   const [editingBuildingId, setEditingBuildingId] = useState<number | null>(null);
   const [buildingForm, setBuildingForm] = useState({ name: "", code: "", type: "owned_building" as "owned_building" | "subcontractor", budget: "0" });
 
-  const buildingsQuery = trpc.buildings.list.useQuery();
+  const buildingsQuery = trpc.buildings.list.useQuery(undefined, { ...inventoryQueryOptions, enabled: projectDataEnabled });
   const createBuilding = trpc.buildings.create.useMutation({ onSuccess: () => { toast.success("تمت إضافة المبنى"); void buildingsQuery.refetch(); void report.refetch(); resetBuildingForm(); }, onError: error => toast.error(error.message || "تعذر إضافة المبنى") });
   const updateBuilding = trpc.buildings.update.useMutation({ onSuccess: () => { toast.success("تم تعديل بيانات المبنى"); void buildingsQuery.refetch(); void report.refetch(); resetBuildingForm(); }, onError: error => toast.error(error.message || "تعذر تعديل المبنى") });
-  const report = trpc.reports.buildingCostComparison.useQuery({ fromDate: fromDate || undefined, toDate: toDate || undefined });
+  const report = trpc.reports.buildingCostComparison.useQuery({ fromDate: fromDate || undefined, toDate: toDate || undefined }, { ...inventoryQueryOptions, enabled: projectDataEnabled });
   const rows = report.data?.rows ?? [];
   const itemRows = report.data?.itemRows ?? [];
   const totals = report.data?.totals ?? { movements: 0, quantity: 0, cost: 0, budget: 0, remainingBudget: 0 };
@@ -179,6 +185,7 @@ export default function BuildingCostComparisonPage() {
             </div>
             <h1 className="text-2xl font-black tracking-tight text-[#102a43] sm:text-3xl">استهلاك المباني والتكاليف</h1>
             <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-600 sm:text-sm sm:leading-7">تابع الكميات المصروفة وتكلفتها وميزانية كل مبنى في لوحة واحدة، مع مقارنة سريعة ورسوم واضحة على الهاتف والكمبيوتر.</p>
+            {activeProject ? <div className="mt-3 inline-flex items-center rounded-full border border-[#b9d4d9] bg-[#eef8f7] px-3 py-1.5 text-xs font-black text-[#0d4f62]">بيانات المشروع النشط: {projectLabel(activeProject)}</div> : activeProjectState.projectsAvailable ? <div className="mt-3 inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-800">جارٍ تحديد المشروع النشط...</div> : null}
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <Button variant="outline" onClick={() => void report.refetch()} disabled={report.isFetching} className="h-10 rounded-xl border-[#cfe1e4] bg-white/90 px-3 font-bold text-[#0d4f62] sm:px-4">

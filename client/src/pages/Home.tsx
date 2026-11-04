@@ -37,6 +37,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useActiveProjectState } from "@/components/ProjectSwitcher";
+import { projectLabel } from "@/lib/projectSelection";
 
 const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 });
 const formatNumber = (value: number | string | null | undefined) => numberFormatter.format(Number(value ?? 0));
@@ -288,21 +290,24 @@ function WarehouseBranchCard({ warehouse, lowItems, onOpen }: { warehouse: { id:
 export default function Home() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  const activeProjectState = useActiveProjectState();
+  const activeProject = activeProjectState.resolved.project;
+  const projectDataEnabled = !activeProjectState.projectsAvailable || Boolean(activeProject);
   const [previewReadOnly, setPreviewReadOnly] = useState<boolean | null>(() => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); return raw ? Boolean(JSON.parse(raw)?.readOnly) : null; } catch { return null; } });
   useEffect(() => { const syncPreview = () => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); setPreviewReadOnly(raw ? Boolean(JSON.parse(raw)?.readOnly) : null); } catch { setPreviewReadOnly(null); } }; window.addEventListener("smart-inventory-preview", syncPreview); return () => window.removeEventListener("smart-inventory-preview", syncPreview); }, []);
   const isReadOnly = previewReadOnly ?? ["viewer", "reviewer", "reports"].includes(user?.role ?? "");
-  const summary = trpc.dashboard.summary.useQuery(undefined, dashboardQueryOptions);
+  const summary = trpc.dashboard.summary.useQuery(undefined, { ...dashboardQueryOptions, enabled: projectDataEnabled });
   const absences = trpc.governance.absenceList.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchOnWindowFocus: true });
   const [absenceDetailsOpen, setAbsenceDetailsOpen] = useState(false);
   const absenceDays = (absences.data ?? []).reduce((total, row) => total + Number(row.days ?? 0), 0);
-  const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
+  const warehouses = trpc.warehouses.list.useQuery(undefined, { ...inventoryQueryOptions, enabled: projectDataEnabled });
   const permissions = trpc.permissions.mine.useQuery(undefined, { ...inventoryQueryOptions, refetchOnMount: "always" });
   const allowedWarehouseIds = permissions.data?.allowedWarehouseIds ?? [];
   const visibleWarehouses = permissions.data ? (allowedWarehouseIds.length ? (warehouses.data ?? []).filter(item => allowedWarehouseIds.includes(item.id)) : warehouses.data ?? []) : [];
-  const inventory = trpc.items.list.useQuery(undefined, inventoryQueryOptions);
+  const inventory = trpc.items.list.useQuery(undefined, { ...inventoryQueryOptions, enabled: projectDataEnabled });
   const visibleInventory = allowedWarehouseIds.length ? (inventory.data ?? []).filter(item => item.warehouseId == null || allowedWarehouseIds.includes(item.warehouseId)) : inventory.data ?? [];
-  const warehouseLowStock = trpc.items.warehouseLowStock.useQuery(undefined, inventoryQueryOptions);
-  const warehouseBalanceSummary = trpc.items.warehouseBalanceSummaries.useQuery(undefined, inventoryQueryOptions);
+  const warehouseLowStock = trpc.items.warehouseLowStock.useQuery(undefined, { ...inventoryQueryOptions, enabled: projectDataEnabled });
+  const warehouseBalanceSummary = trpc.items.warehouseBalanceSummaries.useQuery(undefined, { ...inventoryQueryOptions, enabled: projectDataEnabled });
   const totalItems = Number(summary.data?.stats.totalItems ?? 0);
   const lowStockCount = Number(summary.data?.stats.lowStockCount ?? 0);
   const healthPercent = totalItems ? Math.max(0, Math.round(((totalItems - lowStockCount) / totalItems) * 100)) : 0;
@@ -316,13 +321,13 @@ export default function Home() {
   const [itemCardOpen, setItemCardOpen] = useState(false);
   const itemCardResults = trpc.items.list.useQuery(
     { search: itemCardSearch.trim() || undefined },
-    { ...inventoryQueryOptions, enabled: itemCardLookupOpen && Boolean(itemCardSearch.trim()) },
+    { ...inventoryQueryOptions, enabled: projectDataEnabled && itemCardLookupOpen && Boolean(itemCardSearch.trim()) },
   );
   const analytics = summary.data?.analytics;
   const timelineAnalyticsInput = useMemo(() => ({ warehouseId: timelineWarehouseId === "all" ? null : timelineWarehouseId }), [timelineWarehouseId]);
-  const timelineAnalytics = trpc.dashboard.movementAnalytics.useQuery(timelineAnalyticsInput, dashboardQueryOptions);
+  const timelineAnalytics = trpc.dashboard.movementAnalytics.useQuery(timelineAnalyticsInput, { ...dashboardQueryOptions, enabled: projectDataEnabled });
   const smartWatchInput = useMemo(() => ({ severity: "watch" as const, page: 1, pageSize: 3 }), []);
-  const smartWatch = trpc.alerts.smartForecast.useQuery(smartWatchInput, dashboardQueryOptions);
+  const smartWatch = trpc.alerts.smartForecast.useQuery(smartWatchInput, { ...dashboardQueryOptions, enabled: projectDataEnabled });
   const selectedTimelineWarehouse = timelineWarehouseId === "all" ? null : visibleWarehouses.find(warehouse => warehouse.id === timelineWarehouseId) ?? null;
   const timelineLabel = selectedTimelineWarehouse?.name ?? "كل المخازن";
   const movementSeries = useMemo(
@@ -373,7 +378,7 @@ export default function Home() {
           <div className="relative z-10 flex flex-col justify-between gap-3 md:gap-5 md:flex-row md:items-end">
             <div>
               <HomeHeroDateTime />
-              <p className="text-xs font-black uppercase tracking-[0.28em] text-[#f5c27b]">SMART INVENTORY</p>
+              <div className="flex flex-wrap items-center gap-2"><p className="text-xs font-black uppercase tracking-[0.28em] text-[#f5c27b]">SMART INVENTORY</p>{activeProject ? <span className="rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-black text-white/90">المشروع النشط: {projectLabel(activeProject)}</span> : activeProjectState.projectsAvailable ? <span className="rounded-full border border-amber-200/40 bg-amber-100/15 px-2.5 py-1 text-[10px] font-black text-amber-100">جارٍ تحديد المشروع...</span> : null}</div>
               <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">لوحة تشغيل المخزون</h2>
               <p className="mt-2 max-w-xl text-sm leading-6 text-white/70">ملخص اليوم، حركة المخازن، والتنبيهات المهمة في مكان واحد.</p>
             </div>
