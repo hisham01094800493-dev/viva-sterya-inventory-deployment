@@ -41,15 +41,26 @@ describe("buildGovernanceNavigationItems", () => {
 });
 
 describe("buildMobileNavigationItems", () => {
-  it("shows the main sections and excludes movement shortcuts from the bottom dock", () => {
+  it("shows the five daily operational destinations in the bottom dock", () => {
     const items = buildMobileNavigationItems();
     expect(items.map(({ mobileLabel, path }) => [mobileLabel, path])).toEqual([
       ["الرئيسية", "/"],
       ["الأصناف", "/items"],
-      ["المخازن", "/warehouses"],
-      ["التقارير", "/reports"],
-      ["الإعدادات", "/settings"],
+      ["إضافة", "/additions"],
+      ["صرف", "/disbursements"],
+      ["الجرد", "/inventory-audit"],
     ]);
-    expect(items.some(({ path }) => ["/additions", "/disbursements"].includes(path))).toBe(false);
+  });
+
+  it("keeps reporting and settings out of the bottom dock", () => {
+    const items = buildMobileNavigationItems();
+    expect(items.some(({ path }) => ["/reports", "/settings", "/warehouses"].includes(path))).toBe(false);
+  });
+
+  it("gives every dock destination a label and a short hint", () => {
+    for (const item of buildMobileNavigationItems()) {
+      expect(item.mobileLabel?.length).toBeGreaterThan(0);
+      expect(item.mobileHint?.length).toBeGreaterThan(0);
+    }
   });
 });
