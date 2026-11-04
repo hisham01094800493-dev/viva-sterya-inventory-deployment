@@ -428,13 +428,21 @@ export type InsertSetting = typeof settings.$inferInsert;
 
 export const reportSchedulerRuns = mysqlTable("report_scheduler_runs", {
   id: int("id").autoincrement().primaryKey(),
-  reportDate: varchar("report_date", { length: 10 }).notNull().unique(),
+  // عزل المشاريع: لكل مشروع سجل تشغيل مستقل في نفس اليوم.
+  // القيمة NULL تعني السجل القديم/العام قبل تفعيل العزل.
+  projectId: int("project_id"),
+  reportDate: varchar("report_date", { length: 10 }).notNull(),
   status: mysqlEnum("status", ["running", "success", "failed"]).notNull(),
   startedAt: timestamp("started_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
   resultSummary: text("result_summary"),
   errorMessage: text("error_message"),
-}, table => [index("report_scheduler_runs_status_idx").on(table.status), index("report_scheduler_runs_completed_at_idx").on(table.completedAt)]);
+}, table => [
+  uniqueIndex("report_scheduler_runs_project_date_uq").on(table.projectId, table.reportDate),
+  index("report_scheduler_runs_status_idx").on(table.status),
+  index("report_scheduler_runs_completed_at_idx").on(table.completedAt),
+  index("report_scheduler_runs_project_idx").on(table.projectId),
+]);
 
 export type ReportSchedulerRun = typeof reportSchedulerRuns.$inferSelect;
 export type InsertReportSchedulerRun = typeof reportSchedulerRuns.$inferInsert;
