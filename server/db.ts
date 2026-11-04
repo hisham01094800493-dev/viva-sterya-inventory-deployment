@@ -55,6 +55,7 @@ import {
   backupVerificationConfigs,
   backupVerificationRuns,
   projects,
+  reportSchedulerRuns,
   User,
   userAbsences,
   users,
@@ -4926,7 +4927,12 @@ export function collectBackupAssetReferences(
 export async function exportBackupSnapshot(projectId?: number | null) {
   const db = await requireDb();
   const scoped = projectId != null;
+  const projectWhere = scoped ? eq(projects.id, projectId!) : undefined;
   const warehouseWhere = scoped ? eq(warehouses.projectId, projectId!) : undefined;
+  const buildingWhere = scoped ? eq(buildings.projectId, projectId!) : undefined;
+  const reportRunWhere = scoped
+    ? eq(reportSchedulerRuns.projectId, projectId!)
+    : undefined;
   const itemWhere = scoped ? eq(items.projectId, projectId!) : undefined;
   const additionWhere = scoped ? eq(additions.projectId, projectId!) : undefined;
   const disbursementWhere = scoped ? eq(disbursements.projectId, projectId!) : undefined;
@@ -4940,8 +4946,10 @@ export async function exportBackupSnapshot(projectId?: number | null) {
       : eq(itemWarehouseBalances.id, -1)
     : undefined;
   const [
+    projectRows,
     usersRows,
     warehouseRows,
+    buildingRows,
     supplierRows,
     customerRows,
     itemRows,
@@ -4950,6 +4958,7 @@ export async function exportBackupSnapshot(projectId?: number | null) {
     disbursementRows,
     transferRows,
     settingsRows,
+    reportRunRows,
     preferenceRows,
     permissionRows,
     auditRows,
@@ -4962,8 +4971,10 @@ export async function exportBackupSnapshot(projectId?: number | null) {
     chatReceiptRows,
     revokedSessionRows,
   ] = await Promise.all([
+    db.select().from(projects).where(projectWhere),
     db.select().from(users),
     db.select().from(warehouses).where(warehouseWhere),
+    db.select().from(buildings).where(buildingWhere),
     db.select().from(suppliers),
     db.select().from(customers),
     db.select().from(items).where(itemWhere),
@@ -4972,6 +4983,7 @@ export async function exportBackupSnapshot(projectId?: number | null) {
     db.select().from(disbursements).where(disbursementWhere),
     db.select().from(transfers).where(transferWhere),
     db.select().from(settings),
+    db.select().from(reportSchedulerRuns).where(reportRunWhere),
     db.select().from(userPreferences),
     db.select().from(userPermissions),
     db.select().from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(5000),
@@ -5001,8 +5013,10 @@ export async function exportBackupSnapshot(projectId?: number | null) {
       .limit(5000),
   ]);
   const tables = {
+    projects: projectRows,
     users: usersRows,
     warehouses: warehouseRows,
+    buildings: buildingRows,
     suppliers: supplierRows,
     customers: customerRows,
     items: itemRows,
@@ -5011,6 +5025,7 @@ export async function exportBackupSnapshot(projectId?: number | null) {
     disbursements: disbursementRows,
     transfers: transferRows,
     settings: settingsRows,
+    reportSchedulerRuns: reportRunRows,
     userPreferences: preferenceRows,
     userPermissions: permissionRows,
     auditLogs: auditRows,
@@ -5649,8 +5664,10 @@ export async function resetOperationalData(
 }
 
 const RESTORABLE_BACKUP_TABLES = [
+  "projects",
   "users",
   "warehouses",
+  "buildings",
   "suppliers",
   "customers",
   "items",
@@ -5659,6 +5676,7 @@ const RESTORABLE_BACKUP_TABLES = [
   "disbursements",
   "transfers",
   "settings",
+  "reportSchedulerRuns",
   "userPreferences",
   "userPermissions",
   "auditLogs",
@@ -5676,8 +5694,10 @@ const BACKUP_TIMESTAMP_FIELDS: Record<
   (typeof RESTORABLE_BACKUP_TABLES)[number],
   readonly string[]
 > = {
+  projects: ["createdAt", "updatedAt"],
   users: ["createdAt", "updatedAt", "lastSignedIn"],
   warehouses: ["createdAt", "updatedAt"],
+  buildings: ["createdAt", "updatedAt"],
   suppliers: ["createdAt", "updatedAt"],
   customers: ["createdAt", "updatedAt"],
   items: ["createdAt", "updatedAt"],
@@ -5686,6 +5706,7 @@ const BACKUP_TIMESTAMP_FIELDS: Record<
   disbursements: ["createdAt"],
   transfers: ["createdAt"],
   settings: ["updatedAt"],
+  reportSchedulerRuns: ["startedAt", "completedAt"],
   userPreferences: ["updatedAt"],
   userPermissions: ["updatedAt"],
   auditLogs: ["createdAt"],
@@ -5880,8 +5901,10 @@ async function restoreBackupSnapshotIntoDatabase(
             .onDuplicateKeyUpdate({ set: updateSet as any });
         }
       };
+      await merge("projects", projects, tables.projects);
       await merge("users", users, tables.users);
       await merge("warehouses", warehouses, tables.warehouses);
+      await merge("buildings", buildings, tables.buildings);
       await merge("suppliers", suppliers, tables.suppliers);
       await merge("customers", customers, tables.customers);
       await merge("items", items, tables.items);
@@ -5894,6 +5917,11 @@ async function restoreBackupSnapshotIntoDatabase(
       await merge("disbursements", disbursements, tables.disbursements);
       await merge("transfers", transfers, tables.transfers);
       await merge("settings", settings, tables.settings);
+      await merge(
+        "reportSchedulerRuns",
+        reportSchedulerRuns,
+        tables.reportSchedulerRuns
+      );
       await merge("userPreferences", userPreferences, tables.userPreferences);
       await merge("userPermissions", userPermissions, tables.userPermissions);
       await merge("auditLogs", auditLogs, tables.auditLogs);
@@ -5956,8 +5984,10 @@ const BACKUP_SQL_TABLE_NAMES: Record<
   (typeof RESTORABLE_BACKUP_TABLES)[number],
   string
 > = {
+  projects: "projects",
   users: "users",
   warehouses: "warehouses",
+  buildings: "buildings",
   suppliers: "suppliers",
   customers: "customers",
   items: "items",
@@ -5966,6 +5996,7 @@ const BACKUP_SQL_TABLE_NAMES: Record<
   disbursements: "disbursements",
   transfers: "transfers",
   settings: "settings",
+  reportSchedulerRuns: "report_scheduler_runs",
   userPreferences: "user_preferences",
   userPermissions: "user_permissions",
   auditLogs: "audit_logs",
@@ -6172,8 +6203,10 @@ export async function runIsolatedFullBackupRestore() {
         batchSize: 200,
       });
       const restoreTables: Record<string, any> = {
+        projects,
         users,
         warehouses,
+        buildings,
         suppliers,
         customers,
         items,
@@ -6182,6 +6215,7 @@ export async function runIsolatedFullBackupRestore() {
         disbursements,
         transfers,
         settings,
+        reportSchedulerRuns,
         userPreferences,
         userPermissions,
         auditLogs,
