@@ -1519,12 +1519,25 @@ export async function getMainWarehouseItemCards(
   projectId?: number | null
 ) {
   const db = await requireDb();
+  // «المخزن الرئيسي» مفهوم داخل المشروع: هو المخزن صاحب الرقم 1 في نفس المشروع،
+  // وليس المعرّف 1 عالميًا (فالمعرّف 1 يخص المشروع الافتراضي فقط).
+  const mainWarehouseId =
+    projectId == null
+      ? 1
+      : (
+          await db
+            .select({ id: warehouses.id })
+            .from(warehouses)
+            .where(and(eq(warehouses.projectId, projectId), eq(warehouses.slot, 1)))
+            .limit(1)
+        )[0]?.id;
+  if (mainWarehouseId == null) return [];
   const warehouseItems = await db
     .select()
     .from(items)
     .where(
       and(
-        eq(items.warehouseId, 1),
+        eq(items.warehouseId, mainWarehouseId),
         projectId != null ? eq(items.projectId, projectId) : undefined
       )
     )
