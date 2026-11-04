@@ -50,6 +50,7 @@ describe("buildMobileNavigationItems", () => {
       ["صرف", "/disbursements"],
       ["الجرد", "/inventory-audit"],
     ]);
+    expect(items).toHaveLength(5);
   });
 
   it("keeps reporting and settings out of the bottom dock", () => {
