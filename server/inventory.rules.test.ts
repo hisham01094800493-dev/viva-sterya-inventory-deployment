@@ -37,13 +37,22 @@ describe("inventory quantity rules", () => {
     ).toThrowError(InventoryError);
   });
 
-  it("rejects reversing more outgoing stock than the item has recorded", () => {
-    expect(() =>
+  it("restores current stock when a recorded outgoing movement is reversed", () => {
+    expect(
       calculateStockDelta(
         { code: "A-1", incomingStock: "10.000", outgoingStock: "1.000", currentStock: "9.000" },
-        { incoming: 0, outgoing: -1001, current: 1001 },
+        { incoming: 0, outgoing: -1000, current: 1000 },
       ),
-    ).toThrow("لا يمكن أن تصبح حركة المخزون سالبة");
+    ).toEqual({ incomingStock: "10.000", outgoingStock: "0.000", currentStock: "10.000" });
+  });
+
+  it("rejects a reversal that would make the recorded incoming stock negative", () => {
+    expect(() =>
+      calculateStockDelta(
+        { code: "A-1", incomingStock: "1.000", outgoingStock: "1.000", currentStock: "0.000" },
+        { incoming: -1001, outgoing: 0, current: 1001 },
+      ),
+    ).toThrow("لا يمكن أن تصبح حركة الوارد سالبة");
   });
 
   it("starts automatic warehouse codes at 10001 and fills skipped unused codes", () => {

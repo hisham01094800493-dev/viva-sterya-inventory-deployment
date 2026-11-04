@@ -5,7 +5,21 @@ import { createDisbursement } from "./db";
 
 vi.mock("./db", async () => {
   const actual = await vi.importActual<typeof import("./db")>("./db");
-  return { ...actual, createDisbursement: vi.fn() };
+  return {
+    ...actual,
+    createDisbursement: vi.fn(),
+    getUserPermissionSettings: vi.fn(async (userId: number) => ({
+      userId,
+      allowedScreens: ["dashboard", "inventory", "additions", "disbursements", "transfers", "suppliers", "customers", "reports", "alerts", "chat", "stock-adjustments", "settings"],
+      allowedReports: ["inventory-summary", "movement-reports", "item-card", "supplier-account", "customer-account", "adjustments", "warehouse-financial-details", "item-create"],
+      allowedWarehouseIds: [],
+      allowedProjectIds: [],
+      readOnly: false,
+    })),
+    getActiveProjectForUser: vi.fn(async () => null),
+    getWarehouseProjectIds: vi.fn(async () => []),
+    createAuditLog: vi.fn(async () => 1),
+  };
 });
 
 function context(): TrpcContext {
@@ -17,7 +31,7 @@ describe("ربط العملاء بأذونات الصرف", () => {
   it("يمرر customerId إلى دالة إنشاء إذن الصرف", async () => {
     vi.mocked(createDisbursement).mockResolvedValue({ id: 11 } as never);
     const caller = appRouter.createCaller(context());
-    await caller.disbursements.create({ date: "2026-08-15", eznNum: "D-11", itemCode: "SI-000001", quantity: 2, customerId: 4, destination: "شركة العميل" });
+    await caller.disbursements.create({ date: "2026-08-15", eznNum: "D-11", itemCode: "SI-000001", quantity: 2, customerId: 4, buildingId: 7, destination: "شركة العميل" });
     expect(createDisbursement).toHaveBeenCalledWith(expect.objectContaining({ customerId: 4, destination: "شركة العميل" }));
   });
 });

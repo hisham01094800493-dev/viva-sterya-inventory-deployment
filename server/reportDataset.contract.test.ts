@@ -8,10 +8,18 @@ const reportsPageSource = readFileSync(new URL("../client/src/pages/ReportsPage.
 describe("قابلية توسع بيانات التقارير", () => {
   it("يجلب جميع صفوف الحركات المطابقة من الخادم دون حد 500 سجل", () => {
     expect(databaseSource).toContain("export async function getReportDataset");
-    expect(databaseSource).toContain("input.includeRows ? db.select().from(additions)");
-    expect(databaseSource).toContain("db.select().from(additions).where(additionsWhere).orderBy(desc(additions.id))");
-    expect(databaseSource).toContain("db.select().from(disbursements).where(disbursementsWhere).orderBy(desc(disbursements.id))");
-    expect(databaseSource).toContain("db.select().from(transfers).where(transfersWhere).orderBy(desc(transfers.id))");
+    expect(databaseSource).toContain("const additionRowsPromise = input.includeRows");
+    expect(databaseSource).toContain("const disbursementRowsPromise = input.includeRows");
+    expect(databaseSource).toContain("const transferRowsPromise = input.includeRows");
+    expect(databaseSource).toContain(".from(additions)");
+    expect(databaseSource).toContain(".from(disbursements)");
+    expect(databaseSource).toContain(".from(transfers)");
+    expect(databaseSource).toContain(".where(additionsWhere)");
+    expect(databaseSource).toContain(".where(disbursementsWhere)");
+    expect(databaseSource).toContain(".where(transfersWhere)");
+    expect(databaseSource).toContain(".orderBy(desc(additions.id))");
+    expect(databaseSource).toContain(".orderBy(desc(disbursements.id))");
+    expect(databaseSource).toContain(".orderBy(desc(transfers.id))");
     const reportDatasetSection = databaseSource.slice(databaseSource.indexOf("export async function getReportDataset"), databaseSource.indexOf("export function isReturnTransfer"));
     expect(reportDatasetSection).not.toContain(".limit(500)");
   });

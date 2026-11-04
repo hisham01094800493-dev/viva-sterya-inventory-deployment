@@ -7,7 +7,7 @@ describe("التحقق من صور الأصناف", () => {
   });
 
   it("يرفض الصيغ غير المدعومة والصور الأكبر من 5 ميجابايت", () => {
-    expect(validateItemImage({ type: "application/pdf", size: 1024 })).toContain("JPG");
+    expect(validateItemImage({ type: "application/pdf", size: 1024 })).toBe("اختر ملف صورة بصيغة صحيحة");
     expect(validateItemImage({ type: "image/jpeg", size: 5 * 1024 * 1024 + 1 })).toContain("5 ميجابايت");
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildAccountStatementRows, filterAndSortDirectory } from "../client/src/pages/WarehousesSuppliersPages";
-import { cameraImageInputProps, normalizeScannedBarcode } from "../client/src/pages/InventoryPages";
+import { cameraImageInputProps } from "../client/src/pages/InventoryPages";
+import { normalizeScannedBarcode } from "../client/src/components/BarcodeScanner";
 
 describe("بحث وترتيب أدلة الجهات", () => {
   const rows = [
