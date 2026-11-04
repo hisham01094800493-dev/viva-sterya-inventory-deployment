@@ -185,10 +185,10 @@ describe("حسابات ترقيم الحركات", () => {
     expect(warehousePage).toContain("items.warehouseCards.useQuery");
     expect(warehousePage).toContain("warehouseName: selected?.name");
     expect(warehousePage).toContain("معاينة تقرير {reportName}");
-    expect(homePage).toContain("WAREHOUSE OVERVIEW");
-    expect(homePage).toContain("عرض ${branchWarehouses.length} مخازن أخرى");
-    expect(homePage).toContain("تحويل داخلي");
-    expect(homePage).toContain("mainWarehouse");
+    expect(homePage).toContain("المخازن والفروع");
+    expect(homePage).toContain("عرض الفروع");
+    expect(homePage).toContain("warehouseBalances.map");
+    expect(homePage).toContain("setWarehouseCardsExpanded");
     expect(homePage).toContain("صنف تحت الحد");
     expect(homePage).toContain("لا أصناف بعد");
     expect(homePage).toContain("مخزن هالك");
@@ -206,7 +206,7 @@ describe("حسابات ترقيم الحركات", () => {
   it("يستخرج تنبيهات الفروع من أرصدة المخازن الفعلية لا من قائمة الأصناف العامة", () => {
     const db = readFileSync(resolve(process.cwd(), "server/db.ts"), "utf8");
     const router = readFileSync(resolve(process.cwd(), "server/routers.ts"), "utf8");
-    expect(db).toContain("export async function listWarehouseLowStockItems()");
+    expect(db).toContain("export async function listWarehouseLowStockItems(");
     expect(db).toContain(".from(itemWarehouseBalances)");
     expect(db).toContain("innerJoin(items, eq(items.id, itemWarehouseBalances.itemId))");
     expect(db).toContain('gt(items.reorderLevel, "0")');

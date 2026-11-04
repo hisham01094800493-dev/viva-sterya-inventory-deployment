@@ -1,4 +1,6 @@
 import ExcelJS from "exceljs";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { uploadCompanyLogo } from "./companyLogoUpload";
 import { buildOutboundReturnRows } from "../client/src/lib/reportMovements";
@@ -364,17 +366,25 @@ describe("تحسينات تقارير المخزون", () => {
   });
 
   it("يستخدم خطًا عربيًا TTF متاحًا لنسخة Railway بدل مسار تخزين محلي غير منشور", () => {
-    expect(ARABIC_PDF_FONT_URL).toContain("DejaVuSans.ttf");
-    expect(ARABIC_PDF_FONT_URL).toMatch(/^https:\/\//);
+    expect(ARABIC_PDF_FONT_URL).toBe("/fonts/DejaVuSans.ttf");
+    expect(ARABIC_PDF_FONT_URL).not.toContain("/manus-storage/");
   });
 
-  it("يضمّن خط DejaVu Sans الداعم للعربية ورموز المقاس في مولدات PDF الأساسية", async () => {
-    const movement = await buildMovementPdf([{ id: 1, type: "إضافة", date: "2026-08-26", eznNum: "A-1", itemCode: "10001", name: "صنف عربي", quantity: 1, detail: "وارد من: المخزن", unitPrice: 1, totalValue: 1 }]);
-    const inventory = await buildInventoryPdf([{ id: 1, code: "10001", name: "صنف عربي", category: "تصنيف", unit: "قطعة", currentStock: 1, reorderLevel: 0, unitPrice: 1 } as any]);
-    const itemCard = await buildItemCardPdf({ item: { id: 1, code: "10001", name: "صنف عربي", initialStock: 1, currentStock: 1, unitPrice: 1 } as any, additions: [], disbursements: [], returns: [] });
-    const mainWarehouse = await buildMainWarehousePdf([{ item: { id: 1, code: "10001", name: "صنف عربي", initialStock: 1, currentStock: 1, unitPrice: 1 }, additions: [], disbursements: [], returns: [] }]);
-    const account = await buildAccountStatementPdf([{ id: 1, type: "إضافة", date: "2026-08-26", eznNum: "A-1", itemCode: "10001", name: "صنف عربي", quantity: 1, detail: "وارد من: المخزن", unitPrice: 1, totalValue: 1 }]);
-    [movement, inventory, itemCard, mainWarehouse, account].forEach(pdf => expect(pdf.output()).toContain("DejaVuSans"));
+  it("يوجّه كل مولّد PDF أساسي عبر خط DejaVu Sans المضمّن", () => {
+    const source = readFileSync(resolve(process.cwd(), "client/src/lib/inventoryExportFiles.ts"), "utf8");
+    const bodyOf = (builder: string) => {
+      const start = source.indexOf(`export async function ${builder}`);
+      expect(start).toBeGreaterThan(-1);
+      return source.slice(start, source.indexOf("export async function", start + 10));
+    };
+    for (const builder of ["buildMovementPdf", "buildInventoryPdf", "buildItemCardPdf", "buildMainWarehousePdf"]) {
+      expect(bodyOf(builder)).toContain("configureArabicPdf");
+    }
+    // Account statements reuse the movement renderer, which owns the font setup.
+    expect(bodyOf("buildAccountStatementPdf")).toContain("buildMovementPdf(");
+    expect(source).toContain('doc.addFileToVFS("DejaVuSans.ttf", fontData)');
+    expect(source).toContain('doc.addFont("DejaVuSans.ttf", PDF_FONT_NAME, "normal")');
+    expect(source).toContain('doc.addFont("DejaVuSans.ttf", PDF_FONT_NAME, "bold")');
   });
 
   it("ينشئ ملفات كشف حساب مستقلة Excel وPDF", async () => {

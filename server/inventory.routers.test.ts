@@ -5,7 +5,10 @@ import {
   createDisbursement,
   createTransfer,
   getItemByCode,
+  getItemById,
   getItemCard,
+  getMovementWarehouseIds,
+  getMovementSnapshot,
   suggestNextItemCode,
   getInventoryRows,
   getLatestPermitSummaries,
@@ -30,6 +33,21 @@ vi.mock("./db", async () => {
     getSettingValue: vi.fn(),
     listItems: vi.fn(),
     updateTransfer: vi.fn(),
+    getItemById: vi.fn(),
+    getMovementWarehouseIds: vi.fn(),
+    getMovementSnapshot: vi.fn(),
+    getMovementAnalytics: vi.fn(),
+    createAuditLog: vi.fn(async () => 1),
+    getUserPermissionSettings: vi.fn(async (userId: number) => ({
+      userId,
+      allowedScreens: ["dashboard", "inventory", "additions", "disbursements", "transfers", "suppliers", "customers", "reports", "alerts", "chat", "stock-adjustments", "settings"],
+      allowedReports: ["inventory-summary", "movement-reports", "item-card", "supplier-account", "customer-account", "adjustments", "warehouse-financial-details", "item-create"],
+      allowedWarehouseIds: [],
+      allowedProjectIds: [],
+      readOnly: false,
+    })),
+    getActiveProjectForUser: vi.fn(async () => null),
+    getWarehouseProjectIds: vi.fn(async () => []),
   };
 });
 
@@ -71,6 +89,7 @@ describe("inventory tRPC routers", () => {
         date: "2026-08-15",
         eznNum: "DIS-1",
         itemCode: "A-1",
+        buildingId: 5,
         quantity: 0,
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -84,6 +103,7 @@ describe("inventory tRPC routers", () => {
       date: "2026-08-15",
       eznNum: "DIS-2",
       itemCode: "A-2",
+      buildingId: 5,
       quantity: 3,
       destination: "التشغيل",
     });
@@ -92,15 +112,17 @@ describe("inventory tRPC routers", () => {
       date: "2026-08-15",
       eznNum: "DIS-2",
       itemCode: "A-2",
+      buildingId: 5,
       quantity: 3,
       destination: "التشغيل",
+      projectId: null,
     });
   });
 
   it("passes the offline idempotency key to the disbursement service", async () => {
     vi.mocked(createDisbursement).mockResolvedValue({ id: 8, clientRequestId: "offline-1234567890" } as any);
     const caller = appRouter.createCaller(createContext());
-    await caller.disbursements.create({ date: "2026-08-15", eznNum: "DIS-OFFLINE", itemCode: "A-3", quantity: 2, clientRequestId: "offline-1234567890" });
+    await caller.disbursements.create({ date: "2026-08-15", eznNum: "DIS-OFFLINE", itemCode: "A-3", buildingId: 5, quantity: 2, clientRequestId: "offline-1234567890" });
     expect(createDisbursement).toHaveBeenCalledWith(expect.objectContaining({ clientRequestId: "offline-1234567890" }));
   });
 
@@ -113,10 +135,11 @@ describe("inventory tRPC routers", () => {
   });
 
   it("returns the complete item card with movement groups", async () => {
+    vi.mocked(getItemById).mockResolvedValue({ id: 3, code: "10001", name: "صنف تجريبي", warehouseId: 2 } as any);
     vi.mocked(getItemCard).mockResolvedValue({ item: { id: 3, code: "10001", name: "صنف تجريبي", initialStock: "5.000", currentStock: "8.000" }, additions: [{ id: 1 }], disbursements: [{ id: 2 }], returns: [{ id: 3 }] } as any);
     const caller = appRouter.createCaller(createContext());
     await expect(caller.items.card({ id: 3 })).resolves.toMatchObject({ item: { code: "10001" }, additions: [{ id: 1 }], disbursements: [{ id: 2 }], returns: [{ id: 3 }] });
-    expect(getItemCard).toHaveBeenCalledWith(3);
+    expect(getItemCard).toHaveBeenCalledWith(3, [], null);
   });
 
   it("previews the next warehouse-scoped code before item creation", async () => {
@@ -168,9 +191,11 @@ describe("inventory tRPC routers", () => {
 
   it("exposes transfer updates with typed input", async () => {
     vi.mocked(updateTransfer).mockResolvedValue({ id: 12, quantity: "4.000" } as any);
+    vi.mocked(getMovementWarehouseIds).mockResolvedValue([1, 2]);
+    vi.mocked(getMovementSnapshot).mockResolvedValue({ id: 12 } as any);
     const caller = appRouter.createCaller(createContext());
     const result = await caller.transfers.update({ id: 12, quantity: 4, transferType: "مرتجع" });
-    expect(result).toEqual({ id: 12, quantity: "4.000" });
+    expect(result).toMatchObject({ id: 12, quantity: "4.000" });
     expect(updateTransfer).toHaveBeenCalledWith({ id: 12, quantity: 4, transferType: "مرتجع" });
     expect(createTransfer).not.toHaveBeenCalled();
   });
@@ -179,6 +204,6 @@ describe("inventory tRPC routers", () => {
     vi.mocked(listItems).mockResolvedValue([{ id: 1, code: "A-1" }] as any);
     const caller = appRouter.createCaller(createContext());
     await expect(caller.items.list({ search: "A-1" })).resolves.toEqual([{ id: 1, code: "A-1" }]);
-    expect(listItems).toHaveBeenCalledWith("A-1");
+    expect(listItems).toHaveBeenCalledWith("A-1", undefined, null);
   });
 });

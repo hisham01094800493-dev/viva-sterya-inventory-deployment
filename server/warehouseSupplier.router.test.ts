@@ -1,14 +1,37 @@
 import { describe, expect, it, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
-import { createCustomer, createSupplier, listCustomerAccount, listCustomers, listSupplierAccount, listSuppliers, listWarehouses, updateWarehouse } from "./db";
+import { createCustomer, createSupplier, listCustomerAccount, listCustomers, listSupplierAccount, listSuppliers, listWarehouses, listWarehousesForAccess, updateWarehouse, getMovementWarehouseIds, getMovementSnapshot } from "./db";
 import { uploadDocumentImage } from "./documentImageUpload";
 
 vi.mock("./documentImageUpload", () => ({ uploadDocumentImage: vi.fn() }));
 
 vi.mock("./db", async () => {
   const actual = await vi.importActual<typeof import("./db")>("./db");
-  return { ...actual, listWarehouses: vi.fn(), updateWarehouse: vi.fn(), listSuppliers: vi.fn(), createSupplier: vi.fn(), listCustomers: vi.fn(), createCustomer: vi.fn(), listSupplierAccount: vi.fn(), listCustomerAccount: vi.fn() };
+  return {
+    ...actual,
+    listWarehouses: vi.fn(),
+    listWarehousesForAccess: vi.fn(),
+    getMovementWarehouseIds: vi.fn(),
+    getMovementSnapshot: vi.fn(),
+    updateWarehouse: vi.fn(),
+    listSuppliers: vi.fn(),
+    createSupplier: vi.fn(),
+    listCustomers: vi.fn(),
+    createCustomer: vi.fn(),
+    listSupplierAccount: vi.fn(),
+    listCustomerAccount: vi.fn(),
+    getUserPermissionSettings: vi.fn(async (userId: number) => ({
+      userId,
+      allowedScreens: ["dashboard", "inventory", "additions", "disbursements", "transfers", "suppliers", "customers", "reports", "alerts", "chat", "stock-adjustments", "settings"],
+      allowedReports: ["inventory-summary", "movement-reports", "item-card", "supplier-account", "customer-account", "adjustments", "warehouse-financial-details", "item-create"],
+      allowedWarehouseIds: [],
+      allowedProjectIds: [],
+      readOnly: false,
+    })),
+    getActiveProjectForUser: vi.fn(async () => null),
+    getWarehouseProjectIds: vi.fn(async () => []),
+  };
 });
 
 function context(role: "user" | "admin" = "admin"): TrpcContext {
@@ -18,7 +41,7 @@ function context(role: "user" | "admin" = "admin"): TrpcContext {
 
 describe("tRPC للمخازن والموردين", () => {
   it("يعرض المخازن الخمسة ويحدّث اسم المخزن عبر الإجراء الإداري", async () => {
-    vi.mocked(listWarehouses).mockResolvedValue([1, 2, 3, 4, 5].map(slot => ({ id: slot, slot, name: `المخزن ${slot}` })) as never);
+    vi.mocked(listWarehousesForAccess).mockResolvedValue([1, 2, 3, 4, 5].map(slot => ({ id: slot, slot, name: `المخزن ${slot}` })) as never);
     vi.mocked(updateWarehouse).mockResolvedValue({ id: 2, slot: 2, name: "مخزن قطع الغيار" } as never);
     const caller = appRouter.createCaller(context());
     await expect(caller.warehouses.list()).resolves.toHaveLength(5);
@@ -32,12 +55,14 @@ describe("tRPC للمخازن والموردين", () => {
     const caller = appRouter.createCaller(context("user"));
     await expect(caller.additions.account({ supplierId: 3 })).resolves.toHaveLength(1);
     await expect(caller.disbursements.account({ customerId: 4 })).resolves.toHaveLength(1);
-    expect(listSupplierAccount).toHaveBeenCalledWith(3);
-    expect(listCustomerAccount).toHaveBeenCalledWith(4);
+    expect(listSupplierAccount).toHaveBeenCalledWith(3, [], null);
+    expect(listCustomerAccount).toHaveBeenCalledWith(4, [], null);
   });
 
   it("يربط مساري رفع صور الأذونات بنوع الحركة والرقم الصحيح", async () => {
     vi.mocked(uploadDocumentImage).mockResolvedValue({ id: 12, documentImageUrl: "https://cdn.test/permit.png" } as never);
+    vi.mocked(getMovementWarehouseIds).mockResolvedValue([1]);
+    vi.mocked(getMovementSnapshot).mockResolvedValue({ id: 12 } as never);
     const caller = appRouter.createCaller(context("user"));
     await caller.additions.uploadDocumentImage({ movementId: 12, fileName: "addition.png", contentType: "image/png", dataBase64: "data:image/png;base64,cGFwZXI=" });
     await caller.disbursements.uploadDocumentImage({ movementId: 18, fileName: "disbursement.png", contentType: "image/png", dataBase64: "data:image/png;base64,cGFwZXI=" });
