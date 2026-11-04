@@ -1214,8 +1214,12 @@ export async function listItemsPaged(
   };
 }
 
-export async function listItemCategories(allowedWarehouseIds: number[] = []) {
+export async function listItemCategories(
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
+) {
   const db = await requireDb();
+  const projectCondition = projectId != null ? eq(items.projectId, projectId) : undefined;
   const rows = allowedWarehouseIds.length
     ? await db
         .selectDistinct({ category: items.category })
@@ -1224,11 +1228,17 @@ export async function listItemCategories(allowedWarehouseIds: number[] = []) {
           itemWarehouseBalances,
           eq(itemWarehouseBalances.itemId, items.id)
         )
-        .where(inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds))
+        .where(
+          and(
+            inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds),
+            projectCondition
+          )
+        )
         .orderBy(asc(items.category))
     : await db
         .selectDistinct({ category: items.category })
         .from(items)
+        .where(projectCondition)
         .orderBy(asc(items.category));
   return rows.map(row => row.category || "بدون تصنيف");
 }
@@ -1286,36 +1296,42 @@ export function isAccountOnlyDisbursement(row: { eznNum?: string | number | null
 }
 export async function getItemCard(
   itemId: number,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
-  const itemWhere = allowedWarehouseIds.length
-    ? and(eq(items.id, itemId), inArray(items.warehouseId, allowedWarehouseIds))
-    : eq(items.id, itemId);
-  const itemRows = await db.select().from(items).where(itemWhere).limit(1);
+  const itemConditions = [
+    eq(items.id, itemId),
+    allowedWarehouseIds.length ? inArray(items.warehouseId, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(items.projectId, projectId) : undefined,
+  ].filter(Boolean);
+  const itemRows = await db
+    .select()
+    .from(items)
+    .where(and(...(itemConditions as any[])))
+    .limit(1);
   const item = itemRows[0];
   if (!item) return undefined;
-  const additionWhere = allowedWarehouseIds.length
-    ? and(
-        eq(additions.itemCode, item.code),
-        inArray(additions.warehouseId, allowedWarehouseIds)
-      )
-    : eq(additions.itemCode, item.code);
-  const disbursementWhere = allowedWarehouseIds.length
-    ? and(
-        eq(disbursements.itemCode, item.code),
-        inArray(disbursements.warehouseId, allowedWarehouseIds)
-      )
-    : eq(disbursements.itemCode, item.code);
-  const transferWhere = allowedWarehouseIds.length
-    ? and(
-        eq(transfers.itemCode, item.code),
-        or(
+  const additionWhere = and(
+    eq(additions.itemCode, item.code),
+    allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(additions.projectId, projectId) : undefined
+  );
+  const disbursementWhere = and(
+    eq(disbursements.itemCode, item.code),
+    allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(disbursements.projectId, projectId) : undefined
+  );
+  const transferWhere = and(
+    eq(transfers.itemCode, item.code),
+    allowedWarehouseIds.length
+      ? or(
           inArray(transfers.fromWarehouseId, allowedWarehouseIds),
           inArray(transfers.toWarehouseId, allowedWarehouseIds)
         )
-      )
-    : eq(transfers.itemCode, item.code);
+      : undefined,
+    projectId != null ? eq(transfers.projectId, projectId) : undefined
+  );
   const [additionRows, disbursementRows, transferRows] = await Promise.all([
     db
       .select()
@@ -1389,33 +1405,45 @@ export async function getItemCard(
 }
 
 export async function getMainWarehouseItemCards(
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
   const warehouseItems = await db
     .select()
     .from(items)
-    .where(eq(items.warehouseId, 1))
+    .where(
+      and(
+        eq(items.warehouseId, 1),
+        projectId != null ? eq(items.projectId, projectId) : undefined
+      )
+    )
     .orderBy(desc(items.updatedAt));
   return Promise.all(
-    warehouseItems.map(item => getItemCard(item.id, allowedWarehouseIds))
+    warehouseItems.map(item => getItemCard(item.id, allowedWarehouseIds, projectId))
   );
 }
 
 export async function getWarehouseItemCards(
   warehouseId: number,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
   const warehouseItems = await db
     .select({ item: items, warehouseStock: itemWarehouseBalances.currentStock })
     .from(itemWarehouseBalances)
     .innerJoin(items, eq(items.id, itemWarehouseBalances.itemId))
-    .where(eq(itemWarehouseBalances.warehouseId, warehouseId))
+    .where(
+      and(
+        eq(itemWarehouseBalances.warehouseId, warehouseId),
+        projectId != null ? eq(items.projectId, projectId) : undefined
+      )
+    )
     .orderBy(desc(items.updatedAt));
   return Promise.all(
     warehouseItems.map(async row => {
-      const card = await getItemCard(row.item.id, allowedWarehouseIds);
+      const card = await getItemCard(row.item.id, allowedWarehouseIds, projectId);
       return card
         ? { ...card, item: { ...card.item, currentStock: row.warehouseStock } }
         : undefined;
@@ -1846,7 +1874,6 @@ export async function listAdditions(
   if (allowedWarehouseIds.length)
     conditions.push(inArray(additions.warehouseId, allowedWarehouseIds));
   if (projectId != null) conditions.push(eq(additions.projectId, projectId));
-  if (projectId != null) conditions.push(eq(additions.projectId, projectId));
   return db
     .select()
     .from(additions)
@@ -1885,6 +1912,44 @@ export async function getMovementWarehouseIds(
     .where(eq(transfers.id, id))
     .limit(1);
   return rows[0] ? [rows[0].fromWarehouseId, rows[0].toWarehouseId] : [];
+}
+
+/**
+ * يعيد معرف المشروع لكل مخزن مطلوب. تُستخدم للتحقق من أن المخازن الممرّرة
+ * في أي عملية كتابة تنتمي فعلًا إلى المشروع النشط.
+ */
+export async function getWarehouseProjectIds(warehouseIds: number[]) {
+  const uniqueIds = Array.from(new Set(warehouseIds.filter(id => Number.isInteger(id) && id > 0)));
+  if (!uniqueIds.length) return [] as Array<{ id: number; projectId: number | null }>;
+  const db = await requireDb();
+  return db
+    .select({ id: warehouses.id, projectId: warehouses.projectId })
+    .from(warehouses)
+    .where(inArray(warehouses.id, uniqueIds));
+}
+
+/** يعيد معرف المشروع المسجّل على حركة مخزنية، أو undefined إذا لم توجد. */
+export async function getMovementProjectId(
+  type: "addition" | "disbursement" | "transfer",
+  id: number
+): Promise<number | null | undefined> {
+  const db = await requireDb();
+  if (type === "addition") {
+    const rows = await db.select({ projectId: additions.projectId }).from(additions).where(eq(additions.id, id)).limit(1);
+    return rows[0] ? rows[0].projectId : undefined;
+  }
+  if (type === "disbursement") {
+    const rows = await db.select({ projectId: disbursements.projectId }).from(disbursements).where(eq(disbursements.id, id)).limit(1);
+    return rows[0] ? rows[0].projectId : undefined;
+  }
+  const rows = await db.select({ projectId: transfers.projectId }).from(transfers).where(eq(transfers.id, id)).limit(1);
+  return rows[0] ? rows[0].projectId : undefined;
+}
+
+export async function getBuildingProjectId(id: number): Promise<number | null | undefined> {
+  const db = await requireDb();
+  const rows = await db.select({ projectId: buildings.projectId }).from(buildings).where(eq(buildings.id, id)).limit(1);
+  return rows[0] ? rows[0].projectId : undefined;
 }
 
 export type MovementPageInput = {
@@ -1942,6 +2007,7 @@ export async function listAdditionsPaged(
     conditions.push(eq(additions.supplierId, input.supplierId));
   if (input.fromDate) conditions.push(gte(additions.date, input.fromDate));
   if (input.toDate) conditions.push(lte(additions.date, input.toDate));
+  if (projectId != null) conditions.push(eq(additions.projectId, projectId));
   if (allowedWarehouseIds.length)
     conditions.push(inArray(additions.warehouseId, allowedWarehouseIds));
   const whereClause = conditions.length ? and(...conditions) : undefined;
@@ -1974,15 +2040,15 @@ export async function listAdditionsPaged(
 
 export async function listSupplierAccount(
   supplierId: number,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
-  const where = allowedWarehouseIds.length
-    ? and(
-        eq(additions.supplierId, supplierId),
-        inArray(additions.warehouseId, allowedWarehouseIds)
-      )
-    : eq(additions.supplierId, supplierId);
+  const where = and(
+    eq(additions.supplierId, supplierId),
+    allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(additions.projectId, projectId) : undefined
+  );
   return db.select().from(additions).where(where).orderBy(desc(additions.id));
 }
 export function buildCustomerTransferAccountRows(transferRows: Array<any>, customerId: number) {
@@ -2029,18 +2095,22 @@ export function normalizeCustomerAccountDisbursement<T extends { eznNum?: string
 }
 export async function listCustomerAccount(
   customerId: number,
-  allowedWarehouseIds: number[] = []
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
 ) {
   const db = await requireDb();
-  const where = allowedWarehouseIds.length
-    ? and(
-        eq(disbursements.customerId, customerId),
-        inArray(disbursements.warehouseId, allowedWarehouseIds)
-      )
-    : eq(disbursements.customerId, customerId);
+  const where = and(
+    eq(disbursements.customerId, customerId),
+    allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(disbursements.projectId, projectId) : undefined
+  );
   const disbursementRows = await db.select().from(disbursements).where(where);
   const normalizedDisbursementRows = disbursementRows.map(normalizeCustomerAccountDisbursement);
-  const transferRows = await db.select().from(transfers).where(or(eq(transfers.fromCustomerId, customerId), eq(transfers.toCustomerId, customerId)));
+  const transferWhere = and(
+    or(eq(transfers.fromCustomerId, customerId), eq(transfers.toCustomerId, customerId)),
+    projectId != null ? eq(transfers.projectId, projectId) : undefined
+  );
+  const transferRows = await db.select().from(transfers).where(transferWhere);
   const syntheticRows = buildCustomerTransferAccountRows(transferRows, customerId);
   return [...normalizedDisbursementRows, ...syntheticRows].sort((a, b) => Number(b.id) - Number(a.id));
 }
@@ -2435,6 +2505,7 @@ export async function listDisbursementsPaged(
   if (input.toDate) conditions.push(lte(disbursements.date, input.toDate));
   if (allowedWarehouseIds.length)
     conditions.push(inArray(disbursements.warehouseId, allowedWarehouseIds));
+  if (projectId != null) conditions.push(eq(disbursements.projectId, projectId));
   const whereClause = conditions.length ? and(...conditions) : undefined;
   const [rows, totalRows] = await Promise.all([
     db
@@ -2597,6 +2668,7 @@ export async function createDisbursementBatch(input: {
   clientRequestId: string;
   userId: number;
   userName?: string | null;
+  projectId?: number | null;
   lines: Array<{ itemCode: string; quantity: number; unitPrice?: number }>;
 }) {
   const db = await requireDb();
@@ -2644,6 +2716,7 @@ export async function createDisbursementBatch(input: {
       .limit(1);
     if (!buildingRows[0]) throw new InventoryError("BAD_REQUEST", "المبنى المختار غير موجود أو غير نشط");
     const warehouse = await resolveWarehouseId(tx, input.warehouseId);
+    const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
     const lockedItems = new Map<string, any>();
     for (const code of Array.from(new Set(normalizedLines.map(line => line.itemCode))).sort())
       lockedItems.set(code, await getItemForUpdate(tx, code));
@@ -2951,6 +3024,7 @@ export async function listTransfersPaged(
         inArray(transfers.toWarehouseId, allowedWarehouseIds)
       )
     );
+  if (projectId != null) conditions.push(eq(transfers.projectId, projectId));
   const whereClause = conditions.length ? and(...conditions) : undefined;
   const [rows, totalRows] = await Promise.all([
     db
@@ -6409,26 +6483,46 @@ export async function upsertSetting(input: {
   return rows[0];
 }
 
-export async function getVoiceMovementQueryData(allowedWarehouseIds: number[] = []) {
+export async function getVoiceMovementQueryData(
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
+) {
   const db = await requireDb();
-  const movementWhere = allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined;
-  const disbursementWhere = allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined;
-  const transferWhere = allowedWarehouseIds.length ? or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)) : undefined;
+  const movementWhere = and(
+    allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(additions.projectId, projectId) : undefined
+  );
+  const disbursementWhere = and(
+    allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(disbursements.projectId, projectId) : undefined
+  );
+  const transferWhere = and(
+    allowedWarehouseIds.length ? or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)) : undefined,
+    projectId != null ? eq(transfers.projectId, projectId) : undefined
+  );
+  const warehouseWhere = projectId != null ? eq(warehouses.projectId, projectId) : undefined;
   const [additionRows, disbursementRows, transferRows, warehouseRows] = await Promise.all([
     db.select({ id: additions.id, date: additions.date, itemCode: additions.itemCode, itemName: additions.itemName, quantity: additions.quantity, unitPrice: additions.unitPrice, totalValue: additions.totalValue, warehouseId: additions.warehouseId, supplier: additions.supplier, store: additions.store }).from(additions).where(movementWhere),
     db.select({ id: disbursements.id, date: disbursements.date, itemCode: disbursements.itemCode, itemName: disbursements.itemName, quantity: disbursements.quantity, unitPrice: disbursements.unitPrice, totalValue: disbursements.totalValue, warehouseId: disbursements.warehouseId, customer: disbursements.destination, store: disbursements.store }).from(disbursements).where(disbursementWhere),
     db.select({ id: transfers.id, date: transfers.date, itemCode: transfers.itemCode, itemName: transfers.itemName, quantity: transfers.quantity, unitPrice: transfers.unitPrice, totalValue: transfers.totalValue, fromWarehouseId: transfers.fromWarehouseId, toWarehouseId: transfers.toWarehouseId, fromStore: transfers.fromStore, toStore: transfers.toStore }).from(transfers).where(transferWhere),
-    db.select({ id: warehouses.id, name: warehouses.name }).from(warehouses),
+    db.select({ id: warehouses.id, name: warehouses.name }).from(warehouses).where(warehouseWhere),
   ]);
   return { rows: [...additionRows.map(row => ({ ...row, movementType: "addition" as const })), ...disbursementRows.map(row => ({ ...row, movementType: "disbursement" as const })), ...transferRows.map(row => ({ ...row, warehouseId: row.fromWarehouseId ?? row.toWarehouseId, movementType: "transfer" as const }))], warehouses: warehouseRows };
 }
 
-export async function getVoiceStockQueryData(allowedWarehouseIds: number[] = []) {
+export async function getVoiceStockQueryData(
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
+) {
   const db = await requireDb();
-  const warehouseWhere = allowedWarehouseIds.length ? inArray(warehouses.id, allowedWarehouseIds) : undefined;
+  const warehouseWhere = and(
+    allowedWarehouseIds.length ? inArray(warehouses.id, allowedWarehouseIds) : undefined,
+    projectId != null ? eq(warehouses.projectId, projectId) : undefined
+  );
   const balanceWhere = allowedWarehouseIds.length ? inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds) : undefined;
+  const itemWhere = projectId != null ? eq(items.projectId, projectId) : undefined;
   const [itemRows, balanceRows, warehouseRows] = await Promise.all([
-    db.select({ id: items.id, code: items.code, name: items.name, unit: items.unit, warehouseId: items.warehouseId, currentStock: items.currentStock }).from(items),
+    db.select({ id: items.id, code: items.code, name: items.name, unit: items.unit, warehouseId: items.warehouseId, currentStock: items.currentStock }).from(items).where(itemWhere),
     db.select({ itemId: itemWarehouseBalances.itemId, warehouseId: itemWarehouseBalances.warehouseId, currentStock: itemWarehouseBalances.currentStock }).from(itemWarehouseBalances).where(balanceWhere),
     db.select({ id: warehouses.id, name: warehouses.name, slot: warehouses.slot }).from(warehouses).where(warehouseWhere).orderBy(asc(warehouses.slot)),
   ]);

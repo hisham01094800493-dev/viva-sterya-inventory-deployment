@@ -65,6 +65,50 @@ type ProjectSwitcherProps = {
   className?: string;
 };
 
+const ACTIVE_PROJECT_STORAGE_KEY = "smart-inventory-active-project";
+
+function readUrlProjectId(): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("projectId") ?? params.get("warehouseId");
+    const id = raw ? Number(raw) : NaN;
+    return Number.isInteger(id) && id > 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredProjectId(): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY);
+    const id = raw ? Number(raw) : NaN;
+    return Number.isInteger(id) && id > 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistActiveProject(projectId: number | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (projectId == null) window.localStorage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
+    else window.localStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, String(projectId));
+  } catch {
+    /* ignore storage failures */
+  }
+  try {
+    const url = new URL(window.location.href);
+    if (projectId == null) url.searchParams.delete("projectId");
+    else url.searchParams.set("projectId", String(projectId));
+    url.searchParams.delete("warehouseId");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  } catch {
+    /* ignore history failures */
+  }
+}
+
 export function ProjectSwitcher({ state, className = "" }: ProjectSwitcherProps) {
   const fallbackState = useActiveProjectState();
   const active = state ?? fallbackState;
@@ -75,20 +119,36 @@ export function ProjectSwitcher({ state, className = "" }: ProjectSwitcherProps)
 
   const setActive = trpc.projects.setActive.useMutation({
     onSuccess: project => {
+      persistActiveProject(project?.id ?? null);
       toast.success(`تم التبديل إلى ${project ? projectLabel(project) : "المشروع المحدد"}`);
       void utils.invalidate();
     },
     onError: error => toast.error(error.message || "تعذّر تبديل المشروع"),
   });
 
-  // اختيار تلقائي عندما يملك المستخدم مشروعًا واحدًا فقط.
+  // مزامنة المشروع النشط مع الرابط وlocalStorage والخادم.
+  // الأولوية: معرّف المشروع في الرابط، ثم المحفوظ محليًا، ثم أول مشروع مسموح.
   useEffect(() => {
-    const target = active.resolved.autoSelectId;
-    if (target == null) return;
+    if (active.isLoading) return;
+    const currentId = active.resolved.project?.id ?? null;
+    const urlId = readUrlProjectId();
+    const storedId = readStoredProjectId();
+    const candidates = [urlId, storedId, active.resolved.autoSelectId].filter(
+      (id): id is number => id != null,
+    );
+    const target = candidates.find(id => active.projects.some(project => project.id === id));
+    if (target == null) {
+      if (currentId != null) persistActiveProject(currentId);
+      return;
+    }
+    if (target === currentId) {
+      persistActiveProject(currentId);
+      return;
+    }
     if (autoSelectedRef.current === target) return;
     autoSelectedRef.current = target;
     setActive.mutate({ projectId: target });
-  }, [active.resolved.autoSelectId, setActive]);
+  }, [active.isLoading, active.projects, active.resolved.project?.id, active.resolved.autoSelectId, setActive]);
 
   useEffect(() => {
     if (!open) return;
