@@ -40,6 +40,73 @@ export class ItemSpecError extends Error {
   }
 }
 
+export type SpecFieldVisibility = {
+  size: boolean;
+  tone: boolean;
+  thickness: boolean;
+};
+
+/**
+ * يحدد الحقول التي تظهر لنوع الصنف: العادي بلا حقول، السيراميك مقاس + تون،
+ * والرخام مقاس + سُمك. تستخدمه الواجهة لإظهار/إخفاء الحقول، ويُختبر مباشرة.
+ */
+export function specFieldVisibility(itemType: ItemType): SpecFieldVisibility {
+  if (itemType === "ceramic") return { size: true, tone: true, thickness: false };
+  if (itemType === "marble") return { size: true, tone: false, thickness: true };
+  return { size: false, tone: false, thickness: false };
+}
+
+/**
+ * يمسح قيم الحقول غير المتوافقة مع النوع الجديد حتى لا تُرسَل أو تُحفظ مخفية.
+ * يعمل على قيم الواجهة النصية (يحوّلها إلى "") وعلى قيم أخرى عبر النوع العام.
+ */
+export function clearSpecFieldsForType<T extends Record<string, any>>(
+  value: T,
+  itemType: ItemType
+): T {
+  const visibility = specFieldVisibility(itemType);
+  return {
+    ...value,
+    itemType,
+    sizeLengthCm: visibility.size ? value.sizeLengthCm : "",
+    sizeWidthCm: visibility.size ? value.sizeWidthCm : "",
+    tone: visibility.tone ? value.tone : "",
+    thicknessCm: visibility.thickness ? value.thicknessCm : "",
+  };
+}
+
+/**
+ * يتوقع أكوادًا متتالية انطلاقًا من الكود المقترح من الخادم، للعرض فقط قبل الحفظ.
+ * كل صف مواصفات يحصل على كود مستقل، ولا يُعاد استخدام أي كود.
+ */
+export function predictSequentialCodes(
+  base: string | null | undefined,
+  count: number
+): string[] {
+  if (!base) return Array.from({ length: count }, () => "");
+  const match = base.match(/^(.*?)(\d+)$/);
+  if (!match) return Array.from({ length: count }, (_, index) => (index === 0 ? base : ""));
+  const [, prefix, digits] = match;
+  const start = Number(digits);
+  const width = digits.length;
+  return Array.from({ length: count }, (_, index) => `${prefix}${String(start + index).padStart(width, "0")}`);
+}
+
+/**
+ * يحلّل استعلام بحث بصيغة مقاس مثل "30×60" أو "30x60" أو "30 * 60".
+ * يعيد الرقمين أو null إن لم يكن الاستعلام مقاسًا.
+ */
+export function parseSizeSearchQuery(
+  search: string | null | undefined
+): { first: string; second: string } | null {
+  if (!search) return null;
+  const match = search
+    .trim()
+    .match(/^(\d+(?:\.\d+)?)\s*[x×*]\s*(\d+(?:\.\d+)?)$/i);
+  if (!match) return null;
+  return { first: match[1], second: match[2] };
+}
+
 function parseOptionalDimension(
   value: number | string | null | undefined,
   label: string

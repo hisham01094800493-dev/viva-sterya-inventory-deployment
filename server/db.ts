@@ -72,6 +72,7 @@ import {
 import {
   ItemSpecError,
   normalizeItemSpec,
+  parseSizeSearchQuery,
   type ItemSpecInput,
   type ItemType,
 } from "@shared/itemSpec";
@@ -1017,6 +1018,66 @@ async function nextItemCode(tx: any, _warehouseId?: number | null) {
   return selected.code;
 }
 
+/**
+ * يبني شروط البحث النصية للأصناف، بما في ذلك البحث بالمقاس والسُمك.
+ * يدعم أيضاً صيغة "30×60" أو "30x60" للبحث عن مقاس محدد بغض النظر عن الترتيب.
+ */
+function buildItemSearchConditions(normalizedSearch: string) {
+  const pattern = `%${normalizedSearch}%`;
+  const conditions: any[] = [
+    like(items.code, pattern),
+    like(items.name, pattern),
+    like(items.tone, pattern),
+    like(items.specGroupKey, pattern),
+    sql`CAST(${items.sizeLengthCm} AS CHAR) LIKE ${pattern}`,
+    sql`CAST(${items.sizeWidthCm} AS CHAR) LIKE ${pattern}`,
+    sql`CAST(${items.thicknessCm} AS CHAR) LIKE ${pattern}`,
+  ];
+  const sizeMatch = parseSizeSearchQuery(normalizedSearch);
+  if (sizeMatch) {
+    const { first, second } = sizeMatch;
+    conditions.push(
+      and(eq(items.sizeLengthCm, first), eq(items.sizeWidthCm, second)),
+      and(eq(items.sizeLengthCm, second), eq(items.sizeWidthCm, first))
+    );
+  }
+  return conditions;
+}
+
+/**
+ * يضيف بيانات مواصفات الصنف لصفوف الحركات (التي تخزّن الاسم والكود فقط)
+ * حتى تعرض شاشات الحركات المقاس والتون أو السُمك بوضوح.
+ */
+async function attachItemSpecs<T extends { itemCode: string }>(
+  rows: T[],
+  projectId?: number | null
+): Promise<(T & Record<string, unknown>)[]> {
+  if (!rows.length) return rows;
+  const codes = Array.from(
+    new Set(rows.map(row => row.itemCode).filter(Boolean))
+  );
+  if (!codes.length) return rows;
+  const db = await requireDb();
+  const specRows = await db
+    .select({
+      code: items.code,
+      itemType: items.itemType,
+      sizeLengthCm: items.sizeLengthCm,
+      sizeWidthCm: items.sizeWidthCm,
+      tone: items.tone,
+      thicknessCm: items.thicknessCm,
+    })
+    .from(items)
+    .where(
+      and(
+        inArray(items.code, codes),
+        projectId != null ? eq(items.projectId, projectId) : undefined
+      )
+    );
+  const specByCode = new Map(specRows.map(row => [row.code, row]));
+  return rows.map(row => ({ ...row, ...(specByCode.get(row.itemCode) ?? {}) }));
+}
+
 export async function listItems(
   search?: string,
   warehouseId?: number,
@@ -1037,15 +1098,7 @@ export async function listItems(
       .orderBy(desc(items.updatedAt));
   }
 
-  const pattern = `%${normalizedSearch}%`;
-  const conditions = [
-    or(
-      like(items.code, pattern),
-      like(items.name, pattern),
-      like(items.tone, pattern),
-      like(items.specGroupKey, pattern)
-    ),
-  ];
+  const conditions = [or(...buildItemSearchConditions(normalizedSearch))];
   if (warehouseId) conditions.push(eq(items.warehouseId, warehouseId));
   if (projectCondition) conditions.push(projectCondition);
   return db
@@ -1301,15 +1354,7 @@ export async function listItemsPaged(
   const normalizedSearch = input.search?.trim();
   const conditions = [];
   if (normalizedSearch) {
-    const pattern = `%${normalizedSearch}%`;
-    conditions.push(
-      or(
-        like(items.code, pattern),
-        like(items.name, pattern),
-        like(items.tone, pattern),
-        like(items.specGroupKey, pattern)
-      )
-    );
+    conditions.push(or(...buildItemSearchConditions(normalizedSearch)));
   }
   if (input.warehouseId)
     conditions.push(eq(items.warehouseId, input.warehouseId));
@@ -1618,7 +1663,7 @@ export async function getItemByCode(code: string) {
   return rows[0];
 }
 
-function normalizeItemSpecOrThrow(input: ItemSpecInput) {
+export function normalizeItemSpecOrThrow(input: ItemSpecInput) {
   try {
     return normalizeItemSpec(input);
   } catch (error) {
@@ -2304,8 +2349,9 @@ export async function listAdditionsPaged(
       .where(whereClause),
   ]);
   const totals = normalizeMovementPageTotals(totalRows[0]);
+  const rowsWithSpecs = await attachItemSpecs(rows, projectId);
   return {
-    rows,
+    rows: rowsWithSpecs,
     ...totals,
     page,
     pageSize,
@@ -2807,8 +2853,9 @@ export async function listDisbursementsPaged(
       .where(whereClause),
   ]);
   const totals = normalizeMovementPageTotals(totalRows[0]);
+  const rowsWithSpecs = await attachItemSpecs(rows, projectId);
   return {
-    rows,
+    rows: rowsWithSpecs,
     ...totals,
     page,
     pageSize,
@@ -3359,8 +3406,9 @@ export async function listTransfersPaged(
       .where(whereClause),
   ]);
   const totals = normalizeMovementPageTotals(totalRows[0]);
+  const rowsWithSpecs = await attachItemSpecs(rows, projectId);
   return {
-    rows,
+    rows: rowsWithSpecs,
     ...totals,
     page,
     pageSize,
