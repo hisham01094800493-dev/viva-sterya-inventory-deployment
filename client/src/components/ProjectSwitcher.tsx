@@ -128,22 +128,6 @@ export function ProjectSwitcher({ state, className = "" }: ProjectSwitcherProps)
       // بدّل هوية المشروع في الكاش أولاً، ثم أزل نتائج المشروع السابق حتى لا
       // تظهر أرصدته لحظيًا أثناء إعادة تحميل بيانات المشروع الجديد.
       if (project) utils.projects.active.setData(undefined, project);
-      const projectScopedRoots = new Set([
-        "dashboard",
-        "items",
-        "warehouses",
-        "buildings",
-        "additions",
-        "disbursements",
-        "transfers",
-        "reports",
-        "alerts",
-        "suppliers",
-        "customers",
-      ]);
-      utils.queryClient.removeQueries({
-        predicate: query => projectScopedRoots.has(String(query.queryKey[0] ?? "")),
-      });
       toast.success(`تم التبديل إلى ${project ? projectLabel(project) : "المشروع المحدد"}`);
       void utils.invalidate();
     },
