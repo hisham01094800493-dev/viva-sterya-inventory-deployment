@@ -37,8 +37,7 @@ import {
   buildings,
   itemWarehouseBalances,
   items,
-  settings,
-  userPreferences,
+  settings,  userPreferences,
   drafts,
   userPermissions,
   transfers,
@@ -70,6 +69,12 @@ import {
   parseQuickActions,
   type ReportColumnOrder,
 } from "@shared/userPreferences";
+import {
+  ItemSpecError,
+  normalizeItemSpec,
+  type ItemSpecInput,
+  type ItemType,
+} from "@shared/itemSpec";
 
 export { InventoryError } from "./db/errors";
 export {
@@ -1034,7 +1039,12 @@ export async function listItems(
 
   const pattern = `%${normalizedSearch}%`;
   const conditions = [
-    or(like(items.code, pattern), like(items.name, pattern)),
+    or(
+      like(items.code, pattern),
+      like(items.name, pattern),
+      like(items.tone, pattern),
+      like(items.specGroupKey, pattern)
+    ),
   ];
   if (warehouseId) conditions.push(eq(items.warehouseId, warehouseId));
   if (projectCondition) conditions.push(projectCondition);
@@ -1292,7 +1302,14 @@ export async function listItemsPaged(
   const conditions = [];
   if (normalizedSearch) {
     const pattern = `%${normalizedSearch}%`;
-    conditions.push(or(like(items.code, pattern), like(items.name, pattern)));
+    conditions.push(
+      or(
+        like(items.code, pattern),
+        like(items.name, pattern),
+        like(items.tone, pattern),
+        like(items.specGroupKey, pattern)
+      )
+    );
   }
   if (input.warehouseId)
     conditions.push(eq(items.warehouseId, input.warehouseId));
@@ -1601,6 +1618,17 @@ export async function getItemByCode(code: string) {
   return rows[0];
 }
 
+function normalizeItemSpecOrThrow(input: ItemSpecInput) {
+  try {
+    return normalizeItemSpec(input);
+  } catch (error) {
+    if (error instanceof ItemSpecError) {
+      throw new InventoryError("BAD_REQUEST", error.message);
+    }
+    throw error;
+  }
+}
+
 export async function createItem(input: {
   code?: string;
   warehouseId?: number | null;
@@ -1613,12 +1641,19 @@ export async function createItem(input: {
   imageKey?: string | null;
   imageUrl?: string | null;
   projectId?: number | null;
+  itemType?: ItemType | null;
+  sizeLengthCm?: number | string | null;
+  sizeWidthCm?: number | string | null;
+  tone?: string | null;
+  thicknessCm?: number | string | null;
+  specGroupKey?: string | null;
 }) {
   const db = await requireDb();
   const name = normalizeItemName(input.name);
   const initial = toScaled(input.initialStock);
   const reorder = toScaled(input.reorderLevel);
   const unitPrice = toMoneyScaled(input.unitPrice);
+  const spec = normalizeItemSpecOrThrow(input);
   if (initial < 0 || reorder < 0 || unitPrice < 0) {
     throw new InventoryError("BAD_REQUEST", "لا يمكن أن تكون الكميات سالبة");
   }
@@ -1650,6 +1685,12 @@ export async function createItem(input: {
         unitPrice: fromMoneyScaled(unitPrice),
         imageKey: input.imageKey?.trim() || null,
         imageUrl: input.imageUrl?.trim() || null,
+        itemType: spec.itemType,
+        sizeLengthCm: spec.sizeLengthCm,
+        sizeWidthCm: spec.sizeWidthCm,
+        tone: spec.tone,
+        thicknessCm: spec.thicknessCm,
+        specGroupKey: spec.specGroupKey,
       });
       const itemId = resultInsertId(result);
       if (initial)
@@ -1682,6 +1723,12 @@ export async function importItems(
     category?: string | null;
     unit?: string | null;
     unitPrice?: number;
+    itemType?: ItemType | null;
+    sizeLengthCm?: number | string | null;
+    sizeWidthCm?: number | string | null;
+    tone?: string | null;
+    thicknessCm?: number | string | null;
+    specGroupKey?: string | null;
   }>,
   projectId?: number | null
 ) {
@@ -1706,6 +1753,25 @@ export async function importItems(
         `كميات سالبة في صف الاستيراد ${index + 1}`
       );
     }
+    let spec;
+    try {
+      spec = normalizeItemSpec(row);
+    } catch (error) {
+      if (error instanceof ItemSpecError) {
+        throw new InventoryError(
+          "BAD_REQUEST",
+          `${error.message} (صف الاستيراد ${index + 1})`
+        );
+      }
+      throw error;
+    }
+    const hasSpecInput =
+      row.itemType != null ||
+      row.sizeLengthCm != null ||
+      row.sizeWidthCm != null ||
+      row.tone != null ||
+      row.thicknessCm != null ||
+      row.specGroupKey != null;
     return {
       code,
       name,
@@ -1714,6 +1780,8 @@ export async function importItems(
       unitPrice,
       category: row.category?.trim() || null,
       unit: row.unit?.trim() || null,
+      spec,
+      hasSpecInput,
     };
   });
 
@@ -1746,12 +1814,19 @@ export async function importItems(
           unit: row.unit,
           unitPrice: fromMoneyScaled(row.unitPrice),
           projectId: writeProjectId,
+          itemType: row.spec.itemType,
+          sizeLengthCm: row.spec.sizeLengthCm,
+          sizeWidthCm: row.spec.sizeWidthCm,
+          tone: row.spec.tone,
+          thicknessCm: row.spec.thicknessCm,
+          specGroupKey: row.spec.specGroupKey,
         });
         created += 1;
         continue;
       }
 
       // لا نغيّر أرصدة صنف لديه حركات؛ الاستيراد يحدّث الدليل فقط حتى لا تتكرر الحركات.
+      // حقول المواصفات تُحدَّث فقط عند تمريرها صراحةً حتى لا تُمسح مواصفات صنف قائم.
       await tx
         .update(items)
         .set({
@@ -1760,6 +1835,16 @@ export async function importItems(
           category: row.category,
           unit: row.unit,
           unitPrice: fromMoneyScaled(row.unitPrice),
+          ...(row.hasSpecInput
+            ? {
+                itemType: row.spec.itemType,
+                sizeLengthCm: row.spec.sizeLengthCm,
+                sizeWidthCm: row.spec.sizeWidthCm,
+                tone: row.spec.tone,
+                thicknessCm: row.spec.thicknessCm,
+                specGroupKey: row.spec.specGroupKey,
+              }
+            : {}),
         })
         .where(eq(items.id, existing.id));
       updated += 1;
@@ -1780,6 +1865,12 @@ export async function updateItem(input: {
   unitPrice?: number;
   imageKey?: string | null;
   imageUrl?: string | null;
+  itemType?: ItemType | null;
+  sizeLengthCm?: number | string | null;
+  sizeWidthCm?: number | string | null;
+  tone?: string | null;
+  thicknessCm?: number | string | null;
+  specGroupKey?: string | null;
 }) {
   const db = await requireDb();
   return db.transaction(async (tx: any) => {
@@ -1792,6 +1883,35 @@ export async function updateItem(input: {
       current.projectId
     );
     let stockWarehouse = currentWarehouse;
+
+    // ندمج الحقول المُرسلة مع القيم الحالية ثم نتحقق من التوافق على الخادم.
+    const spec = normalizeItemSpecOrThrow({
+      itemType:
+        input.itemType !== undefined
+          ? input.itemType
+          : ((current.itemType ?? "general") as ItemType),
+      sizeLengthCm:
+        input.sizeLengthCm !== undefined
+          ? input.sizeLengthCm
+          : current.sizeLengthCm,
+      sizeWidthCm:
+        input.sizeWidthCm !== undefined ? input.sizeWidthCm : current.sizeWidthCm,
+      tone: input.tone !== undefined ? input.tone : current.tone,
+      thicknessCm:
+        input.thicknessCm !== undefined
+          ? input.thicknessCm
+          : current.thicknessCm,
+      specGroupKey:
+        input.specGroupKey !== undefined
+          ? input.specGroupKey
+          : current.specGroupKey,
+    });
+    updates.itemType = spec.itemType;
+    updates.sizeLengthCm = spec.sizeLengthCm;
+    updates.sizeWidthCm = spec.sizeWidthCm;
+    updates.tone = spec.tone;
+    updates.thicknessCm = spec.thicknessCm;
+    updates.specGroupKey = spec.specGroupKey;
 
     if (input.code !== undefined) updates.code = normalizeItemCode(input.code);
     if (input.name !== undefined) updates.name = normalizeItemName(input.name);

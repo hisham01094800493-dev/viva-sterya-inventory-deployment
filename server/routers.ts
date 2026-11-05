@@ -159,6 +159,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { whatsappRouter } from "./whatsappRouter";
 import { adminProcedure, managementProcedure, entryProcedure, writePermissionProcedure, itemCreateProcedure, reviewProcedure, permissionProcedure, reportPermissionProcedure, protectedProcedure, publicProcedure, router, canAccessWarehouses } from "./_core/trpc";
 import { COOKIE_NAME } from "@shared/const";
+import { ITEM_TYPES } from "@shared/itemSpec";
 import { uploadItemImage } from "./itemImageUpload";
 import { uploadCompanyLogo } from "./companyLogoUpload";
 import { uploadDocumentImage } from "./documentImageUpload";
@@ -267,6 +268,22 @@ function assertItemInProject(item: { projectId?: number | null } | null | undefi
   }
 }
 
+const optionalSpecNumber = z
+  .preprocess(
+    value => (value === "" || value === undefined ? null : value),
+    z.coerce.number().positive().nullable()
+  )
+  .optional();
+
+const itemSpecShape = {
+  itemType: z.enum(ITEM_TYPES).nullable().optional(),
+  sizeLengthCm: optionalSpecNumber,
+  sizeWidthCm: optionalSpecNumber,
+  tone: z.string().trim().max(64).nullable().optional(),
+  thicknessCm: optionalSpecNumber,
+  specGroupKey: z.string().trim().max(128).nullable().optional(),
+};
+
 const itemInput = z.object({
   code: z.string().trim().max(64).optional(),
   warehouseId: z.number().int().positive().nullable().optional(),
@@ -276,6 +293,7 @@ const itemInput = z.object({
   category: z.string().trim().max(128).nullable().optional(),
   unit: z.string().trim().max(64).nullable().optional(),
   unitPrice: z.coerce.number().min(0).default(0),
+  ...itemSpecShape,
 });
 
 const importItemInput = z.object({
@@ -286,6 +304,7 @@ const importItemInput = z.object({
   category: z.string().trim().max(128).nullable().optional(),
   unit: z.string().trim().max(64).nullable().optional(),
   unitPrice: z.coerce.number().min(0).optional(),
+  ...itemSpecShape,
 });
 
 const warehouseUpdateInput = z.object({ id: z.number().int().positive(), name: z.string().trim().min(1).max(128) });

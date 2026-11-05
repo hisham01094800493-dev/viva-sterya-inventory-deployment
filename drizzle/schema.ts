@@ -280,6 +280,13 @@ export const items = mysqlTable("items", {
   imageKey: varchar("image_key", { length: 255 }), // مفتاح الصورة في التخزين
   imageUrl: varchar("image_url", { length: 500 }), // رابط الصورة
   unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).default("0").notNull(), // سعر الوحدة
+  // مواصفات اختيارية للسيراميك والرخام. تبقى فارغة للأصناف العادية والقديمة.
+  itemType: mysqlEnum("item_type", ["general", "ceramic", "marble"]).default("general"), // نوع الصنف
+  sizeLengthCm: decimal("size_length_cm", { precision: 8, scale: 2 }), // الطول بالسنتيمتر
+  sizeWidthCm: decimal("size_width_cm", { precision: 8, scale: 2 }), // العرض بالسنتيمتر
+  tone: varchar("tone", { length: 64 }), // درجة اللون / التون للسيراميك
+  thicknessCm: decimal("thickness_cm", { precision: 6, scale: 2 }), // السمك بالسنتيمتر للرخام
+  specGroupKey: varchar("spec_group_key", { length: 128 }), // رابط اختياري لتجميع مواصفات الاسم الأساسي دون دمج الأرصدة
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => [
