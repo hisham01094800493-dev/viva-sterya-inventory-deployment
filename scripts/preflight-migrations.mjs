@@ -124,7 +124,11 @@ log("=== 5) الخلاصة ===");
 const blockers = [];
 if (dupName.length) blockers.push("تكرار أسماء مبانٍ داخل نفس المشروع يمنع 0037");
 if (dupCode.length) blockers.push("تكرار أكواد مبانٍ داخل نفس المشروع يمنع 0037");
-if (Number(nullProject[0].c) > 0) blockers.push("وجود مبانٍ بدون project_id يمنع 0037");
+// ملاحظة: NULL في project_id لا يُفشل القيد المركّب (NULLs متمايزة في MySQL)،
+// لكنه يعني أن العزل لن يُطبَّق على تلك الصفوف. تحذير لا مانع.
+if (Number(nullProject[0].c) > 0) {
+  log("  ⚠️ مبانٍ بدون project_id: القيد المركّب لن يحميها (تحذير لا مانع).");
+}
 if (!missingSpec.length && !hasProjectBuildingUnique) {
   log("  ⚠️ 0039 يبدو مطبّقًا قبل 0037: الترتيب غير سليم.");
 }
