@@ -74,7 +74,9 @@ function readUrlProjectId(): number | null {
   if (typeof window === "undefined") return null;
   try {
     const params = new URLSearchParams(window.location.search);
-    const raw = params.get("projectId") ?? params.get("warehouseId");
+    // لا نستخدم warehouseId هنا: هذا المعرّف يخص المخزن داخل بعض الروابط،
+    // وليس المشروع النشط، وخلطه به قد يبدّل المشروع عند فتح شاشة مخزن.
+    const raw = params.get("projectId");
     const id = raw ? Number(raw) : NaN;
     return Number.isInteger(id) && id > 0 ? id : null;
   } catch {
@@ -123,6 +125,25 @@ export function ProjectSwitcher({ state, className = "" }: ProjectSwitcherProps)
   const setActive = trpc.projects.setActive.useMutation({
     onSuccess: project => {
       persistActiveProject(project?.id ?? null);
+      // بدّل هوية المشروع في الكاش أولاً، ثم أزل نتائج المشروع السابق حتى لا
+      // تظهر أرصدته لحظيًا أثناء إعادة تحميل بيانات المشروع الجديد.
+      if (project) utils.projects.active.setData(undefined, project);
+      const projectScopedRoots = new Set([
+        "dashboard",
+        "items",
+        "warehouses",
+        "buildings",
+        "additions",
+        "disbursements",
+        "transfers",
+        "reports",
+        "alerts",
+        "suppliers",
+        "customers",
+      ]);
+      utils.queryClient.removeQueries({
+        predicate: query => projectScopedRoots.has(String(query.queryKey[0] ?? "")),
+      });
       toast.success(`تم التبديل إلى ${project ? projectLabel(project) : "المشروع المحدد"}`);
       void utils.invalidate();
     },
