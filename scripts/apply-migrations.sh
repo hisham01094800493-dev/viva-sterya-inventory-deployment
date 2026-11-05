@@ -30,9 +30,7 @@ if ! command -v mysqldump >/dev/null 2>&1; then
   echo "❌ mysqldump غير مثبّت. ثبّته قبل المتابعة (apt-get install mysql-client)." >&2
   exit 1
 fi
-mysqldump --single-transaction --quick --routines --triggers \
-  --set-gtid-purged=OFF --no-tablespaces \
-  --result-file="$BACKUP_FILE" "$DATABASE_URL"
+node scripts/backup-mysql.mjs "$BACKUP_FILE"
 echo "✅ النسخة الاحتياطية: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
 
 if [[ "${CONFIRM:-}" != "yes" ]]; then
