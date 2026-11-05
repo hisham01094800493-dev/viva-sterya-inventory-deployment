@@ -34,6 +34,7 @@ export const OPERATIONAL_PATH_PREFIXES = [
   "/warehouses",
   "/additions",
   "/disbursements",
+  "/project-work-center",
   "/transfers",
   "/building-costs",
   "/stock-adjustments",

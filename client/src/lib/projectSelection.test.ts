@@ -76,6 +76,7 @@ describe("isOperationalPath", () => {
     expect(isOperationalPath("/items/123")).toBe(true);
     expect(isOperationalPath("/warehouses/2?tab=stock")).toBe(true);
     expect(isOperationalPath("/reports")).toBe(true);
+    expect(isOperationalPath("/project-work-center")).toBe(true);
   });
 
   it("لا يعتبر شاشات الإدارة تشغيلية", () => {
