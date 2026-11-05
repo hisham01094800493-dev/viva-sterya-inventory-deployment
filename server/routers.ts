@@ -185,6 +185,8 @@ function rethrowInventoryError(error: unknown): never {
             : "BAD_REQUEST";
     throw new TRPCError({ code, message: error.message });
   }
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.startsWith("Failed query:")) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "تعذر حفظ البيانات بسبب عدم توافق قاعدة البيانات مع نسخة البرنامج. يرجى تطبيق آخر تحديثات قاعدة البيانات ثم إعادة المحاولة." });
   throw error;
 }
 

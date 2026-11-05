@@ -133,6 +133,7 @@ function ActiveProjectBadge() {
 function ItemsDialog({ open, onOpenChange, editing, onSaved }: { open: boolean; onOpenChange: (open: boolean) => void; editing?: any; onSaved: () => void }) {
   const activeState = useActiveProjectState();
   const switchingProject = activeState.isSwitching;
+  const activeProjectId = activeState.resolved.project?.id ?? null;
   const [form, setForm] = useState({ code: "", name: "", initialStock: "0", reorderLevel: "0", category: "", unit: "", unitPrice: "0", warehouseId: "", itemType: "general" as ItemType, sizeLengthCm: "", sizeWidthCm: "", tone: "", thicknessCm: "" });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
@@ -141,14 +142,14 @@ function ItemsDialog({ open, onOpenChange, editing, onSaved }: { open: boolean; 
   const create = trpc.items.create.useMutation();
   const update = trpc.items.update.useMutation();
   const uploadImage = trpc.items.uploadImage.useMutation();
-  const warehouses = trpc.warehouses.list.useQuery(undefined, inventoryQueryOptions);
+  const warehouses = trpc.warehouses.list.useQuery(undefined, { ...inventoryQueryOptions, enabled: open && activeProjectId != null });
   const categoryItemsQuery = trpc.items.list.useQuery(
     { warehouseId: form.warehouseId ? Number(form.warehouseId) : undefined },
     { ...inventoryQueryOptions, enabled: open && Boolean(form.warehouseId) }
   );
   const permissions = trpc.permissions.mine.useQuery(undefined, { ...inventoryQueryOptions, refetchOnMount: "always" });
   const allowedWarehouseIds = permissions.data?.allowedWarehouseIds ?? [];
-  const visibleWarehouses = permissions.data ? (allowedWarehouseIds.length ? (warehouses.data ?? []).filter(item => allowedWarehouseIds.includes(item.id)) : warehouses.data ?? []) : [];
+  const visibleWarehouses = permissions.data ? (warehouses.data ?? []).filter(item => item.projectId === activeProjectId && (!allowedWarehouseIds.length || allowedWarehouseIds.includes(item.id))) : [];
   const nextCodeInput = useMemo(() => ({ warehouseId: form.warehouseId ? Number(form.warehouseId) : null }), [form.warehouseId]);
   const nextCode = trpc.items.nextCode.useQuery(nextCodeInput, { ...detailQueryOptions, enabled: open && !editing && !form.code.trim() && Boolean(form.warehouseId) });
   const busy = create.isPending || update.isPending || uploadImage.isPending;
@@ -163,11 +164,21 @@ function ItemsDialog({ open, onOpenChange, editing, onSaved }: { open: boolean; 
     if (!open || editing || form.warehouseId || !visibleWarehouses.length) return;
     setForm(current => ({ ...current, warehouseId: String(visibleWarehouses[0].id) }));
   }, [editing, form.warehouseId, open, visibleWarehouses]);
+  useEffect(() => {
+    if (!open || !activeProjectId) return;
+    setForm(current => ({ ...current, warehouseId: editing ? current.warehouseId : "" }));
+    void warehouses.refetch();
+  }, [activeProjectId, editing, open]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     try {
-      const payload = { code: form.code.trim() || undefined, name: form.name, initialStock: Number(form.initialStock), reorderLevel: Number(form.reorderLevel), category: form.category || null, unit: form.unit || null, unitPrice: Number(form.unitPrice), warehouseId: form.warehouseId ? Number(form.warehouseId) : null, itemType: form.itemType, sizeLengthCm: form.itemType !== "general" && form.sizeLengthCm.trim() ? Number(form.sizeLengthCm) : null, sizeWidthCm: form.itemType !== "general" && form.sizeWidthCm.trim() ? Number(form.sizeWidthCm) : null, tone: form.itemType === "ceramic" && form.tone.trim() ? form.tone.trim() : null, thicknessCm: form.itemType === "marble" && form.thicknessCm.trim() ? Number(form.thicknessCm) : null };
+      if (switchingProject) throw new Error("جارٍ تحديث المشروع، انتظر لحظة ثم حاول مرة أخرى");
+      if (!activeProjectId) throw new Error("لا يوجد مشروع نشط حاليًا");
+      const selectedWarehouseId = form.warehouseId ? Number(form.warehouseId) : null;
+      const selectedWarehouse = visibleWarehouses.find(item => item.id === selectedWarehouseId);
+      if (!selectedWarehouse || selectedWarehouse.projectId !== activeProjectId) throw new Error("المخزن المحدد لا يتبع المشروع الحالي. اختر مخزنًا من المشروع الحالي ثم أعد الحفظ");
+      const payload = { code: form.code.trim() || undefined, name: form.name, initialStock: Number(form.initialStock), reorderLevel: Number(form.reorderLevel), category: form.category || null, unit: form.unit || null, unitPrice: Number(form.unitPrice), warehouseId: selectedWarehouseId, itemType: form.itemType, sizeLengthCm: form.itemType !== "general" && form.sizeLengthCm.trim() ? Number(form.sizeLengthCm) : null, sizeWidthCm: form.itemType !== "general" && form.sizeWidthCm.trim() ? Number(form.sizeWidthCm) : null, tone: form.itemType === "ceramic" && form.tone.trim() ? form.tone.trim() : null, thicknessCm: form.itemType === "marble" && form.thicknessCm.trim() ? Number(form.thicknessCm) : null };
       const saved = editing ? await update.mutateAsync({ id: editing.id, ...payload }) : await create.mutateAsync(payload);
       if (imageFile && saved?.id) {
         const compressed = await compressImageFile(imageFile);
