@@ -7,6 +7,8 @@ export type NotificationSummary = {
   notificationType?: string | null;
   priority?: NotificationPriority | string | null;
   isRead: boolean;
+  link?: string | null;
+  createdAt?: Date | string | null;
 };
 
 export type NotificationTone = { frequency: number; duration: number };

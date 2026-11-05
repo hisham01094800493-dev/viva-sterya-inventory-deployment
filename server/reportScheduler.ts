@@ -18,6 +18,7 @@ import { sendConfiguredEmail } from "./email";
 import { sendWhatsAppNotification } from "./whatsapp";
 import { createHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
 import { parseAllowedProjectIds } from "./projectAccess";
+import { buildDailyReportNotificationLink } from "../shared/dailyReportRoute";
 
 const TIME_ZONE = "Africa/Cairo";
 const LOCK_PREFIX = "smart-inventory:daily-report:cairo";
@@ -231,7 +232,7 @@ async function collectForecastAndBuildings(today: string, now: Date, projectId?:
  * عند تمرير مشروع، لا يُشعَر إلا المدراء المسموح لهم بهذا المشروع (والمدير العام admin)
  * حتى لا تتسرّب أرقام مشروع إلى مسؤول مشروع آخر.
  */
-async function notifyManagers(title: string, content: string, projectId?: number | null) {
+async function notifyManagers(title: string, content: string, projectId: number | null | undefined, reportDate: string) {
   const db = await requireDb();
   const managers = await db
     .select({ id: users.id, role: users.role, allowedProjects: userPermissions.allowedProjects })
@@ -242,7 +243,8 @@ async function notifyManagers(title: string, content: string, projectId?: number
     projectId == null || manager.role === "admin" || parseAllowedProjectIds(manager.allowedProjects).includes(projectId)
   );
   if (!recipients.length) return 0;
-  await Promise.all(recipients.map(manager => db.insert(notifications).values({ recipientUserId: manager.id, createdBy: null, notificationType: "daily_report", title, message: content, priority: "normal", link: "/settings" })));
+  const link = buildDailyReportNotificationLink(reportDate, projectId);
+  await Promise.all(recipients.map(manager => db.insert(notifications).values({ recipientUserId: manager.id, createdBy: null, notificationType: "daily_report", title, message: content, priority: "normal", link })));
   return recipients.length;
 }
 
@@ -409,7 +411,7 @@ export async function runDailyExecutiveReport(options: { force?: boolean; projec
     const message = `${projectName ? `[${projectName}] ` : ""}التقرير التنفيذي ${today}: صرف اليوم ${analysis.totalTodayMovements} حركة، أصناف حرجة ${analysis.forecasts.length}، بدون مبنى ${analysis.unassigned}، منخفض المخزون ${lowStockCount}.`;
     let notifiedManagers = 0;
     let managersError: string | null = null;
-    try { notifiedManagers = await notifyManagers(projectName ? `التقرير التنفيذي اليومي — ${projectName}` : "التقرير التنفيذي اليومي", message, projectId); } catch (error: any) { managersError = error?.message || "فشل حفظ الإشعار الداخلي"; console.error("[ReportScheduler] in-app notification failed", error); }
+    try { notifiedManagers = await notifyManagers(projectName ? `التقرير التنفيذي اليومي — ${projectName}` : "التقرير التنفيذي اليومي", message, projectId, today); } catch (error: any) { managersError = error?.message || "فشل حفظ الإشعار الداخلي"; console.error("[ReportScheduler] in-app notification failed", error); }
     let sentWhatsApp = false;
     let whatsappError: string | null = null;
     try {
@@ -424,7 +426,7 @@ export async function runDailyExecutiveReport(options: { force?: boolean; projec
     const message = error?.message || "تعذر تنفيذ التقرير التنفيذي اليومي";
     if (run) await db.update(reportSchedulerRuns).set({ status: "failed", completedAt: new Date(), errorMessage: message }).where(eq(reportSchedulerRuns.id, run.id));
     await db.insert(auditLogs).values({ userId: null, userName: "report-scheduler", action: "daily_report_failed", entity: "report_scheduler", entityId: `${projectId ?? "global"}:${today}`, details: message });
-    try { await notifyManagers(projectName ? `فشل التقرير التنفيذي — ${projectName}` : "فشل التقرير التنفيذي اليومي", `فشل تشغيل تقرير ${projectName ? `${projectName} ` : ""}${today}: ${message}`, projectId); } catch (notifyError) { console.error("[ReportScheduler] failure notification failed", notifyError); }
+    try { await notifyManagers(projectName ? `فشل التقرير التنفيذي — ${projectName}` : "فشل التقرير التنفيذي اليومي", `فشل تشغيل تقرير ${projectName ? `${projectName} ` : ""}${today}: ${message}`, projectId, today); } catch (notifyError) { console.error("[ReportScheduler] failure notification failed", notifyError); }
     throw error;
   } finally { await lock.release(); }
 }
