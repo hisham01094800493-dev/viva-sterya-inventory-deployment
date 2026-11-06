@@ -30,9 +30,9 @@ function cairoDate(value?: Date | string | null) {
 
 export function buildDailyReportNotificationLink(reportDate: string, projectId?: number | null) {
   const date = isIsoDate(reportDate) ? reportDate : cairoDate();
-  const params = new URLSearchParams({ from: date, to: date, movement: "صرف" });
+  const params = new URLSearchParams({ date });
   if (projectId != null && Number.isInteger(projectId) && projectId > 0) params.set("projectId", String(projectId));
-  return `/reports?${params.toString()}`;
+  return `/project-work-center?${params.toString()}`;
 }
 
 function projectIdFromLegacyNotification(row: DailyReportNotification, projects: DailyReportProject[]) {
@@ -45,13 +45,18 @@ function projectIdFromLegacyNotification(row: DailyReportNotification, projects:
   return namedProject?.id ?? null;
 }
 
+function savedDailyReportParams(link?: string | null) {
+  if (!link) return null;
+  const [path, query = ""] = link.split("?", 2);
+  if (path !== "/reports" && path !== "/project-work-center") return null;
+  return new URLSearchParams(query.split("#", 1)[0]);
+}
+
 export function resolveNotificationLink(row: DailyReportNotification, projects: DailyReportProject[] = []) {
   if (row.notificationType !== "daily_report") return row.link || "/alerts";
 
-  const savedParams = row.link?.startsWith("/reports?")
-    ? new URLSearchParams(row.link.split("?")[1] ?? "")
-    : null;
-  const savedReportDate = savedParams?.get("from") || cairoDate(row.createdAt);
+  const savedParams = savedDailyReportParams(row.link);
+  const savedReportDate = savedParams?.get("date") || savedParams?.get("from") || cairoDate(row.createdAt);
   const parsedProjectId = Number(savedParams?.get("projectId"));
   const projectId = Number.isInteger(parsedProjectId) && parsedProjectId > 0
     ? parsedProjectId

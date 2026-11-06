@@ -19,7 +19,7 @@ function createStorage() {
 }
 
 describe("notification center", () => {
-  it("routes old daily-report notices to a filtered report for the matching project", () => {
+  it("routes old daily-report notices to project disbursements for the matching project", () => {
     const link = resolveNotificationLink({
       notificationType: "daily_report",
       title: "التقرير التنفيذي اليومي — مشروع B1",
@@ -28,16 +28,21 @@ describe("notification center", () => {
       createdAt: new Date("2026-11-05T15:00:00.000Z"),
     }, [{ id: 7, name: "مشروع B1" }]);
     expect(link).toBe(buildDailyReportNotificationLink("2026-11-05", 7));
+    expect(link.startsWith("/project-work-center?")).toBe(true);
     const params = new URLSearchParams(link.split("?")[1]);
-    expect(params.get("from")).toBe("2026-11-05");
-    expect(params.get("to")).toBe("2026-11-05");
-    expect(params.get("movement")).toBe("صرف");
+    expect(params.get("date")).toBe("2026-11-05");
     expect(params.get("projectId")).toBe("7");
   });
 
-  it("preserves report project IDs and fixes global and legacy daily-report links", () => {
-    expect(resolveNotificationLink({ notificationType: "daily_report", link: "/reports?from=2026-11-05&to=2026-11-05&movement=%D8%B5%D8%B1%D9%81&projectId=4" }))
-      .toBe(buildDailyReportNotificationLink("2026-11-05", 4));
+  it("preserves project IDs and dates from old report links and new work-center links", () => {
+    expect(resolveNotificationLink({
+      notificationType: "daily_report",
+      link: "/reports?from=2026-11-05&to=2026-11-05&movement=%D8%B5%D8%B1%D9%81&projectId=4",
+    })).toBe(buildDailyReportNotificationLink("2026-11-05", 4));
+    expect(resolveNotificationLink({
+      notificationType: "daily_report",
+      link: "/project-work-center?date=2026-11-04&projectId=6",
+    })).toBe(buildDailyReportNotificationLink("2026-11-04", 6));
     expect(resolveNotificationLink({ notificationType: "daily_report", link: "/settings", createdAt: "2026-11-05T22:30:00.000Z" }))
       .toBe(buildDailyReportNotificationLink("2026-11-06"));
     expect(resolveNotificationLink({ notificationType: "help_request", link: "/chat" })).toBe("/chat");
