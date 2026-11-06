@@ -180,3 +180,55 @@ export function calculateRebarMaterials(
     totalWeightTons: totalWeightKg / 1000,
   };
 }
+
+
+export type CeramicAreaRequirementInput = {
+  areaSquareMeters: number;
+  areaPerTile: number;
+  tilesPerCarton?: number | null;
+  wastagePercent?: number | null;
+};
+
+/** Converts a required floor/wall area into whole tiles, including optional waste. */
+export function calculateCeramicRequirement(
+  input: CeramicAreaRequirementInput
+): CeramicCalculation | null {
+  if (!isPositiveFinite(input.areaSquareMeters) || !isPositiveFinite(input.areaPerTile))
+    return null;
+  const tileCount = Math.ceil(input.areaSquareMeters / input.areaPerTile);
+  return calculateCeramicMaterials({
+    tileCount,
+    areaPerTile: input.areaPerTile,
+    tilesPerCarton: input.tilesPerCarton,
+    wastagePercent: input.wastagePercent,
+  });
+}
+
+export type CeramicPalletCalculation = {
+  cartonsRequired: number;
+  cartonsPerPallet: number;
+  palletsRequired: number;
+  suppliedCartons: number;
+  extraCartons: number;
+};
+
+/** Rounds a carton requirement up to complete pallets without losing the carton count. */
+export function calculateCeramicPallets(
+  cartonsRequired: number | null | undefined,
+  cartonsPerPallet: number | null | undefined
+): CeramicPalletCalculation | null {
+  if (
+    !Number.isInteger(cartonsRequired) || cartonsRequired == null || cartonsRequired <= 0 ||
+    !Number.isInteger(cartonsPerPallet) || cartonsPerPallet == null || cartonsPerPallet <= 0
+  )
+    return null;
+  const palletsRequired = Math.ceil(cartonsRequired / cartonsPerPallet);
+  const suppliedCartons = palletsRequired * cartonsPerPallet;
+  return {
+    cartonsRequired,
+    cartonsPerPallet,
+    palletsRequired,
+    suppliedCartons,
+    extraCartons: suppliedCartons - cartonsRequired,
+  };
+}
