@@ -2423,6 +2423,36 @@ export async function getPermitDetails(
   return { permitNumber: normalizedPermit, additions: additionRows, disbursements: disbursementRows, transfers: transferRows };
 }
 
+async function additionPermitExists(tx: any, eznNum: string, projectId: number | null, excludeId?: number) {
+  const rows = await tx
+    .select({ id: additions.id })
+    .from(additions)
+    .where(
+      and(
+        eq(additions.eznNum, eznNum.trim()),
+        projectId == null ? isNull(additions.projectId) : eq(additions.projectId, projectId),
+        excludeId ? not(eq(additions.id, excludeId)) : undefined
+      )
+    )
+    .limit(1);
+  return Boolean(rows[0]);
+}
+
+async function assertAdditionPermitAvailable(tx: any, eznNum: string, projectId: number | null, excludeId?: number) {
+  if (projectId != null) {
+    const projectRows = await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).limit(1).for("update");
+    if (!projectRows[0]) throw new InventoryError("BAD_REQUEST", "المشروع المحدد غير موجود");
+  }
+  if (await additionPermitExists(tx, eznNum, projectId, excludeId))
+    throw new InventoryError("CONFLICT", "رقم إذن الإضافة مستخدم بالفعل في هذا المشروع. استخدم رقم إذن مختلفًا.");
+}
+
+export async function hasAdditionPermitNumber(eznNum: string, projectId?: number | null, excludeId?: number) {
+  const db = await requireDb();
+  const writeProjectId = await resolveWriteProjectId(db, projectId);
+  return additionPermitExists(db, eznNum, writeProjectId, excludeId);
+}
+
 export async function createAddition(input: {
   date: string;
   eznNum: string;
@@ -2458,6 +2488,7 @@ export async function createAddition(input: {
       if (existing[0]) return existing[0];
     }
     const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
+    await assertAdditionPermitAvailable(tx, input.eznNum, writeProjectId);
     const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), writeProjectId);
     const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
     const totalValue = calculateTotalValue(unitPrice, quantity);
@@ -2488,7 +2519,7 @@ export async function createAddition(input: {
       supplierId: input.supplierId ?? null,
       category: input.category?.trim() || item.category || null,
       clientRequestId,
-      projectId: await resolveWriteProjectId(tx, input.projectId),
+      projectId: writeProjectId,
     });
     const id = resultInsertId(result);
     const rows = await tx
@@ -2497,6 +2528,109 @@ export async function createAddition(input: {
       .where(eq(additions.id, id))
       .limit(1);
     return rows[0];
+  });
+}
+
+export async function createAdditionBatch(input: {
+  date: string;
+  eznNum: string;
+  store?: string | null;
+  warehouseId?: number | null;
+  purpose?: string | null;
+  supplier?: string | null;
+  supplierId?: number | null;
+  category?: string | null;
+  clientRequestId: string;
+  projectId?: number | null;
+  userId: number;
+  userName?: string | null;
+  lines: Array<{ itemCode: string; quantity: number; unitPrice?: number }>;
+}) {
+  const db = await requireDb();
+  const batchKey = input.clientRequestId.trim();
+  if (!batchKey) throw new InventoryError("BAD_REQUEST", "مفتاح الإذن مطلوب");
+  if (batchKey.length > 48) throw new InventoryError("BAD_REQUEST", "مفتاح الإذن أطول من المسموح");
+  if (input.lines.length < 2 || input.lines.length > 50)
+    throw new InventoryError("BAD_REQUEST", "يجب أن يحتوي الإذن على بندين إلى 50 بنداً");
+
+  const normalizedLines = input.lines.map(line => ({
+    ...line,
+    itemCode: normalizeItemCode(line.itemCode),
+    quantity: toScaled(line.quantity),
+  }));
+  if (normalizedLines.some(line => !line.itemCode || line.quantity <= 0))
+    throw new InventoryError("BAD_REQUEST", "أدخل كود صنف وكمية موجبة لكل بند");
+  if (new Set(normalizedLines.map(line => line.itemCode)).size !== normalizedLines.length)
+    throw new InventoryError("BAD_REQUEST", "الصنف مكرر في الإذن؛ اجمع كمياته في بند واحد");
+
+  const requestIds = normalizedLines.map((_, index) => `${batchKey}-line-${index + 1}`);
+  return db.transaction(async (tx: any) => {
+    const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
+    const existing = await tx
+      .select()
+      .from(additions)
+      .where(inArray(additions.clientRequestId, requestIds))
+      .for("update");
+    if (existing.length) {
+      const existingByRequestId = new Map(existing.map((row: any) => [row.clientRequestId, row]));
+      const ordered = requestIds.map(requestId => existingByRequestId.get(requestId));
+      const sameRequest = ordered.length === normalizedLines.length && ordered.every((row: any, index) => {
+        const line = normalizedLines[index];
+        return row && Number(row.projectId ?? 0) === Number(writeProjectId ?? 0) &&
+          row.date === input.date.trim() && row.eznNum === input.eznNum.trim() &&
+          row.itemCode === line.itemCode && toScaled(row.quantity) === line.quantity &&
+          row.store === (input.store?.trim() || null) && row.purpose === (input.purpose?.trim() || null) &&
+          row.supplier === (input.supplier?.trim() || null) &&
+          (line.unitPrice === undefined || toMoneyScaled(row.unitPrice) === toMoneyScaled(line.unitPrice));
+      });
+      if (sameRequest) return { items: ordered, count: ordered.length, idempotent: true };
+      throw new InventoryError("CONFLICT", "مفتاح إذن الإضافة مستخدم لطلب آخر أو حُفظ جزء غير متوقع منه");
+    }
+
+    await assertAdditionPermitAvailable(tx, input.eznNum, writeProjectId);
+    const warehouse = await resolveWarehouseId(tx, input.warehouseId, input.store, writeProjectId);
+    const lockedItems = new Map<string, any>();
+    for (const code of Array.from(new Set(normalizedLines.map(line => line.itemCode))).sort())
+      lockedItems.set(code, await getItemForUpdate(tx, code, writeProjectId));
+
+    const created: any[] = [];
+    for (let index = 0; index < normalizedLines.length; index += 1) {
+      const line = normalizedLines[index];
+      const item = lockedItems.get(line.itemCode);
+      const unitPrice = toMoneyScaled(line.unitPrice ?? item.unitPrice);
+      const totalValue = calculateTotalValue(unitPrice, line.quantity);
+      await applyStockDelta(tx, item, { incoming: line.quantity, outgoing: 0, current: line.quantity });
+      await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, line.quantity);
+      const insertResult = await tx.insert(additions).values({
+        date: input.date.trim(),
+        eznNum: input.eznNum.trim(),
+        itemCode: item.code,
+        itemName: item.name,
+        store: input.store?.trim() || null,
+        warehouseId: warehouse.id,
+        quantity: fromScaled(line.quantity),
+        unitPrice: fromMoneyScaled(unitPrice),
+        totalValue: fromMoneyScaled(totalValue),
+        purpose: input.purpose?.trim() || null,
+        supplier: input.supplier?.trim() || null,
+        supplierId: input.supplierId ?? null,
+        category: input.category?.trim() || item.category || null,
+        clientRequestId: requestIds[index],
+        projectId: writeProjectId,
+      });
+      const id = resultInsertId(insertResult);
+      const row = (await tx.select().from(additions).where(eq(additions.id, id)).limit(1))[0];
+      await tx.insert(auditLogs).values({
+        userId: input.userId,
+        userName: input.userName ?? null,
+        action: "create_batch",
+        entity: "addition",
+        entityId: String(id),
+        details: JSON.stringify({ snapshot: row, batchPermit: input.eznNum.trim(), batchKey, lineNumber: index + 1, lineCount: normalizedLines.length, warehouseId: warehouse.id }),
+      });
+      created.push(row);
+    }
+    return { items: created, count: created.length, idempotent: false };
   });
 }
 
@@ -2525,6 +2659,9 @@ export async function updateAddition(input: {
     const old = oldRows[0];
     if (!old) throw new InventoryError("NOT_FOUND", "سجل الإضافة غير موجود");
     await assertMovementNotCanceled(tx, "addition", input.id);
+    const nextPermitNumber = input.eznNum?.trim() ?? String(old.eznNum ?? "").trim();
+    if (nextPermitNumber !== String(old.eznNum ?? "").trim())
+      await assertAdditionPermitAvailable(tx, nextPermitNumber, old.projectId ?? null, input.id);
 
     const oldCode = old.itemCode;
     const nextCode = normalizeItemCode(input.itemCode ?? oldCode);

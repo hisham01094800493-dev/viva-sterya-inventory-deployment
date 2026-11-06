@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import {
+  createAdditionBatch,
   getActiveProjectForUser,
   getUserPermissionSettings,
   getBuildingCostComparison,
   getCompanyInventoryAuditReport,
   getPermitDetails,
   getReportDataset,
+  hasAdditionPermitNumber,
   importItems,
   importMovements,
   listAdditions,
@@ -22,12 +24,14 @@ vi.mock("./db", async () => {
   const actual = await vi.importActual<typeof import("./db")>("./db");
   return {
     ...actual,
+    createAdditionBatch: vi.fn(),
     getActiveProjectForUser: vi.fn(),
     getUserPermissionSettings: vi.fn(),
     getBuildingCostComparison: vi.fn(),
     getCompanyInventoryAuditReport: vi.fn(),
     getPermitDetails: vi.fn(),
     getReportDataset: vi.fn(),
+    hasAdditionPermitNumber: vi.fn(),
     importItems: vi.fn(),
     importMovements: vi.fn(),
     listAdditions: vi.fn(),
@@ -86,6 +90,8 @@ describe("project scoping in inventory reads", () => {
     vi.mocked(listAdditions).mockResolvedValue([] as never);
     vi.mocked(listDisbursements).mockResolvedValue([] as never);
     vi.mocked(listTransfers).mockResolvedValue([] as never);
+    vi.mocked(hasAdditionPermitNumber).mockResolvedValue(false as never);
+    vi.mocked(createAdditionBatch).mockResolvedValue({ items: [], count: 0, idempotent: false } as never);
     vi.mocked(getReportDataset).mockResolvedValue({} as never);
     vi.mocked(getPermitDetails).mockResolvedValue({} as never);
     vi.mocked(getCompanyInventoryAuditReport).mockResolvedValue({} as never);
@@ -124,6 +130,24 @@ describe("project scoping in inventory reads", () => {
     expect(listAdditions).toHaveBeenCalledWith(10, [], 9);
     expect(listDisbursements).toHaveBeenCalledWith(10, [], 9);
     expect(listTransfers).toHaveBeenCalledWith(10, [], 9);
+  });
+
+  it("checks duplicate addition permit numbers only in the active project", async () => {
+    vi.mocked(hasAdditionPermitNumber).mockResolvedValue(true as never);
+    const caller = appRouter.createCaller(createContext());
+    await expect(caller.additions.checkPermitNumber({ eznNum: " ADD-55 " })).resolves.toBe(true);
+    expect(hasAdditionPermitNumber).toHaveBeenCalledWith("ADD-55", 9, undefined);
+  });
+
+  it("creates all addition lines as one project-scoped permit batch", async () => {
+    vi.mocked(createAdditionBatch).mockResolvedValue({ items: [{ id: 31 }, { id: 32 }], count: 2, idempotent: false } as never);
+    const caller = appRouter.createCaller(createContext());
+    const input = {
+      date: "2026-11-06", eznNum: "ADD-BATCH-1", store: null, clientRequestId: "batch-request-id-123456",
+      lines: [{ itemCode: "A-1", quantity: 2 }, { itemCode: "B-2", quantity: 3 }],
+    };
+    await expect(caller.additions.createBatch(input)).resolves.toMatchObject({ count: 2 });
+    expect(createAdditionBatch).toHaveBeenCalledWith({ ...input, projectId: 9, userId: 1, userName: "Scope User" });
   });
 
   it("falls back to unscoped reads when the projects layer is unavailable", async () => {
