@@ -929,10 +929,11 @@ export function getMovementTotalsScopeLabel(filters: { supplier: string; custome
 export function getNextPinnedMovementColumn(currentColumn: number | null, selectedColumn: number) { return currentColumn === selectedColumn ? null : selectedColumn; }
 export function getNextPinnedMovementColumns(currentColumns: number[], selectedColumn: number) { return currentColumns.includes(selectedColumn) ? currentColumns.filter(column => column !== selectedColumn) : [...currentColumns, selectedColumn].slice(-2); }
 export function getPinnedMovementColumnOffsets(columns: number[], widths: Map<number, number>) { const offsets = new Map<number, number>(); let nextOffset = 0; [...columns].sort((left, right) => left - right).forEach(column => { offsets.set(column, nextOffset); nextOffset += Math.max(0, widths.get(column) ?? 0); }); return offsets; }
-function MovementPage({ kind }: { kind: MovementKind }) {
+function MovementPage({ kind, preset }: { kind: MovementKind; preset?: "returnsToday" }) {
   const [location] = useLocation();
   const { user } = useAuth();
-  const meta = movementMeta(kind); const Icon = meta.icon;
+  const isReturnsToday = preset === "returnsToday";
+  const meta = isReturnsToday ? { eyebrow: "PROJECT / RETURNS TODAY", title: "مرتجعات المشروع اليوم", description: "راجع كل المرتجعات المسجلة اليوم للمشروع الحالي بنفس كشف الحركة المعتاد.", button: "مرتجع جديد", icon: RotateCcw, accent: "#a35e1b" } : movementMeta(kind); const Icon = meta.icon;
   const [movementTableZoom, setMovementTableZoom] = useState(1);
   const [movementFinancialPreferenceVisible, setMovementFinancialPreferenceVisible] = useState(false);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
@@ -979,13 +980,21 @@ function MovementPage({ kind }: { kind: MovementKind }) {
       }
     } catch { /* local storage is optional */ }
   }, [kind]);
+  useEffect(() => {
+    if (!isReturnsToday) return;
+    const currentDate = today();
+    setFromDate(currentDate); setToDate(currentDate);
+    setAppliedFilters(current => ({ ...current, from: currentDate, to: currentDate }));
+    setPage(1);
+  }, [isReturnsToday]);
   useEffect(() => { const params = new URLSearchParams(location.split("?")[1] ?? ""); const globalSearch = params.get("search")?.trim(); const permitSearch = params.get("permit")?.trim(); if (globalSearch || permitSearch) { setItemFilter(globalSearch ?? ""); setPermitFilter(permitSearch ?? ""); setAppliedFilters(current => ({ ...current, item: globalSearch ?? "", permit: permitSearch ?? "" })); setPage(1); } }, [location]);
-  const commonPageInput = useMemo(() => ({ page, pageSize: 50, itemSearch: appliedFilters.item || undefined, permitSearch: appliedFilters.permit || undefined, purposeSearch: appliedFilters.purpose || undefined, fromDate: appliedFilters.from || undefined, toDate: appliedFilters.to || undefined }), [page, appliedFilters]);
+  const commonPageInput = useMemo(() => ({ page, pageSize: 50, itemSearch: appliedFilters.item || undefined, permitSearch: appliedFilters.permit || undefined, purposeSearch: appliedFilters.purpose || undefined, fromDate: isReturnsToday ? today() : (appliedFilters.from || undefined), toDate: isReturnsToday ? today() : (appliedFilters.to || undefined) }), [page, appliedFilters, isReturnsToday]);
+  const transfersPageInput = useMemo(() => ({ ...commonPageInput, transferTypeSearch: isReturnsToday ? "مرتجع" : undefined }), [commonPageInput, isReturnsToday]);
   const additionsPageInput = useMemo(() => ({ ...commonPageInput, supplierId: appliedFilters.supplier === "all" ? undefined : Number(appliedFilters.supplier) }), [commonPageInput, appliedFilters.supplier]);
   const disbursementsPageInput = useMemo(() => ({ ...commonPageInput, customerId: appliedFilters.customer === "all" ? undefined : Number(appliedFilters.customer) }), [commonPageInput, appliedFilters.customer]);
   const additions = trpc.additions.listPaged.useQuery(additionsPageInput, { enabled: kind === "additions" });
   const disbursements = trpc.disbursements.listPaged.useQuery(disbursementsPageInput, { enabled: kind === "disbursements" });
-  const transfers = trpc.transfers.listPaged.useQuery(commonPageInput, { enabled: kind === "transfers" });
+  const transfers = trpc.transfers.listPaged.useQuery(transfersPageInput, { enabled: kind === "transfers" });
   const utils = trpc.useUtils(); const cancelAddition = trpc.additions.cancel.useMutation(); const cancelDisbursement = trpc.disbursements.cancel.useMutation(); const cancelTransfer = trpc.transfers.cancel.useMutation();
   const permissions = trpc.permissions.mine.useQuery();
   const preferences = trpc.preferences.get.useQuery();
@@ -1041,7 +1050,7 @@ function MovementPage({ kind }: { kind: MovementKind }) {
         ? await utils.additions.listPaged.fetch({ ...additionsPageInput, page: nextPage, pageSize: 100 })
         : kind === "disbursements"
           ? await utils.disbursements.listPaged.fetch({ ...disbursementsPageInput, page: nextPage, pageSize: 100 })
-          : await utils.transfers.listPaged.fetch({ ...commonPageInput, page: nextPage, pageSize: 100 });
+          : await utils.transfers.listPaged.fetch({ ...transfersPageInput, page: nextPage, pageSize: 100 });
       rowsForExport.push(...(result.rows as MovementRow[]));
       if (nextPage >= result.pageCount) break;
       nextPage += 1;
@@ -1262,6 +1271,7 @@ function MovementPage({ kind }: { kind: MovementKind }) {
 export function AdditionsPage() { return <MovementPage kind="additions" />; }
 export function DisbursementsPage() { return <MovementPage kind="disbursements" />; }
 export function TransfersPage() { return <MovementPage kind="transfers" />; }
+export function ProjectReturnsTodayPage() { return <MovementPage kind="transfers" preset="returnsToday" />; }
 
 function SmartForecastCard() {
   const [severity, setSeverity] = useState<"critical" | "warning" | "watch" | "stagnant">("critical");

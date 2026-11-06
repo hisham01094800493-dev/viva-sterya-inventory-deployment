@@ -178,7 +178,7 @@ export function buildNavigationGroups(items: NavigationItem[], governanceItems: 
     { id: "inventory", icon: Boxes, label: "المخازن والمخزون", description: "الأصناف والمخازن والأرصدة", items: pick(["/items", "/warehouses"]) },
     { id: "suppliers", icon: Truck, label: "الموردون", description: "دليل الموردين وكشوف الحساب", items: pick(["/suppliers"]) },
     { id: "customers", icon: UsersRound, label: "العملاء وجهات الصرف", description: "العملاء والجهات وكشوف الحساب", items: pick(["/customers"]) },
-    { id: "movements", icon: ReceiptText, label: "أذونات المخازن العامة", description: "الإضافة والصرف والتحويل والتسويات", items: pick(["/disbursements", "/project-work-center", "/project-additions-center", "/additions", "/transfers", "/stock-adjustments"]) },
+    { id: "movements", icon: ReceiptText, label: "أذونات المخازن العامة", description: "الإضافة والصرف والتحويل والمرتجعات والتسويات", items: pick(["/disbursements", "/project-work-center", "/project-additions-center", "/additions", "/transfers", "/project-returns-today", "/stock-adjustments"]) },
     { id: "alerts", icon: MessagesSquare, label: "التنبيهات المهمة", description: "محادثات الفريق والتنبيهات", items: pick(["/chat", "/alerts"]) },
     { id: "reports", icon: ChartNoAxesCombined, label: "التقارير", description: "تقارير الحركة والأرصدة والفروقات", items: pick(["/reports", "/building-costs", "/inventory-audit"]) },
     { id: "drafts", icon: FilePenLine, label: "المسودات والملاحظات", description: "ملاحظات ومسودات الأذونات قبل الاعتماد", items: pick(["/drafts"]) },
@@ -296,6 +296,7 @@ const menuItems = [
   { icon: Building2, label: "منصرفات المشروع اليوم", path: "/project-work-center" },
   { icon: ArrowDownToLine, label: "إضافات المشروع اليوم", path: "/project-additions-center" },
   { icon: ArrowLeftRight, label: "التحويلات والمرتجعات", path: "/transfers" },
+  { icon: RotateCcw, label: "مرتجعات المشروع اليوم", path: "/project-returns-today" },
   { icon: BellRing, label: "التنبيهات", path: "/alerts" },
   { icon: MessageCircle, label: "محادثات فريق العمل", path: "/chat" },
   { icon: FileBarChart, label: "التقارير", path: "/reports" },
@@ -698,9 +699,9 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
   // The permission model calls the items screen "inventory", while the
   // browser route is /items. Keep both names aligned so the sidebar does not
   // hide the inventory entry for users who already have inventory access.
-  const screenForPath = (path: string) => path === "/items" || path.startsWith("/warehouses") ? "inventory" : path === "/inventory-audit" || path === "/building-costs" ? "reports" : path === "/project-work-center" ? "disbursements" : path === "/project-additions-center" ? "additions" : path.replace(/^\//, "").split("?")[0] || "dashboard";
+  const screenForPath = (path: string) => path === "/items" || path.startsWith("/warehouses") ? "inventory" : path === "/inventory-audit" || path === "/building-costs" ? "reports" : path === "/project-work-center" ? "disbursements" : path === "/project-additions-center" ? "additions" : path === "/project-returns-today" ? "transfers" : path.replace(/^\//, "").split("?")[0] || "dashboard";
   const hasScreenPermission = (path: string) => path.startsWith("/governance") || path.startsWith("/drafts") || !effectivePermissions || effectivePermissions.allowedScreens.includes(screenForPath(path));
-  const navigationItems = allNavigationItems.filter(item => hasScreenPermission(item.path) && (!readOnlyRole || !["/additions", "/disbursements", "/transfers", "/suppliers", "/customers"].includes(item.path)));
+  const navigationItems = allNavigationItems.filter(item => hasScreenPermission(item.path) && (!readOnlyRole || !["/additions", "/disbursements", "/transfers", "/project-returns-today", "/suppliers", "/customers"].includes(item.path)));
   const chatEnabled = hasScreenPermission("/chat");
   const navigationGroups = buildNavigationGroups(navigationItems, governanceItem);
   const activeMenuItem = navigationItems.find(item => isNavigationPathActive(item.path, location)) ?? menuItems[0];

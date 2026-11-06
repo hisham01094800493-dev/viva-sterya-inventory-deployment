@@ -12,6 +12,7 @@ const ItemsPage = lazy(() => import("./pages/InventoryPages").then(module => ({ 
 const InventoryAuditPage = lazy(() => import("./pages/InventoryAuditPage"));
 const SettingsPage = lazy(() => import("./pages/InventoryPages").then(module => ({ default: module.SettingsPage })));
 const TransfersPage = lazy(() => import("./pages/InventoryPages").then(module => ({ default: module.TransfersPage })));
+const ProjectReturnsTodayPage = lazy(() => import("./pages/InventoryPages").then(module => ({ default: module.ProjectReturnsTodayPage })));
 const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 const BuildingCostComparisonPage = lazy(() => import("./pages/BuildingCostComparisonPage"));
 const ProjectWorkCenterPage = lazy(() => import("./pages/ProjectWorkCenterPage"));
@@ -73,6 +74,7 @@ function Router() {
       <Route path="/additions" component={AdditionsPage} />
       <Route path="/disbursements" component={DisbursementsPage} />
       <Route path="/transfers" component={TransfersPage} />
+      <Route path="/project-returns-today" component={ProjectReturnsTodayPage} />
       <Route path="/alerts" component={AlertsPage} />
       <Route path="/chat" component={ChatPage} />
       <Route path="/reports" component={ReportsPage} />

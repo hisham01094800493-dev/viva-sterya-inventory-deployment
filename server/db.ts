@@ -2233,6 +2233,7 @@ export type MovementPageInput = {
   itemSearch?: string;
   permitSearch?: string;
   purposeSearch?: string;
+  transferTypeSearch?: string;
   fromDate?: string;
   toDate?: string;
   supplierId?: number;
@@ -3457,6 +3458,7 @@ export async function listTransfersPaged(
   const itemSearch = input.itemSearch?.trim();
   const permitSearch = input.permitSearch?.trim();
   const purposeSearch = input.purposeSearch?.trim();
+  const transferTypeSearch = input.transferTypeSearch?.trim();
   if (itemSearch) {
     const pattern = `%${itemSearch}%`;
     conditions.push(
@@ -3467,6 +3469,8 @@ export async function listTransfersPaged(
     conditions.push(like(transfers.eznNum, `%${permitSearch}%`));
   if (purposeSearch)
     conditions.push(like(transfers.notes, `%${purposeSearch}%`));
+  if (transferTypeSearch)
+    conditions.push(like(transfers.transferType, `%${transferTypeSearch}%`));
   if (input.fromDate) conditions.push(gte(transfers.date, input.fromDate));
   if (input.toDate) conditions.push(lte(transfers.date, input.toDate));
   if (allowedWarehouseIds.length)
