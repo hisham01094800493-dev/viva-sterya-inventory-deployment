@@ -178,7 +178,7 @@ export function buildNavigationGroups(items: NavigationItem[], governanceItems: 
     { id: "inventory", icon: Boxes, label: "المخازن والمخزون", description: "الأصناف والمخازن والأرصدة", items: pick(["/items", "/warehouses"]) },
     { id: "suppliers", icon: Truck, label: "الموردون", description: "دليل الموردين وكشوف الحساب", items: pick(["/suppliers"]) },
     { id: "customers", icon: UsersRound, label: "العملاء وجهات الصرف", description: "العملاء والجهات وكشوف الحساب", items: pick(["/customers"]) },
-    { id: "movements", icon: ReceiptText, label: "أذونات المخازن العامة", description: "الإضافة والصرف والتحويل والتسويات", items: pick(["/additions", "/disbursements", "/project-work-center", "/transfers", "/stock-adjustments"]) },
+    { id: "movements", icon: ReceiptText, label: "أذونات المخازن العامة", description: "الإضافة والصرف والتحويل والتسويات", items: pick(["/disbursements", "/project-work-center", "/additions", "/transfers", "/stock-adjustments"]) },
     { id: "alerts", icon: MessagesSquare, label: "التنبيهات المهمة", description: "محادثات الفريق والتنبيهات", items: pick(["/chat", "/alerts"]) },
     { id: "reports", icon: ChartNoAxesCombined, label: "التقارير", description: "تقارير الحركة والأرصدة والفروقات", items: pick(["/reports", "/building-costs", "/inventory-audit"]) },
     { id: "drafts", icon: FilePenLine, label: "المسودات والملاحظات", description: "ملاحظات ومسودات الأذونات قبل الاعتماد", items: pick(["/drafts"]) },
