@@ -234,7 +234,7 @@ async function collectForecastAndBuildings(today: string, now: Date, projectId?:
  */
 async function notifyManagers(title: string, content: string, projectId: number | null | undefined, reportDate: string) {
   const db = await requireDb();
-  const managers = await db
+const managers = await db
     .select({ id: users.id, role: users.role, allowedProjects: userPermissions.allowedProjects })
     .from(users)
     .leftJoin(userPermissions, eq(userPermissions.userId, users.id))
