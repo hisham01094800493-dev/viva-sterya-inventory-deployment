@@ -274,6 +274,13 @@
       "when": 1793900000000,
       "tag": "0039_item_specifications",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "5",
+      "when": 1794030424000,
+      "tag": "0040_warehouse_code_prefix",
+      "breakpoints": true
     }
   ]
 }

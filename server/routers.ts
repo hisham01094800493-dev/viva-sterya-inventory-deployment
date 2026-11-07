@@ -315,6 +315,7 @@ const warehouseUpdateInput = z.object({ id: z.number().int().positive(), name: z
 const warehouseCreateInput = z.object({
   name: z.string().trim().min(1, "اسم المخزن مطلوب").max(128),
   slot: z.number().int().positive().optional(),
+  codePrefix: z.number().int().positive().optional(),
   projectId: z.number().int().positive().optional(),
 });
 const buildingInput = z.object({ name: z.string().trim().min(1).max(180), code: z.string().trim().min(1).max(64), type: z.enum(["owned_building", "subcontractor"]).default("owned_building"), budget: z.coerce.number().min(0).default(0) });

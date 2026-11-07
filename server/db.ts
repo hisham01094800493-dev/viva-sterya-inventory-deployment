@@ -617,6 +617,7 @@ export async function createWarehouse(input: {
   name: string;
   projectId: number;
   slot?: number;
+  codePrefix?: number;
 }) {
   const db = await requireDb();
   const name = input.name.trim();
@@ -674,6 +675,7 @@ export async function createWarehouse(input: {
         name,
         projectId: input.projectId,
         slot,
+        codePrefix: input.codePrefix ?? slot,
       });
       const id = resultInsertId(result);
       const row = (
@@ -975,48 +977,48 @@ export function selectNextAutoItemCode(
   return { code, nextSequence: current + 1 };
 }
 
-export async function suggestNextItemCode(_warehouseId?: number | null) {
-  const db = await requireDb();
-  const rows = await db
-    .select()
-    .from(settings)
-    .where(eq(settings.key, MAIN_WAREHOUSE_CODE_KEY))
-    .limit(1);
-  const existingRows = await db.select({ code: items.code }).from(items);
-  return selectNextAutoItemCode(
-    1,
-    existingRows.map(row => row.code),
-    value => formatWarehouseItemCode(MAIN_WAREHOUSE_SLOT, value)
-  ).code;
+/**
+ * يولد كودًا من نطاق المخزن نفسه: مخزن 1 يبدأ بـ 10001، مخزن 2 بـ 20001...
+ * لا يعتمد على كود مخزن أو مشروع آخر، ويسمح بتكرار نفس التسلسل داخل مشروع مختلف.
+ */
+function nextWarehouseItemCode(slot: number, existingCodes: Iterable<string>) {
+  const prefix = String(Math.max(1, Math.floor(slot)));
+  let highest = 0;
+  for (const rawCode of Array.from(existingCodes)) {
+    const code = String(rawCode ?? "").trim();
+    if (!code.startsWith(prefix)) continue;
+    const suffix = code.slice(prefix.length);
+    if (!/^\d{4}$/.test(suffix)) continue;
+    highest = Math.max(highest, Number(suffix));
+  }
+  return formatWarehouseItemCode(slot, highest + 1);
 }
 
-async function nextItemCode(tx: any, _warehouseId?: number | null) {
-  const rows = await tx
-    .select()
-    .from(settings)
-    .where(eq(settings.key, MAIN_WAREHOUSE_CODE_KEY))
+export async function suggestNextItemCode(warehouseId?: number | null) {
+  const db = await requireDb();
+  const warehouse = warehouseId
+    ? (await db.select({ id: warehouses.id, slot: warehouses.slot, codePrefix: warehouses.codePrefix }).from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1))[0]
+    : (await db.select({ id: warehouses.id, slot: warehouses.slot, codePrefix: warehouses.codePrefix }).from(warehouses).where(eq(warehouses.slot, MAIN_WAREHOUSE_SLOT)).limit(1))[0];
+  if (!warehouse) throw new InventoryError("NOT_FOUND", "المخزن المحدد غير موجود");
+  const existingRows = await db.select({ code: items.code }).from(items).where(eq(items.warehouseId, warehouse.id));
+  return nextWarehouseItemCode(warehouse.codePrefix ?? warehouse.slot, existingRows.map(row => row.code));
+}
+
+async function nextItemCode(tx: any, warehouseId?: number | null, projectId?: number | null) {
+  const warehouseRows = await tx
+    .select({ id: warehouses.id, slot: warehouses.slot, codePrefix: warehouses.codePrefix })
+    .from(warehouses)
+    .where(projectId != null ? and(eq(warehouses.id, warehouseId as number), eq(warehouses.projectId, projectId)) : eq(warehouses.id, warehouseId as number))
     .limit(1)
     .for("update");
-  const existingRows = await tx.select({ code: items.code }).from(items);
-  const selected = selectNextAutoItemCode(
-    1,
-    existingRows.map((row: { code: string }) => row.code),
-    value => formatWarehouseItemCode(MAIN_WAREHOUSE_SLOT, value)
-  );
-  if (rows[0])
-    await tx
-      .update(settings)
-      .set({ value: String(selected.nextSequence) })
-      .where(eq(settings.id, rows[0].id));
-  else
-    await tx.insert(settings).values({
-      key: MAIN_WAREHOUSE_CODE_KEY,
-      value: String(selected.nextSequence),
-      description: "عداد التكويد التلقائي للمخزن الرئيسي",
-    });
-  return selected.code;
+  const warehouse = warehouseRows[0];
+  if (!warehouse) throw new InventoryError("NOT_FOUND", "المخزن المحدد غير موجود");
+  const existingRows = await tx
+    .select({ code: items.code })
+    .from(items)
+    .where(and(eq(items.warehouseId, warehouse.id), projectId != null ? eq(items.projectId, projectId) : undefined));
+  return nextWarehouseItemCode(warehouse.codePrefix ?? warehouse.slot, existingRows.map((row: { code: string }) => row.code));
 }
-
 export async function listItems(
   search?: string,
   warehouseId?: number,
@@ -1660,8 +1662,6 @@ export async function createItem(input: {
 
   try {
     return await db.transaction(async (tx: any) => {
-      const code =
-        input.code?.trim() || (await nextItemCode(tx, input.warehouseId));
       const projectId = await resolveWriteProjectId(tx, input.projectId);
       const warehouse = await resolveWarehouseId(
         tx,
@@ -1669,6 +1669,8 @@ export async function createItem(input: {
         null,
         projectId
       );
+      const code =
+        input.code?.trim() || (await nextItemCode(tx, warehouse.id, projectId));
       normalizeItemCode(code);
       const result = await tx.insert(items).values({
         code,

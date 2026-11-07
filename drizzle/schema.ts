@@ -220,6 +220,7 @@ export const warehouses = mysqlTable("warehouses", {
   id: int("id").autoincrement().primaryKey(),
   projectId: int("project_id"),
   slot: int("slot").notNull(),
+  codePrefix: int("code_prefix").notNull().default(1),
   name: varchar("name", { length: 128 }).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
