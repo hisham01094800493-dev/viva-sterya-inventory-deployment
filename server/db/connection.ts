@@ -107,6 +107,31 @@ export async function getDb() {
           );
         }
       }
+      try {
+        await _db.execute(
+          sql.raw(
+            `ALTER TABLE warehouses ADD COLUMN code_prefix INT NOT NULL DEFAULT 1`
+          )
+        );
+      } catch (migrationError: any) {
+        // العمود قد يكون أُضيف مسبقًا بواسطة Drizzle migration.
+        if (migrationError?.code !== "ER_DUP_FIELDNAME") {
+          console.warn(
+            "[Database] Warehouse code prefix migration deferred:",
+            migrationError?.message ?? migrationError
+          );
+        }
+      }
+      try {
+        await _db.execute(
+          sql.raw(`UPDATE warehouses SET code_prefix = slot WHERE code_prefix = 1`)
+        );
+      } catch (migrationError: any) {
+        console.warn(
+          "[Database] Warehouse code prefix values migration deferred:",
+          migrationError?.message ?? migrationError
+        );
+      }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
