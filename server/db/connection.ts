@@ -132,6 +132,28 @@ export async function getDb() {
           migrationError?.message ?? migrationError
         );
       }
+      // بعض البيئات القديمة لم تشغّل migration مواصفات الأصناف. طبّق الأعمدة
+      // بشكل مستقل حتى لا يتوقف حفظ صنف جديد بالكامل عند غياب عمود واحد.
+      const itemSpecificationMigrations = [
+        `ALTER TABLE items ADD COLUMN item_type ENUM('general','ceramic','marble') NULL DEFAULT 'general'`,
+        `ALTER TABLE items ADD COLUMN size_length_cm DECIMAL(8,2) NULL`,
+        `ALTER TABLE items ADD COLUMN size_width_cm DECIMAL(8,2) NULL`,
+        `ALTER TABLE items ADD COLUMN tone VARCHAR(64) NULL`,
+        `ALTER TABLE items ADD COLUMN thickness_cm DECIMAL(6,2) NULL`,
+        `ALTER TABLE items ADD COLUMN spec_group_key VARCHAR(128) NULL`,
+      ];
+      for (const migrationSql of itemSpecificationMigrations) {
+        try {
+          await _db.execute(sql.raw(migrationSql));
+        } catch (migrationError: any) {
+          if (migrationError?.code !== "ER_DUP_FIELDNAME") {
+            console.warn(
+              "[Database] Item specification migration deferred:",
+              migrationError?.message ?? migrationError,
+            );
+          }
+        }
+      }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
