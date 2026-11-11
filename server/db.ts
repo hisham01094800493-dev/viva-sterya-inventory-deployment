@@ -732,22 +732,28 @@ async function resolveWarehouseId(
   // يجب حصر البحث داخل المشروع نفسه حتى لا تُرحَّل حركة إلى مخزن مشروع آخر.
   const projectCondition =
     projectId != null ? eq(warehouses.projectId, projectId) : undefined;
+  const warehouseSelection = {
+    id: warehouses.id,
+    projectId: warehouses.projectId,
+    slot: warehouses.slot,
+    name: warehouses.name,
+  };
   const rows = warehouseId
     ? await tx
-        .select()
+        .select(warehouseSelection)
         .from(warehouses)
         .where(and(eq(warehouses.id, warehouseId), projectCondition))
         .limit(1)
         .for("update")
     : normalizedName
       ? await tx
-          .select()
+          .select(warehouseSelection)
           .from(warehouses)
           .where(and(eq(warehouses.name, normalizedName), projectCondition))
           .limit(1)
           .for("update")
       : await tx
-          .select()
+          .select(warehouseSelection)
           .from(warehouses)
           .where(and(eq(warehouses.slot, 1), projectCondition))
           .limit(1)
