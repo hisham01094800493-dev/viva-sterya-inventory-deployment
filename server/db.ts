@@ -996,21 +996,41 @@ function nextWarehouseItemCode(slot: number, existingCodes: Iterable<string>) {
 
 export async function suggestNextItemCode(warehouseId?: number | null) {
   const db = await requireDb();
-  const warehouse = warehouseId
-    ? (await db.select({ id: warehouses.id, slot: warehouses.slot, codePrefix: warehouses.codePrefix }).from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1))[0]
-    : (await db.select({ id: warehouses.id, slot: warehouses.slot, codePrefix: warehouses.codePrefix }).from(warehouses).where(eq(warehouses.slot, MAIN_WAREHOUSE_SLOT)).limit(1))[0];
+  let warehouse: { id: number; slot: number; codePrefix?: number | null } | undefined;
+  try {
+    warehouse = warehouseId
+      ? (await db.select({ id: warehouses.id, slot: warehouses.slot, codePrefix: warehouses.codePrefix }).from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1))[0]
+      : (await db.select({ id: warehouses.id, slot: warehouses.slot, codePrefix: warehouses.codePrefix }).from(warehouses).where(eq(warehouses.slot, MAIN_WAREHOUSE_SLOT)).limit(1))[0];
+  } catch (error: any) {
+    if (!/code_prefix|unknown column|doesn't exist/i.test(String(error?.message ?? error))) throw error;
+    warehouse = warehouseId
+      ? (await db.select({ id: warehouses.id, slot: warehouses.slot }).from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1))[0]
+      : (await db.select({ id: warehouses.id, slot: warehouses.slot }).from(warehouses).where(eq(warehouses.slot, MAIN_WAREHOUSE_SLOT)).limit(1))[0];
+  }
   if (!warehouse) throw new InventoryError("NOT_FOUND", "المخزن المحدد غير موجود");
   const existingRows = await db.select({ code: items.code }).from(items).where(eq(items.warehouseId, warehouse.id));
   return nextWarehouseItemCode(warehouse.codePrefix ?? warehouse.slot, existingRows.map(row => row.code));
 }
 
 async function nextItemCode(tx: any, warehouseId?: number | null, projectId?: number | null) {
-  const warehouseRows = await tx
-    .select({ id: warehouses.id, slot: warehouses.slot, codePrefix: warehouses.codePrefix })
-    .from(warehouses)
-    .where(projectId != null ? and(eq(warehouses.id, warehouseId as number), eq(warehouses.projectId, projectId)) : eq(warehouses.id, warehouseId as number))
-    .limit(1)
-    .for("update");
+  const warehouseWhere = projectId != null ? and(eq(warehouses.id, warehouseId as number), eq(warehouses.projectId, projectId)) : eq(warehouses.id, warehouseId as number);
+  let warehouseRows: Array<{ id: number; slot: number; codePrefix?: number | null }>;
+  try {
+    warehouseRows = await tx
+      .select({ id: warehouses.id, slot: warehouses.slot, codePrefix: warehouses.codePrefix })
+      .from(warehouses)
+      .where(warehouseWhere)
+      .limit(1)
+      .for("update");
+  } catch (error: any) {
+    if (!/code_prefix|unknown column|doesn't exist/i.test(String(error?.message ?? error))) throw error;
+    warehouseRows = await tx
+      .select({ id: warehouses.id, slot: warehouses.slot })
+      .from(warehouses)
+      .where(warehouseWhere)
+      .limit(1)
+      .for("update");
+  }
   const warehouse = warehouseRows[0];
   if (!warehouse) throw new InventoryError("NOT_FOUND", "المخزن المحدد غير موجود");
   const existingRows = await tx
