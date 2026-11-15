@@ -512,7 +512,7 @@ export function ItemsPage() {
       const items = await loadAllFilteredItems();
       if (!items.length) { toast.info("لا توجد أصناف مطابقة للفلاتر"); return; }
       const logo = resolveCompanyLogoUrl(settings.data?.find(item => item.key === "company_logo_url")?.value);
-      const doc = await buildInventoryPdf(inventoryExportRows(items), { columns: selectedInventoryPdfColumns, logo, title: withReportProject("تقرير الأصناف والمخزون - Smart Inventory", activeProjectName), includeCategoryValueChart: true, summary: [`عدد الأصناف المطابقة: ${items.length}`, searchInput.trim() ? `البحث: ${searchInput.trim()}` : "كل الأصناف"] });
+      const doc = await buildInventoryPdf(inventoryExportRows(items), { columns: selectedInventoryPdfColumns, logo, title: withReportProject("تقرير الأصناف والمخزون - Smart Inventory", activeProjectName), summary: [`عدد الأصناف المطابقة: ${items.length}`, searchInput.trim() ? `البحث: ${searchInput.trim()}` : "كل الأصناف"] });
       const nextUrl = URL.createObjectURL(doc.output("blob"));
       setInventoryPdfPreviewUrl(current => { if (current) URL.revokeObjectURL(current); return nextUrl; });
       setInventoryPdfPage(1); setInventoryPdfPageCount(1);
@@ -1459,7 +1459,6 @@ export function SettingsPage() {
         logo: companyLogoUrl,
         title: withReportProject("التقرير التنفيذي اليومي - Smart Inventory", settingsProjectName),
         date: new Date(lastRun.completedAt ?? lastRun.startedAt),
-        includeCategoryValueChart: true,
         executiveForecasts,
         summary: [
           `تاريخ التقرير: ${reportDate}`,
