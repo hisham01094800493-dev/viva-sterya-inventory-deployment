@@ -78,7 +78,7 @@ describe("createWarehouse - إنشاء مخزن داخل مشروع", () => {
 
     expect(row).toMatchObject({ id: 10, projectId: 1, slot: 2, name: "مخزن الأدوات" });
     expect(state.inserts).toHaveLength(1);
-    expect(state.inserts[0]).toEqual({ name: "مخزن الأدوات", projectId: 1, slot: 2 });
+    expect(state.inserts[0]).toEqual({ name: "مخزن الأدوات", projectId: 1, slot: 2, codePrefix: 2 });
   });
 
   it("يسمح بالرقم 1 في مشروع B رغم وجود الرقم 1 في مشروع A", async () => {
@@ -188,6 +188,6 @@ describe("createWarehouse - إنشاء مخزن داخل مشروع", () => {
 
     // العملية الوحيدة المسجّلة هي إدخال مخزن واحد بحقول محددة فقط.
     expect(state.inserts).toHaveLength(1);
-    expect(Object.keys(state.inserts[0]).sort()).toEqual(["name", "projectId", "slot"]);
+    expect(Object.keys(state.inserts[0]).sort()).toEqual(["codePrefix", "name", "projectId", "slot"]);
   });
 });
