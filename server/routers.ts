@@ -335,6 +335,10 @@ const additionInput = z.object({
   supplier: z.string().trim().max(128).nullable().optional(),
   supplierId: z.number().int().positive().nullable().optional(),
   category: z.string().trim().max(128).nullable().optional(),
+  intakeType: z.enum(["purchase", "used_asset"]).optional(),
+  sourceLocation: z.string().trim().max(180).nullable().optional(),
+  itemCondition: z.string().trim().max(64).nullable().optional(),
+  notes: z.string().trim().max(1000).nullable().optional(),
   unitPrice: z.coerce.number().min(0).optional(),
   clientRequestId: z.string().trim().min(16).max(64).nullable().optional(),
 });

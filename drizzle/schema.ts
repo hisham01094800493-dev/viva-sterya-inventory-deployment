@@ -348,7 +348,11 @@ export const additions = mysqlTable("additions", {
   quantity: decimal("quantity", { precision: 12, scale: 3 }).notNull(), // الكمية
   unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).default("0").notNull(), // سعر الوحدة وقت الإضافة
   totalValue: decimal("total_value", { precision: 14, scale: 2 }).default("0").notNull(), // إجمالي قيمة الإضافة
+  intakeType: varchar("intake_type", { length: 32 }).default("purchase").notNull(), // شراء أو موجودات مستعملة
+  sourceLocation: varchar("source_location", { length: 180 }), // الموقع أو الفندق المصدر
+  itemCondition: varchar("item_condition", { length: 64 }), // حالة الموجودات المستعملة
   purpose: text("purpose"), // لزوم
+  notes: text("notes"), // ملاحظات الجرد والاستلام
   supplier: varchar("supplier", { length: 128 }), // وارد من / المورد
   supplierId: int("supplier_id"), // مرجع المورد من الدليل
   category: varchar("category", { length: 128 }), // نوع الصنف

@@ -2494,6 +2494,10 @@ export async function createAddition(input: {
   supplierId?: number | null;
   category?: string | null;
   unitPrice?: number;
+  intakeType?: "purchase" | "used_asset";
+  sourceLocation?: string | null;
+  itemCondition?: string | null;
+  notes?: string | null;
   clientRequestId?: string | null;
   projectId?: number | null;
 }) {
@@ -2543,7 +2547,11 @@ export async function createAddition(input: {
       quantity: fromScaled(quantity),
       unitPrice: fromMoneyScaled(unitPrice),
       totalValue: fromMoneyScaled(totalValue),
+      intakeType: input.intakeType ?? "purchase",
+      sourceLocation: input.sourceLocation?.trim() || null,
+      itemCondition: input.itemCondition?.trim() || null,
       purpose: input.purpose?.trim() || null,
+      notes: input.notes?.trim() || null,
       supplier: input.supplier?.trim() || null,
       supplierId: input.supplierId ?? null,
       category: input.category?.trim() || item.category || null,
@@ -2569,6 +2577,10 @@ export async function createAdditionBatch(input: {
   supplier?: string | null;
   supplierId?: number | null;
   category?: string | null;
+  intakeType?: "purchase" | "used_asset";
+  sourceLocation?: string | null;
+  itemCondition?: string | null;
+  notes?: string | null;
   clientRequestId: string;
   projectId?: number | null;
   userId: number;
@@ -2610,6 +2622,10 @@ export async function createAdditionBatch(input: {
           row.itemCode === line.itemCode && toScaled(row.quantity) === line.quantity &&
           row.store === (input.store?.trim() || null) && row.purpose === (input.purpose?.trim() || null) &&
           row.supplier === (input.supplier?.trim() || null) &&
+          row.intakeType === (input.intakeType ?? "purchase") &&
+          row.sourceLocation === (input.sourceLocation?.trim() || null) &&
+          row.itemCondition === (input.itemCondition?.trim() || null) &&
+          row.notes === (input.notes?.trim() || null) &&
           (line.unitPrice === undefined || toMoneyScaled(row.unitPrice) === toMoneyScaled(line.unitPrice));
       });
       if (sameRequest) return { items: ordered, count: ordered.length, idempotent: true };
@@ -2640,7 +2656,11 @@ export async function createAdditionBatch(input: {
         quantity: fromScaled(line.quantity),
         unitPrice: fromMoneyScaled(unitPrice),
         totalValue: fromMoneyScaled(totalValue),
+        intakeType: input.intakeType ?? "purchase",
+        sourceLocation: input.sourceLocation?.trim() || null,
+        itemCondition: input.itemCondition?.trim() || null,
         purpose: input.purpose?.trim() || null,
+        notes: input.notes?.trim() || null,
         supplier: input.supplier?.trim() || null,
         supplierId: input.supplierId ?? null,
         category: input.category?.trim() || item.category || null,
@@ -2676,6 +2696,10 @@ export async function updateAddition(input: {
   supplierId?: number | null;
   category?: string | null;
   unitPrice?: number;
+  intakeType?: "purchase" | "used_asset";
+  sourceLocation?: string | null;
+  itemCondition?: string | null;
+  notes?: string | null;
 }) {
   const db = await requireDb();
   return db.transaction(async (tx: any) => {
@@ -2772,6 +2796,18 @@ export async function updateAddition(input: {
       quantity: fromScaled(nextQuantity),
       unitPrice: fromMoneyScaled(unitPrice),
       totalValue: fromMoneyScaled(totalValue),
+      intakeType:
+        input.intakeType === undefined
+          ? old.intakeType ?? "purchase"
+          : input.intakeType,
+      sourceLocation:
+        input.sourceLocation === undefined
+          ? old.sourceLocation
+          : input.sourceLocation?.trim() || null,
+      itemCondition:
+        input.itemCondition === undefined
+          ? old.itemCondition
+          : input.itemCondition?.trim() || null,
       purpose:
         input.purpose === undefined
           ? old.purpose
@@ -2788,6 +2824,8 @@ export async function updateAddition(input: {
         input.category === undefined
           ? old.category
           : input.category?.trim() || null,
+      notes:
+        input.notes === undefined ? old.notes : input.notes?.trim() || null,
     };
     await tx.update(additions).set(updates).where(eq(additions.id, input.id));
     const rows = await tx

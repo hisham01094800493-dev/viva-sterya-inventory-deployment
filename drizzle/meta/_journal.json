@@ -281,6 +281,13 @@
       "when": 1794030424000,
       "tag": "0040_warehouse_code_prefix",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "5",
+      "when": 1794031000000,
+      "tag": "0041_used_asset_intake",
+      "breakpoints": true
     }
   ]
 }
