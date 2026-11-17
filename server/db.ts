@@ -2485,7 +2485,9 @@ export async function hasAdditionPermitNumber(eznNum: string, projectId?: number
 export async function createAddition(input: {
   date: string;
   eznNum: string;
-  itemCode: string;
+  itemCode?: string;
+  itemName?: string;
+  unit?: string | null;
   store?: string | null;
   warehouseId?: number | null;
   quantity: number;
@@ -2522,15 +2524,44 @@ export async function createAddition(input: {
     }
     const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
     await assertAdditionPermitAvailable(tx, input.eznNum, writeProjectId);
-    const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), writeProjectId);
-    const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
-    const totalValue = calculateTotalValue(unitPrice, quantity);
     const warehouse = await resolveWarehouseId(
       tx,
       input.warehouseId,
       input.store,
       writeProjectId
     );
+    let item = input.itemCode?.trim()
+      ? await getItemForUpdate(tx, normalizeItemCode(input.itemCode), writeProjectId)
+      : undefined;
+    if (!item) {
+      const name = normalizeItemName(input.itemName ?? "");
+      if (!name) throw new InventoryError("BAD_REQUEST", "اكتب اسم الصنف الجديد ليتم توليد الكود تلقائياً");
+      const code = await nextItemCode(tx, warehouse.id, writeProjectId);
+      const initialUnitPrice = toMoneyScaled(input.unitPrice ?? 0);
+      const created = await tx.insert(items).values({
+        code,
+        warehouseId: warehouse.id,
+        projectId: writeProjectId,
+        name,
+        initialStock: "0.000",
+        incomingStock: "0.000",
+        outgoingStock: "0.000",
+        currentStock: "0.000",
+        reorderLevel: "0.000",
+        category: input.category?.trim() || null,
+        unit: input.unit?.trim() || null,
+        unitPrice: fromMoneyScaled(initialUnitPrice),
+        imageKey: null,
+        imageUrl: null,
+      });
+      const itemId = resultInsertId(created);
+      await tx.insert(itemWarehouseBalances).values({ itemId, warehouseId: warehouse.id, currentStock: "0.000" });
+      const createdRows = await tx.select().from(items).where(eq(items.id, itemId)).limit(1);
+      item = createdRows[0];
+      if (!item) throw new InventoryError("UNAVAILABLE", "تعذر إنشاء الصنف الجديد");
+    }
+    const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
+    const totalValue = calculateTotalValue(unitPrice, quantity);
     await applyStockDelta(tx, item, {
       incoming: quantity,
       outgoing: 0,

@@ -327,7 +327,9 @@ const customerUpdateInput = customerInput.partial().extend({ id: z.number().int(
 const additionInput = z.object({
   date: z.string().trim().min(1, "التاريخ مطلوب").max(32),
   eznNum: z.string().trim().min(1, "رقم الإذن مطلوب").max(64),
-  itemCode: z.string().trim().min(1, "كود الصنف مطلوب").max(64),
+  itemCode: z.string().trim().max(64).optional(),
+  itemName: z.string().trim().max(500).optional(),
+  unit: z.string().trim().max(64).nullable().optional(),
   store: z.string().trim().max(128).nullable().optional(),
   warehouseId: z.number().int().positive().nullable().optional(),
   quantity: z.coerce.number().positive("الكمية يجب أن تكون أكبر من صفر"),
@@ -341,10 +343,14 @@ const additionInput = z.object({
   notes: z.string().trim().max(1000).nullable().optional(),
   unitPrice: z.coerce.number().min(0).optional(),
   clientRequestId: z.string().trim().min(16).max(64).nullable().optional(),
+}).superRefine((value, ctx) => {
+  if (!value.itemCode && !value.itemName) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["itemCode"], message: "أدخل كود الصنف أو اسم الصنف الجديد" });
+  }
 });
 const additionBatchInput = additionInput.omit({ itemCode: true, quantity: true, unitPrice: true, clientRequestId: true }).extend({
   clientRequestId: z.string().trim().min(16).max(48),
-  lines: z.array(additionInput.pick({ itemCode: true, quantity: true, unitPrice: true })).min(2).max(50),
+  lines: z.array(z.object({ itemCode: z.string().trim().min(1, "كود الصنف مطلوب").max(64), quantity: z.coerce.number().positive(), unitPrice: z.coerce.number().min(0).optional() })).min(2).max(50),
 });
 
 const disbursementInput = z.object({
