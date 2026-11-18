@@ -179,7 +179,115 @@ function drawAccountStatementHeader(doc: jsPDF, logo: string | null, date: Date,
 export function selectExportColumns(keys: readonly ExportColumnKey[], requested?: ExportColumnKey[]) { return requested?.length ? requested.filter(key => keys.some(allowed => allowed === key)) : [...keys]; }
 function selected(keys: readonly ExportColumnKey[], requested?: ExportColumnKey[]) { return selectExportColumns(keys, requested); }
 
-export async function buildInventoryExcel(rows: InventoryExportItem[], options: { columns?: ExportColumnKey[] } = {}) { const keys = selected(inventoryExportColumns, options.columns); const ExcelJS = await loadExcelJs(); const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet("المخزون الحالي", { views: [{ rightToLeft: true }] }); const defs: Record<string, { header: string; key: string; width: number }> = { code: { header: labels.code, key: "code", width: 16 }, name: { header: labels.name, key: "name", width: 28 }, category: { header: labels.category, key: "category", width: 18 }, unit: { header: labels.unit, key: "unit", width: 12 }, currentStock: { header: labels.currentStock, key: "currentStock", width: 16 }, reorderLevel: { header: labels.reorderLevel, key: "reorderLevel", width: 14 }, unitPrice: { header: labels.unitPrice, key: "unitPrice", width: 14 }, totalValue: { header: labels.totalValue, key: "totalValue", width: 18 }, image: { header: labels.image, key: "image", width: 15 } }; sheet.columns = keys.map(key => defs[key]); sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } }; sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D4F62" } }; for (const row of rows) { const excelRow = sheet.addRow(Object.fromEntries(keys.map(key => [key, key === "totalValue" ? Number((row.currentStock * row.unitPrice).toFixed(2)) : key === "image" ? (row.imageUrl ? "مضمنة" : "—") : row[key as keyof InventoryExportItem]]))); for (const imageKey of ["image", "documentImage"] as const) { const url = imageKey === "image" ? row.imageUrl : row.documentImageUrl; if (keys.includes(imageKey) && url) { const asset = await fetchImageAsset(url); if (asset) { const imageId = workbook.addImage({ buffer: asset.buffer, extension: asset.extension }); sheet.addImage(imageId, { tl: { col: keys.indexOf(imageKey), row: excelRow.number - 1 }, ext: { width: 58, height: 58 } }); excelRow.height = 48; } } } } return workbook; }
+export async function buildInventoryExcel(rows: InventoryExportItem[], options: { columns?: ExportColumnKey[] } = {}) {
+  const keys = selected(inventoryExportColumns, options.columns);
+  const ExcelJS = await loadExcelJs();
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Smart Inventory";
+  workbook.created = new Date();
+  workbook.modified = new Date();
+  const sheet = workbook.addWorksheet("الأصناف والمخزون", {
+    views: [{ rightToLeft: true, showGridLines: false, zoomScale: 90 }],
+    properties: { defaultRowHeight: 22 },
+  });
+  const defs: Record<string, { header: string; key: string; width: number }> = {
+    code: { header: labels.code, key: "code", width: 15 },
+    name: { header: labels.name, key: "name", width: 38 },
+    category: { header: labels.category, key: "category", width: 22 },
+    unit: { header: labels.unit, key: "unit", width: 13 },
+    currentStock: { header: labels.currentStock, key: "currentStock", width: 17 },
+    reorderLevel: { header: labels.reorderLevel, key: "reorderLevel", width: 15 },
+    unitPrice: { header: labels.unitPrice, key: "unitPrice", width: 16 },
+    totalValue: { header: labels.totalValue, key: "totalValue", width: 20 },
+    image: { header: labels.image, key: "image", width: 15 },
+  };
+  const titleRow = 1;
+  const subtitleRow = 2;
+  const headerRow = 4;
+  const dataStartRow = headerRow + 1;
+  const lastColumn = keys.length;
+  sheet.mergeCells(titleRow, 1, titleRow, lastColumn);
+  sheet.mergeCells(subtitleRow, 1, subtitleRow, lastColumn);
+  const title = sheet.getCell(titleRow, 1);
+  title.value = "تقرير الأصناف والمخزون - Smart Inventory";
+  title.font = { name: "Arial", size: 16, bold: true, color: { argb: "FFFFFFFF" } };
+  title.alignment = { horizontal: "center", vertical: "middle" };
+  title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D4F62" } };
+  sheet.getRow(titleRow).height = 32;
+  const subtitle = sheet.getCell(subtitleRow, 1);
+  subtitle.value = `تاريخ التقرير: ${new Date().toLocaleDateString("ar-EG")}  ·  عدد الأصناف: ${rows.length}`;
+  subtitle.font = { name: "Arial", size: 10, italic: true, color: { argb: "FF536B78" } };
+  subtitle.alignment = { horizontal: "right", vertical: "middle" };
+  subtitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F1F2" } };
+  sheet.getRow(subtitleRow).height = 24;
+  sheet.getRow(3).height = 8;
+  keys.forEach((key, index) => {
+    const column = sheet.getColumn(index + 1);
+    column.width = defs[key].width;
+    column.header = defs[key].header;
+  });
+  const header = sheet.getRow(headerRow);
+  header.values = [undefined, ...keys.map(key => defs[key].header)];
+  header.height = 30;
+  header.eachCell({ includeEmpty: false }, cell => {
+    cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D4F62" } };
+    cell.border = { bottom: { style: "medium", color: { argb: "FF0D7180" } } };
+  });
+  const numberKeys = new Set(["currentStock", "reorderLevel"]);
+  const moneyKeys = new Set(["unitPrice", "totalValue"]);
+  for (const row of rows) {
+    const excelRow = sheet.addRow(Object.fromEntries(keys.map(key => [
+      key,
+      key === "totalValue" ? Number((Number(row.currentStock ?? 0) * Number(row.unitPrice ?? 0)).toFixed(2))
+        : key === "image" ? (row.imageUrl ? "مضمنة" : "—")
+        : row[key as keyof InventoryExportItem] ?? "—",
+    ])));
+    excelRow.height = 28;
+    excelRow.eachCell({ includeEmpty: true }, (cell, columnNumber) => {
+      const key = keys[columnNumber - 1];
+      cell.font = { name: "Arial", size: 10, color: { argb: "FF102A43" } };
+      cell.alignment = { horizontal: key === "name" || key === "category" ? "right" : "center", vertical: "middle", wrapText: true };
+      cell.border = { bottom: { style: "hair", color: { argb: "FFDCE7EE" } } };
+      if (numberKeys.has(key)) cell.numFmt = "#,##0.###";
+      if (moneyKeys.has(key)) cell.numFmt = '#,##0.00';
+      if (key === "image") cell.font = { name: "Arial", size: 9, italic: true, color: { argb: "FF0D7180" } };
+      if (excelRow.number % 2 === 0) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF6FAFB" } };
+    });
+    for (const imageKey of ["image"] as const) {
+      const url = imageKey === "image" ? row.imageUrl : null;
+      if (keys.includes(imageKey) && url) {
+        const asset = await fetchImageAsset(url);
+        if (asset) {
+          const imageId = workbook.addImage({ buffer: asset.buffer, extension: asset.extension });
+          sheet.addImage(imageId, { tl: { col: keys.indexOf(imageKey), row: excelRow.number - 1 }, ext: { width: 52, height: 52 } });
+          excelRow.height = 44;
+        }
+      }
+    }
+  }
+  const totalRow = dataStartRow + rows.length;
+  const total = sheet.getRow(totalRow);
+  total.getCell(1).value = "الإجمالي";
+  keys.forEach((key, index) => {
+    const cell = total.getCell(index + 1);
+    if (key === "currentStock" || key === "totalValue") cell.value = { formula: `SUM(${sheet.getColumn(index + 1).letter}${dataStartRow}:${sheet.getColumn(index + 1).letter}${Math.max(dataStartRow, totalRow - 1)})` };
+    cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF0D4F62" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEBF0" } };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.border = { top: { style: "medium", color: { argb: "FF0D7180" } } };
+    if (numberKeys.has(key)) cell.numFmt = "#,##0.###";
+    if (moneyKeys.has(key)) cell.numFmt = '#,##0.00';
+  });
+  total.height = 28;
+  sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: Math.max(headerRow, totalRow - 1), column: lastColumn } };
+  sheet.views = [{ rightToLeft: true, showGridLines: false, state: "frozen", ySplit: headerRow, zoomScale: 90 }];
+  sheet.pageSetup = { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } };
+  sheet.pageSetup.printTitlesRow = `${headerRow}:${headerRow}`;
+  sheet.headerFooter.oddFooter = "&LSmart Inventory&Cصفحة &P من &N&R& D";
+  return workbook;
+}
 export async function downloadInventoryExcel(rows: InventoryExportItem[], options: { columns?: ExportColumnKey[] } = {}) { const workbook = await buildInventoryExcel(rows, options); const output = await workbook.xlsx.writeBuffer(); downloadBlobFile(new Blob([output], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "smart-inventory-stock.xlsx"); }
 
 export async function buildItemCardExcel(card: ItemCardPdfData, options: { movementFilter?: "all" | "إضافة" | "صرف" | "مرتجع" | "تحويل"; includePermitColumn?: boolean; includeUnitPrice?: boolean; includeTotalValue?: boolean } = {}) {
