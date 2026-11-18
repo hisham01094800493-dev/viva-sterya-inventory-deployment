@@ -140,6 +140,26 @@ export async function getDb() {
           migrationError?.message ?? migrationError,
         );
       }
+      // ترقية قواعد البيانات التي لم تطبق بعد حقول استلام الأصل/الإضافة.
+      // كل عبارة مستقلة وقابلة لإعادة التشغيل؛ وجود العمود مسبقًا ليس خطأ.
+      const additionIntakeMigrations = [
+        `ALTER TABLE additions ADD COLUMN intake_type VARCHAR(32) NOT NULL DEFAULT 'purchase'`,
+        `ALTER TABLE additions ADD COLUMN source_location VARCHAR(180) NULL`,
+        `ALTER TABLE additions ADD COLUMN item_condition VARCHAR(64) NULL`,
+        `ALTER TABLE additions ADD COLUMN notes TEXT NULL`,
+      ];
+      for (const migrationSql of additionIntakeMigrations) {
+        try {
+          await _db.execute(sql.raw(migrationSql));
+        } catch (migrationError: any) {
+          if (migrationError?.code !== "ER_DUP_FIELDNAME") {
+            console.warn(
+              "[Database] Addition intake migration deferred:",
+              migrationError?.message ?? migrationError,
+            );
+          }
+        }
+      }
       try {
         await _db.execute(
           sql.raw(`UPDATE warehouses SET code_prefix = slot WHERE code_prefix = 1`)
