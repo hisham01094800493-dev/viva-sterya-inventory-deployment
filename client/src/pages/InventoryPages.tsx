@@ -994,7 +994,8 @@ function MovementPage({ kind, preset }: { kind: MovementKind; preset?: "returnsT
   const [movementPdfZoom, setMovementPdfZoom] = useState(1);
   const movementPdfIframeRef = useRef<HTMLIFrameElement>(null);
   const [supplierFilter, setSupplierFilter] = useState("all"); const [customerFilter, setCustomerFilter] = useState("all"); const [itemFilter, setItemFilter] = useState(""); const [permitFilter, setPermitFilter] = useState(""); const [purposeFilter, setPurposeFilter] = useState(""); const [fromDate, setFromDate] = useState(""); const [toDate, setToDate] = useState(""); const [barcodeTarget, setBarcodeTarget] = useState<"item" | "permit" | null>(null); const [appliedFilters, setAppliedFilters] = useState({ supplier: "all", customer: "all", item: "", permit: "", purpose: "", from: "", to: "" }); const [page, setPage] = useState(1);
-  const movementActiveProject = useActiveProjectState().resolved.project;
+  const movementActiveProjectState = useActiveProjectState();
+  const movementActiveProject = movementActiveProjectState.resolved.project;
   const movementActiveProjectId = movementActiveProject?.id ?? null;
   const movementActiveProjectName = movementActiveProject ? projectLabel(movementActiveProject) : "";
   const movementPrevProjectIdRef = useRef<number | null | undefined>(undefined);
@@ -1031,9 +1032,15 @@ function MovementPage({ kind, preset }: { kind: MovementKind; preset?: "returnsT
   const transfersPageInput = useMemo(() => ({ ...commonPageInput, transferTypeSearch: isReturnsToday ? "مرتجع" : undefined }), [commonPageInput, isReturnsToday]);
   const additionsPageInput = useMemo(() => ({ ...commonPageInput, supplierId: appliedFilters.supplier === "all" ? undefined : Number(appliedFilters.supplier) }), [commonPageInput, appliedFilters.supplier]);
   const disbursementsPageInput = useMemo(() => ({ ...commonPageInput, customerId: appliedFilters.customer === "all" ? undefined : Number(appliedFilters.customer) }), [commonPageInput, appliedFilters.customer]);
-  const additions = trpc.additions.listPaged.useQuery(additionsPageInput, { enabled: kind === "additions" });
-  const disbursements = trpc.disbursements.listPaged.useQuery(disbursementsPageInput, { enabled: kind === "disbursements" });
-  const transfers = trpc.transfers.listPaged.useQuery(transfersPageInput, { enabled: kind === "transfers" });
+  // The server resolves the active project from the session, so the project
+  // id is intentionally not part of these query inputs. Pause movement reads
+  // while switching, then re-enable them only after the new project is ready;
+  // this prevents React Query from reusing the previous project's rows.
+  const movementProjectReady = !movementActiveProjectState.projectsAvailable
+    || Boolean(movementActiveProjectId && !movementActiveProjectState.isSwitching);
+  const additions = trpc.additions.listPaged.useQuery(additionsPageInput, { enabled: kind === "additions" && movementProjectReady });
+  const disbursements = trpc.disbursements.listPaged.useQuery(disbursementsPageInput, { enabled: kind === "disbursements" && movementProjectReady });
+  const transfers = trpc.transfers.listPaged.useQuery(transfersPageInput, { enabled: kind === "transfers" && movementProjectReady });
   const utils = trpc.useUtils(); const cancelAddition = trpc.additions.cancel.useMutation(); const cancelDisbursement = trpc.disbursements.cancel.useMutation(); const cancelTransfer = trpc.transfers.cancel.useMutation();
   const permissions = trpc.permissions.mine.useQuery();
   const preferences = trpc.preferences.get.useQuery();
