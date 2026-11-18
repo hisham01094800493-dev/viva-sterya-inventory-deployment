@@ -224,10 +224,11 @@ export async function buildInventoryExcel(rows: InventoryExportItem[], options: 
   keys.forEach((key, index) => {
     const column = sheet.getColumn(index + 1);
     column.width = defs[key].width;
+    column.key = key;
     column.header = defs[key].header;
   });
   const header = sheet.getRow(headerRow);
-  header.values = [undefined, ...keys.map(key => defs[key].header)];
+  header.values = keys.map(key => defs[key].header);
   header.height = 30;
   header.eachCell({ includeEmpty: false }, cell => {
     cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
@@ -309,8 +310,19 @@ export async function buildItemCardExcel(card: ItemCardPdfData, options: { movem
   const excelTotals = { addition: rows.reduce((sum, row) => sum + row.addition, 0), returned: rows.reduce((sum, row) => sum + row.returned, 0), disbursement: rows.reduce((sum, row) => sum + row.disbursement, 0), totalValue: rows.reduce((sum, row) => sum + row.totalValue, 0) };
   const excelFinalStock = Number(card.item.currentStock ?? rows.at(-1)?.runningStock ?? card.item.initialStock ?? 0); const excelTotalRow = { date: "", detail: "الإجمالي", purpose: "", movement: "", openingStock: null, addition: Number(excelTotals.addition.toFixed(3)), returned: Number(excelTotals.returned.toFixed(3)), disbursement: Number(excelTotals.disbursement.toFixed(3)), runningStock: Number(excelFinalStock.toFixed(3)), unitPrice: 0, totalValue: Number(excelTotals.totalValue.toFixed(2)), permitNumber: "" } as unknown as ItemCardMovementPdfRow;
   const totalExcelRow = sheet.addRow(columns.map(key => values[key](excelTotalRow))); totalExcelRow.font = { bold: true, color: { argb: "FF102A43" } }; totalExcelRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEBF0" } }; totalExcelRow.alignment = { vertical: "middle", horizontal: "right", wrapText: true };
-  sheet.getRow(1).font = { bold: true, size: 15, color: { argb: "FF0D4F62" } };
+  sheet.getRow(1).font = { name: "Arial", bold: true, size: 16, color: { argb: "FFFFFFFF" } };
+  sheet.getRow(1).alignment = { horizontal: "center", vertical: "middle" };
+  sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D4F62" } };
+  sheet.getRow(1).height = 32;
   sheet.mergeCells(1, 1, 1, columns.length);
+  sheet.mergeCells(2, 2, 2, 3);
+  sheet.mergeCells(2, 5, 2, columns.length);
+  sheet.mergeCells(3, 2, 3, 3);
+  for (let rowNumber = 2; rowNumber <= 3; rowNumber += 1) { sheet.getRow(rowNumber).eachCell({ includeEmpty: true }, cell => { cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF536B78" } }; cell.alignment = { horizontal: "right", vertical: "middle", wrapText: true }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F1F2" } }; }); sheet.getRow(rowNumber).height = 24; }
+  headerRow.height = 30; headerRow.eachCell({ includeEmpty: true }, cell => { cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } }; cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D4F62" } }; cell.border = { bottom: { style: "medium", color: { argb: "FF0D7180" } } }; });
+  sheet.eachRow((row, rowNumber) => { if (rowNumber < 5) return; row.eachCell({ includeEmpty: true }, cell => { cell.font = { name: "Arial", size: 10, color: { argb: "FF102A43" } }; cell.alignment = { horizontal: "right", vertical: "middle", wrapText: true }; cell.border = { bottom: { style: "hair", color: { argb: "FFDCE7EE" } } }; if (rowNumber % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF6FAFB" } }; }); });
+  columns.forEach((key, index) => { sheet.getColumn(index + 1).width = key === "detail" ? 38 : key === "purpose" ? 28 : key === "date" ? 14 : key === "movement" ? 14 : key === "permitNumber" ? 16 : ["unitPrice", "totalValue"].includes(key) ? 16 : 15; });
+  sheet.autoFilter = { from: { row: 4, column: 1 }, to: { row: sheet.rowCount - 1, column: columns.length } }; sheet.views = [{ rightToLeft: true, showGridLines: false, state: "frozen", ySplit: 4, zoomScale: 90 }]; sheet.pageSetup = { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } }; sheet.pageSetup.printTitlesRow = "4:4"; sheet.headerFooter.oddFooter = "&LSmart Inventory&Cصفحة &P من &N&R& D";
   return workbook;
 }
 
@@ -445,19 +457,32 @@ export { buildInventoryPdfRows };
 export async function buildMovementExcel(rows: MovementExportItem[], options: { columns?: ExportColumnKey[]; includeDetail?: boolean } = {}) {
   const columnSource = options.includeDetail === false ? movementExportColumnsWithoutDetail : movementExportColumns;
   const keys = selected(columnSource, options.columns);
-  const ExcelJS = await loadExcelJs(); const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("حركات المخزون", { views: [{ rightToLeft: true }] });
-  const defs: Record<string, { header: string; key: string; width: number }> = { type: { header: labels.type, key: "type", width: 14 }, date: { header: labels.date, key: "date", width: 14 }, eznNum: { header: labels.eznNum, key: "eznNum", width: 16 }, itemCode: { header: labels.itemCode, key: "itemCode", width: 16 }, name: { header: labels.name, key: "name", width: 28 }, quantity: { header: labels.quantity, key: "quantity", width: 14 }, additionPurpose: { header: labels.additionPurpose, key: "additionPurpose", width: 28 }, disbursementPurpose: { header: labels.disbursementPurpose, key: "disbursementPurpose", width: 28 }, returnPurpose: { header: labels.returnPurpose, key: "returnPurpose", width: 28 }, detail: { header: labels.detail, key: "detail", width: 24 }, unitPrice: { header: labels.unitPrice, key: "unitPrice", width: 14 }, totalValue: { header: labels.totalValue, key: "totalValue", width: 18 }, image: { header: labels.image, key: "image", width: 15 }, documentImage: { header: labels.documentImage, key: "documentImage", width: 15 } };
-  sheet.columns = keys.map(key => defs[key]);
-  sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-  sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D4F62" } };
+  const ExcelJS = await loadExcelJs();
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Smart Inventory";
+  workbook.created = new Date();
+  const sheet = workbook.addWorksheet("حركات المخزون", { views: [{ rightToLeft: true, showGridLines: false, zoomScale: 90 }], properties: { defaultRowHeight: 22 } });
+  const defs: Record<string, { header: string; width: number }> = { type: { header: labels.type, width: 14 }, date: { header: labels.date, width: 14 }, eznNum: { header: labels.eznNum, width: 16 }, itemCode: { header: labels.itemCode, width: 16 }, name: { header: labels.name, width: 38 }, quantity: { header: labels.quantity, width: 14 }, additionPurpose: { header: labels.additionPurpose, width: 28 }, disbursementPurpose: { header: labels.disbursementPurpose, width: 28 }, returnPurpose: { header: labels.returnPurpose, width: 28 }, detail: { header: labels.detail, width: 34 }, unitPrice: { header: labels.unitPrice, width: 16 }, totalValue: { header: labels.totalValue, width: 20 }, image: { header: labels.image, width: 15 }, documentImage: { header: labels.documentImage, width: 15 } };
+  const headerRow = 4; const dataStartRow = 5; const lastColumn = keys.length;
+  sheet.mergeCells(1, 1, 1, lastColumn); sheet.mergeCells(2, 1, 2, lastColumn);
+  sheet.getCell(1, 1).value = "تقرير حركات المخزون - Smart Inventory";
+  sheet.getCell(1, 1).font = { name: "Arial", size: 16, bold: true, color: { argb: "FFFFFFFF" } }; sheet.getCell(1, 1).alignment = { horizontal: "center", vertical: "middle" }; sheet.getCell(1, 1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D4F62" } }; sheet.getRow(1).height = 32;
+  sheet.getCell(2, 1).value = `تاريخ التقرير: ${new Date().toLocaleDateString("ar-EG")}  ·  عدد الحركات: ${rows.length}`; sheet.getCell(2, 1).font = { name: "Arial", size: 10, italic: true, color: { argb: "FF536B78" } }; sheet.getCell(2, 1).alignment = { horizontal: "right", vertical: "middle" }; sheet.getCell(2, 1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F1F2" } }; sheet.getRow(2).height = 24; sheet.getRow(3).height = 8;
+  keys.forEach((key, index) => { sheet.getColumn(index + 1).width = defs[key].width; sheet.getColumn(index + 1).key = key; });
+  const header = sheet.getRow(headerRow); header.values = keys.map(key => defs[key].header); header.height = 30;
+  header.eachCell({ includeEmpty: false }, cell => { cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } }; cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D4F62" } }; cell.border = { bottom: { style: "medium", color: { argb: "FF0D7180" } } }; });
+  const quantityKeys = new Set(["quantity"]); const moneyKeys = new Set(["unitPrice", "totalValue"]);
   for (const row of rows) {
-    const excelRow = sheet.addRow(Object.fromEntries(keys.map(key => [key, key === "totalValue" ? row.totalValue : key === "image" ? (row.imageUrl ? "مضمنة" : "—") : key === "documentImage" ? (row.documentImageUrl ? "مضمنة" : "—") : key === "detail" ? movementDetail(row) : key === "additionPurpose" ? (row.additionPurpose || "—") : key === "disbursementPurpose" ? (formatDisbursementPurpose(row.disbursementPurpose) || "—") : key === "returnPurpose" ? (row.returnPurpose || "—") : row[key as keyof MovementExportItem]])));
-    for (const imageKey of ["image", "documentImage"] as const) { const url = imageKey === "image" ? row.imageUrl : row.documentImageUrl; if (keys.includes(imageKey) && url) { const asset = await fetchImageAsset(url); if (asset) { const imageId = workbook.addImage({ buffer: asset.buffer, extension: asset.extension }); sheet.addImage(imageId, { tl: { col: keys.indexOf(imageKey), row: excelRow.number - 1 }, ext: { width: 58, height: 58 } }); excelRow.height = 48; } } }
+    const excelRow = sheet.addRow(Object.fromEntries(keys.map(key => [key, key === "totalValue" ? Number(row.totalValue ?? 0) : key === "image" ? (row.imageUrl ? "مضمنة" : "—") : key === "documentImage" ? (row.documentImageUrl ? "مضمنة" : "—") : key === "detail" ? movementDetail(row) : key === "additionPurpose" ? (row.additionPurpose || "—") : key === "disbursementPurpose" ? (formatDisbursementPurpose(row.disbursementPurpose) || "—") : key === "returnPurpose" ? (row.returnPurpose || "—") : row[key as keyof MovementExportItem] ?? "—"])));
+    excelRow.height = 30; const tone = row.type === "إضافة" ? "FFE8F7EF" : row.type === "صرف" ? "FFFFE8ED" : row.type === "مرتجع" ? "FFFFF7E0" : "FFE8F2FA";
+    excelRow.eachCell({ includeEmpty: true }, (cell, columnNumber) => { const key = keys[columnNumber - 1]; cell.font = { name: "Arial", size: 10, color: { argb: "FF102A43" } }; cell.alignment = { horizontal: ["name", "detail", "additionPurpose", "disbursementPurpose", "returnPurpose"].includes(key) ? "right" : "center", vertical: "middle", wrapText: true }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: tone } }; cell.border = { bottom: { style: "hair", color: { argb: "FFDCE7EE" } } }; if (quantityKeys.has(key)) cell.numFmt = "#,##0.###"; if (moneyKeys.has(key)) cell.numFmt = "#,##0.00"; });
+    for (const imageKey of ["image", "documentImage"] as const) { const url = imageKey === "image" ? row.imageUrl : row.documentImageUrl; if (keys.includes(imageKey) && url) { const asset = await fetchImageAsset(url); if (asset) { const imageId = workbook.addImage({ buffer: asset.buffer, extension: asset.extension }); sheet.addImage(imageId, { tl: { col: keys.indexOf(imageKey), row: excelRow.number - 1 }, ext: { width: 52, height: 52 } }); excelRow.height = 44; } } }
   }
+  const totalRow = dataStartRow + rows.length; const total = sheet.getRow(totalRow); total.getCell(1).value = "الإجمالي";
+  keys.forEach((key, index) => { const cell = total.getCell(index + 1); if (key === "quantity" || key === "totalValue") cell.value = { formula: `SUM(${sheet.getColumn(index + 1).letter}${dataStartRow}:${sheet.getColumn(index + 1).letter}${Math.max(dataStartRow, totalRow - 1)})` }; cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF0D4F62" } }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEBF0" } }; cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true }; cell.border = { top: { style: "medium", color: { argb: "FF0D7180" } } }; if (quantityKeys.has(key)) cell.numFmt = "#,##0.###"; if (moneyKeys.has(key)) cell.numFmt = "#,##0.00"; }); total.height = 28;
+  sheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: Math.max(headerRow, totalRow - 1), column: lastColumn } }; sheet.views = [{ rightToLeft: true, showGridLines: false, state: "frozen", ySplit: headerRow, zoomScale: 90 }]; sheet.pageSetup = { orientation: "landscape", paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.25, right: 0.25, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 } }; sheet.pageSetup.printTitlesRow = `${headerRow}:${headerRow}`; sheet.headerFooter.oddFooter = "&LSmart Inventory&Cصفحة &P من &N&R& D";
   return workbook;
 }
-
 export async function buildExcelFileBlob(rows: InventoryExportItem[] | MovementExportItem[], reportType: "inventory" | "movements" | "returns", options: { columns?: ExportColumnKey[]; includeDetail?: boolean } = {}) { const workbook = reportType === "inventory" ? await buildInventoryExcel(rows as InventoryExportItem[], options) : await buildMovementExcel(rows as MovementExportItem[], options); const output = await workbook.xlsx.writeBuffer(); return new Blob([output], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }); }
 export async function downloadMovementExcel(rows: MovementExportItem[], options: { columns?: ExportColumnKey[] } = {}) { const blob = await buildExcelFileBlob(rows, "movements", options); downloadBlobFile(blob, "smart-inventory-disbursements-returns.xlsx"); }
 

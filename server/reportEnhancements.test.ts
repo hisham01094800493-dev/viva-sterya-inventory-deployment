@@ -225,13 +225,13 @@ describe("تحسينات تقارير المخزون", () => {
     const output = await workbook.xlsx.writeBuffer();
     const reopened = new ExcelJS.Workbook();
     await reopened.xlsx.load(output as ExcelJS.Buffer);
-    expect(reopened.worksheets[0].getRow(1).values).toEqual([undefined, "كود الصنف", "سعر الوحدة", "قيمة المخزون/الحركة", "صورة الصنف", "صورة الإذن"]);
+    expect(reopened.worksheets[0].getRow(4).values).toEqual([undefined, "كود الصنف", "سعر الوحدة", "قيمة المخزون/الحركة", "صورة الصنف", "صورة الإذن"]);
     const customerWorkbook = await buildMovementExcel(rows, { columns: ["detail"] });
     const customerOutput = await customerWorkbook.xlsx.writeBuffer();
     const customerReopened = new ExcelJS.Workbook();
     await customerReopened.xlsx.load(customerOutput as ExcelJS.Buffer);
-    expect(customerReopened.worksheets[0].getCell("A2").value).toBe("منصرف إلى: شركة العميل");
-    expect(reopened.worksheets[0].getRow(1).values).toContain("صورة الإذن");
+    expect(customerReopened.worksheets[0].getCell("A5").value).toBe("منصرف إلى: شركة العميل");
+    expect(reopened.worksheets[0].getRow(4).values).toContain("صورة الإذن");
     const reportDate = new Date("2026-08-15T00:00:00Z");
     const pdf = await buildMovementPdf(rows, { columns: ["itemCode", "name", "date", "detail", "unitPrice", "totalValue", "image", "documentImage"], logo: `data:image/png;base64,${tinyPng.toString("base64")}`, date: reportDate });
     expect(pdf.output("arraybuffer").byteLength).toBeGreaterThan(500);
