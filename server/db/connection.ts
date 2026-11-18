@@ -122,6 +122,24 @@ export async function getDb() {
           );
         }
       }
+      // إصلاح أذونات الإضافة القديمة بعد تفعيل عزل المشاريع. المخزن هو
+      // المرجع المعتمد لمشروع الإضافة؛ العملية تكرارية ولا تحذف أو تنقل سجلات.
+      try {
+        await _db.execute(
+          sql.raw(
+            `UPDATE additions a
+             INNER JOIN warehouses w ON w.id = a.warehouse_id
+             SET a.project_id = w.project_id
+             WHERE w.project_id IS NOT NULL
+               AND (a.project_id IS NULL OR a.project_id <> w.project_id)`
+          )
+        );
+      } catch (migrationError: any) {
+        console.warn(
+          "[Database] Addition project backfill deferred:",
+          migrationError?.message ?? migrationError,
+        );
+      }
       try {
         await _db.execute(
           sql.raw(`UPDATE warehouses SET code_prefix = slot WHERE code_prefix = 1`)
