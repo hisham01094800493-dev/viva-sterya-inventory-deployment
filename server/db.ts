@@ -2256,6 +2256,8 @@ export async function getBuildingProjectId(id: number): Promise<number | null | 
 }
 
 export type MovementPageInput = {
+  /** Client-side cache identity only; server routers still derive scope from the session. */
+  projectId?: number;
   page?: number;
   pageSize?: number;
   itemSearch?: string;

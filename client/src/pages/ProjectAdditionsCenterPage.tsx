@@ -54,7 +54,7 @@ export default function ProjectAdditionsCenterPage() {
   const canViewFinancialDetails = permissions.data?.allowedReports.includes("warehouse-financial-details") ?? false;
   const financialPreferenceEnabled = preferences.data?.reportColumnOrder?.[FINANCIAL_PREFERENCE_KEY]?.includes("visible") ?? false;
   const showFinancialDetails = canViewFinancialDetails && financialPreferenceEnabled;
-  const queryInput = useMemo(() => ({ page, pageSize: 50, fromDate: day || undefined, toDate: day || undefined }), [day, page]);
+  const queryInput = useMemo(() => ({ projectId: activeProject?.id ?? undefined, page, pageSize: 50, fromDate: day || undefined, toDate: day || undefined }), [activeProject?.id, day, page]);
   const additions = trpc.additions.listPaged.useQuery(queryInput, {
     enabled: Boolean(projectReady && day),
     refetchOnWindowFocus: true,
