@@ -78,7 +78,7 @@ export function formatPdfCurrency(value: unknown) { const amount = Number(value 
 export function formatPdfMovementDate(value: unknown) { const key = inventoryDateKey(value); const match = key.match(/^(\d{4})-(\d{2})-(\d{2})$/); const raw = match ? `${match[3]} / ${match[2]} / ${match[1]}` : (() => { const display = formatInventoryDate(value); const parts = display.split(/[\/.,،؛\-\s]+/).filter(Boolean); return parts.length >= 3 ? `${parts[0].padStart(2, "0")} / ${parts[1].padStart(2, "0")} / ${parts[2]}` : display; })(); return raw; }
 export function getReportHeaderLines(summary?: string | string[]) { return !summary ? [] : Array.isArray(summary) ? summary.filter(Boolean) : summary.split("\n").filter(Boolean); }
 export function getReportHeaderHeight(summary?: string | string[]) { return getReportHeaderLines(summary).length ? 88 + Math.max(0, getReportHeaderLines(summary).length - 1) * 14 : 72; }
-function normalizeInventoryUnit(unit: unknown) {
+export function normalizeInventoryUnit(unit: unknown) {
   const value = String(unit ?? "").trim();
   if (!value) return "بدون وحدة";
   const compact = value.toLowerCase().replace(/[\s\u200e\u200f]/g, "");
@@ -87,7 +87,7 @@ function normalizeInventoryUnit(unit: unknown) {
   if (["م", "متر", "مترطولي"].includes(compact)) return "م";
   return value;
 }
-function buildInventoryUnitBalanceSummary(rows: Array<{ unit?: string | null; totalCurrentStock?: number | null }>) {
+export function buildInventoryUnitBalanceSummary(rows: Array<{ unit?: string | null; totalCurrentStock?: number | null }>) {
   const totals = new Map<string, number>();
   for (const row of rows) {
     const unit = normalizeInventoryUnit(row.unit);
@@ -784,11 +784,11 @@ export async function buildMainWarehousePdf(cards: ItemCardPdfData[], options: {
     const disbursements = card.disbursements.reduce((sum, row) => sum + Math.abs(Number(row.quantity ?? 0)), 0);
     const current = Number(card.item.currentStock ?? 0);
     const asset = await fetchImageAsset(card.item.imageUrl);
-    return { card, additions, returns, disbursements, current, image: asset?.dataUrl ? await cropPdfImageToSquare(asset.dataUrl) : null };
+    return { card, additions, returns, disbursements, current, unit: card.item.unit, image: asset?.dataUrl ? await cropPdfImageToSquare(asset.dataUrl) : null };
   }));
   const summary = [
     `${options.warehouseName ?? "المخزن الرئيسي"}: ${enriched.length.toLocaleString("en-US")} صنف`,
-    `إجمالي الرصيد: ${enriched.reduce((sum, row) => sum + row.current, 0).toLocaleString("en-US", { maximumFractionDigits: 3 })}`,
+    ...buildInventoryUnitBalanceSummary(enriched.map(row => ({ unit: row.unit, totalCurrentStock: row.current }))),
   ];
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
   logoAndDate(doc, `جرد ${options.warehouseName ?? "المخزن الرئيسي"} — الأصناف والصور`, logo, options.date, summary);
