@@ -34,7 +34,7 @@ export default function PwaVersionCard({ collapsed = false }: { collapsed?: bool
 
   const shareOnWhatsApp = () => {
     const shareUrl = new URL("/", window.location.origin).toString();
-    const whatsappUrl = `https://wa.me/201065303382?text=${encodeURIComponent(`${shareMessage} ${shareUrl}`)}`;
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${shareMessage} ${shareUrl}`)}`;
     window.open(whatsappUrl, "_blank", "noopener,noreferrer");
   };
 
