@@ -54,7 +54,7 @@ describe("Smart Inventory PWA shell", () => {
   it("shares the current application link directly through WhatsApp", () => {
     const card = readFileSync(resolve(process.cwd(), "client/src/components/PwaVersionCard.tsx"), "utf8");
     expect(card).toContain("واتساب");
-    expect(card).toContain("https://wa.me/?text=");
+    expect(card).toContain("https://wa.me/201065303382?text=");
     expect(card).toContain('new URL("/", window.location.origin)');
     expect(card).toContain("إدارة ذكية للمخزون، حركة أسهل، وتقارير أوضح");
     expect(card).not.toContain("navigator.share");
