@@ -78,6 +78,25 @@ export function formatPdfCurrency(value: unknown) { const amount = Number(value 
 export function formatPdfMovementDate(value: unknown) { const key = inventoryDateKey(value); const match = key.match(/^(\d{4})-(\d{2})-(\d{2})$/); const raw = match ? `${match[3]} / ${match[2]} / ${match[1]}` : (() => { const display = formatInventoryDate(value); const parts = display.split(/[\/.,،؛\-\s]+/).filter(Boolean); return parts.length >= 3 ? `${parts[0].padStart(2, "0")} / ${parts[1].padStart(2, "0")} / ${parts[2]}` : display; })(); return raw; }
 export function getReportHeaderLines(summary?: string | string[]) { return !summary ? [] : Array.isArray(summary) ? summary.filter(Boolean) : summary.split("\n").filter(Boolean); }
 export function getReportHeaderHeight(summary?: string | string[]) { return getReportHeaderLines(summary).length ? 88 + Math.max(0, getReportHeaderLines(summary).length - 1) * 14 : 72; }
+function normalizeInventoryUnit(unit: unknown) {
+  const value = String(unit ?? "").trim();
+  if (!value) return "بدون وحدة";
+  const compact = value.toLowerCase().replace(/[\s\u200e\u200f]/g, "");
+  if (["م2", "م٢", "م²", "مترمربع", "متر²"].includes(compact)) return "م²";
+  if (["م3", "م٣", "م³", "مترمكعب", "متر³"].includes(compact)) return "م³";
+  if (["م", "متر", "مترطولي"].includes(compact)) return "م";
+  return value;
+}
+function buildInventoryUnitBalanceSummary(rows: Array<{ unit?: string | null; totalCurrentStock?: number | null }>) {
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    const unit = normalizeInventoryUnit(row.unit);
+    totals.set(unit, (totals.get(unit) ?? 0) + Number(row.totalCurrentStock ?? 0));
+  }
+  if (!totals.size) return ["إجمالي الرصيد: 0"];
+  return Array.from(totals, ([unit, quantity]) => `إجمالي ${unit}: ${quantity.toLocaleString("en-US", { maximumFractionDigits: 3 })}`)
+    .sort((left, right) => left.localeCompare(right, "ar"));
+}
 export const PDF_THEME = { navy: [13, 79, 98] as [number, number, number], teal: [13, 113, 128] as [number, number, number], ink: [16, 42, 67] as [number, number, number], muted: [106, 126, 139] as [number, number, number], line: [197, 216, 222] as [number, number, number], soft: [246, 250, 251] as [number, number, number], gold: [241, 194, 125] as [number, number, number] };
 export function drawReportHeader(doc: jsPDF, title: string, logo?: string | null, date = new Date(), summary?: string | string[], dateFirst = false) { (doc as jsPDF & { setR2L?: (value: boolean) => void }).setR2L?.(false); const lines = getReportHeaderLines(summary); const pageWidth = doc.internal?.pageSize?.getWidth?.() ?? 210; const hasCanvas = Boolean(doc.internal?.pageSize); const headerRight = pageWidth - 36; if (hasCanvas) { doc.setFillColor(247, 251, 252); doc.roundedRect(24, 16, pageWidth - 48, Math.max(48, getReportHeaderHeight(summary) - 26), 8, 8, "F"); if (logo) { try { doc.addImage(logo, getPdfImageFormat(logo), 38, 27, 34, 34); } catch { /* invalid logo should not block export */ } } } if (arabicPdfDocs.has(doc)) doc.setFont(PDF_FONT_NAME, "bold"); doc.setTextColor?.(...PDF_THEME.ink); doc.setFontSize(17); doc.text(shapeArabic(doc, title), headerRight, 35, { align: "right", baseline: "middle", maxWidth: pageWidth - 118 }); doc.setFontSize(9); doc.setTextColor?.(...PDF_THEME.muted); if (dateFirst) { doc.text(getReportHeaderDate(date), headerRight, 52, { align: "right", baseline: "middle" }); if (lines.length) { doc.setFontSize(9); lines.forEach((line, index) => doc.text(shapeArabic(doc, line), headerRight, 67 + index * 14, { align: "right", baseline: "middle" })); } } else { if (lines.length) { doc.setFontSize(9); lines.forEach((line, index) => doc.text(shapeArabic(doc, line), headerRight, 52 + index * 14, { align: "right", baseline: "middle" })); } doc.setFontSize(9); doc.text(getReportHeaderDate(date), headerRight, lines.length ? 52 + lines.length * 14 : 52, { align: "right", baseline: "middle" }); } if (hasCanvas) { const ruleY = lines.length ? (dateFirst ? 72 + lines.length * 14 : 59 + lines.length * 14) : 63; doc.setDrawColor(...PDF_THEME.line); doc.setLineWidth(0.8); doc.line(36, ruleY, pageWidth - 36, ruleY); doc.setDrawColor(...PDF_THEME.teal); doc.setLineWidth(2.2); doc.line(pageWidth - 112, ruleY, pageWidth - 36, ruleY); } }
 export function drawReportFooter(doc: jsPDF, title: string, date = new Date()) { const pageWidth = doc.internal.pageSize.getWidth(); const pageHeight = doc.internal.pageSize.getHeight(); const total = doc.getNumberOfPages(); for (let page = 1; page <= total; page += 1) { doc.setPage(page); doc.setFillColor(...PDF_THEME.navy); doc.rect(0, 0, pageWidth, 5, "F"); doc.setDrawColor(...PDF_THEME.line); doc.setLineWidth(0.5); doc.line(24, pageHeight - 34, pageWidth - 24, pageHeight - 34); doc.setFont(getArabicPdfFont(doc), "bold"); doc.setFontSize(7.5); doc.setTextColor(...PDF_THEME.muted); doc.text(shapeArabic(doc, `${title} · Smart Inventory · ${getReportHeaderDate(date)}`), pageWidth - 28, pageHeight - 20, { align: "right" }); doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.text(`Page ${page} of ${total}`, 28, pageHeight - 20, { align: "left" }); } return doc; }
@@ -817,7 +836,7 @@ export async function buildCompanyInventoryAuditPdf(report: CompanyInventoryAudi
   ];
   const visualHeaders = columns.map(column => column.header);
   const scopeLabel = visualWarehouses.length === 1 ? `مخزن ${visualWarehouses[0].name}` : "الشركة";
-  const summary = [`${scopeLabel}: ${report.summary.totalItems.toLocaleString("en-US")} ${report.summary.totalItems === 1 ? "صنف" : "أصناف"}`, `إجمالي الرصيد: ${report.summary.totalCompanyBalance.toLocaleString("en-US", { maximumFractionDigits: 3 })}`];
+  const summary = [`${scopeLabel}: ${report.summary.totalItems.toLocaleString("en-US")} ${report.summary.totalItems === 1 ? "صنف" : "أصناف"}`, ...buildInventoryUnitBalanceSummary(report.rows)];
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
   logoAndDate(doc, visualWarehouses.length === 1 ? `تقرير جرد ${visualWarehouses[0].name}` : "تقرير الجرد الشامل حسب المخازن", logo, options.date, summary);
   autoTable(doc, {
