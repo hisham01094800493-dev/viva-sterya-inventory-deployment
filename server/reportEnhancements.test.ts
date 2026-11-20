@@ -288,11 +288,13 @@ describe("تحسينات تقارير المخزون", () => {
     expect(pdfTotalRow).toContain(shapeArabic(pdf, "الإجمالي"));
     expect(pdfTotalRow).toContain("8.000");
     const rows = buildItemCardMovementRows({ item: { initialStock: 5, unitPrice: 12.5 } as any, additions: [{ date: "2026-08-01", quantity: 4, unitPrice: 12.5 }], disbursements: [{ date: "2026-08-02", quantity: 1, unitPrice: 12.5 }], returns: [{ date: "2026-08-03", quantity: 1, unitPrice: 12.5 }] });
-    expect(rows.map(row => row.movement)).toEqual(["إضافة", "صرف", "مرتجع"]);
-    expect(rows.map(row => row.runningStock)).toEqual([9, 8, 9]);
-    expect(rows[0].date).toBe("01-08-2026");
+    expect(rows.map(row => row.movement)).toEqual(["رصيد أولي", "إضافة", "صرف", "مرتجع"]);
+    expect(rows.map(row => row.runningStock)).toEqual([5, 9, 8, 9]);
+    expect(rows[0].detail).toBe("الرصيد الأولي");
     expect(rows[0].openingStock).toBe(5);
+    expect(rows[0].addition).toBe(0);
     expect(rows.slice(1).every(row => row.openingStock === null)).toBe(true);
+    expect(rows[1].date).toBe("01-08-2026");
     expect(formatItemCardMovementDetail("إضافة", { supplier: "مورد النور" })).toBe("توريد من: مورد النور");
     expect(formatItemCardMovementDetail("إضافة", { supplierName: "مورد الدليل", eznNum: "A-7" })).toBe("توريد من: مورد الدليل");
     expect(formatItemCardMovementDetail("صرف", { destination: "شركة البناء" })).toBe("صرف إلى: شركة البناء");
@@ -301,7 +303,7 @@ describe("تحسينات تقارير المخزون", () => {
     expect(formatItemCardMovementDetail("مرتجع", { fromStore: "مخزن 1", toStore: "مخزن 2" })).toBe("مرتجع من: مخزن 1 إلى: مخزن 2");
     expect(formatItemCardMovementDetail("مرتجع", { fromCustomer: "شركة البناء", toStore: "المخزن" })).toBe("مرتجع من: شركة البناء إلى: المخزن");
     expect(formatItemCardMovementDetail("تحويل", { fromCustomer: "شركة أ", toCustomer: "شركة ب" })).toBe("تحويل من: شركة أ إلى: شركة ب");
-    expect(rows[0].detail).toBe("توريد من: —");
+    expect(rows[1].detail).toBe("توريد من: —");
     vi.mocked(autoTable).mockClear();
     await buildItemCardPdf({ item: { id: 4, name: "صنف فلتر", initialStock: 0, unitPrice: 10 } as any, additions: [{ date: "2026-08-01", eznNum: "A-4", quantity: 2, supplier: "مورد" }], disbursements: [{ date: "2026-08-02", eznNum: "D-4", quantity: 1, destination: "عميل" }], returns: [] }, { includePermitColumn: true, movementFilter: "صرف" });
     const filteredOptions = vi.mocked(autoTable).mock.calls.at(-1)?.[1] as { head?: unknown[][]; body?: unknown[][] };

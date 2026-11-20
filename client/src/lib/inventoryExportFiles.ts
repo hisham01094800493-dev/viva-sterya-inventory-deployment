@@ -325,7 +325,7 @@ export async function buildItemCardExcel(card: ItemCardPdfData, options: { movem
   headerRow.font = { bold: true, color: { argb: "FFFFFFFF" } };
   headerRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D4F62" } };
   sheet.columns = columns.map(key => ({ header: labels[key], key, width: key === "date" ? 14 : key === "detail" ? 34 : key === "permitNumber" ? 16 : key === "movement" ? 14 : 16 }));
-  rows.forEach(row => { const excelRow = sheet.addRow(columns.map(key => values[key](row))); excelRow.alignment = { vertical: "middle", horizontal: "right", wrapText: true }; excelRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: row.movement === "إضافة" ? "FFE8F7EF" : row.movement === "صرف" ? "FFFFE8ED" : row.movement === "مرتجع" ? "FFFFF7E0" : "FFE8F2FA" } }; });
+  rows.forEach(row => { const excelRow = sheet.addRow(columns.map(key => values[key](row))); excelRow.alignment = { vertical: "middle", horizontal: "right", wrapText: true }; excelRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: row.movement === "رصيد أولي" ? "FFE8F2FA" : row.movement === "إضافة" ? "FFE8F7EF" : row.movement === "صرف" ? "FFFFE8ED" : row.movement === "مرتجع" ? "FFFFF7E0" : "FFE8F2FA" } }; });
   const excelTotals = { addition: rows.reduce((sum, row) => sum + row.addition, 0), returned: rows.reduce((sum, row) => sum + row.returned, 0), disbursement: rows.reduce((sum, row) => sum + row.disbursement, 0), totalValue: rows.reduce((sum, row) => sum + row.totalValue, 0) };
   const excelFinalStock = Number(card.item.currentStock ?? rows.at(-1)?.runningStock ?? card.item.initialStock ?? 0); const excelTotalRow = { date: "", detail: "الإجمالي", purpose: "", movement: "", openingStock: null, addition: Number(excelTotals.addition.toFixed(3)), returned: Number(excelTotals.returned.toFixed(3)), disbursement: Number(excelTotals.disbursement.toFixed(3)), runningStock: Number(excelFinalStock.toFixed(3)), unitPrice: 0, totalValue: Number(excelTotals.totalValue.toFixed(2)), permitNumber: "" } as unknown as ItemCardMovementPdfRow;
   const totalExcelRow = sheet.addRow(columns.map(key => values[key](excelTotalRow))); totalExcelRow.font = { bold: true, color: { argb: "FF102A43" } }; totalExcelRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEBF0" } }; totalExcelRow.alignment = { vertical: "middle", horizontal: "right", wrapText: true };
@@ -674,7 +674,7 @@ export type ItemCardPdfData = {
   returns: Array<Record<string, any>>;
 };
 
-export type ItemCardMovementKind = "إضافة" | "مرتجع" | "صرف" | "تحويل";
+export type ItemCardMovementKind = "رصيد أولي" | "إضافة" | "مرتجع" | "صرف" | "تحويل";
 
 export function formatItemCardPdfDate(value: unknown) { return formatInventoryDate(value).replace(/\s\/\s/g, "-").replace(/\//g, "-"); }
 
@@ -725,14 +725,15 @@ export function buildItemCardMovementRows(card: ItemCardPdfData): ItemCardMoveme
     ...card.disbursements.map(row => ({ movement: "صرف" as const, date: row.date, eznNum: row.eznNum, quantity: Number(row.quantity ?? 0), unitPrice: Number(row.unitPrice ?? card.item.unitPrice ?? 0), detail: formatItemCardMovementDetail("صرف", row), purpose: row.disburseType || "" })),
   ].sort((a, b) => inventoryDateKey(a.date ?? "").localeCompare(inventoryDateKey(b.date ?? "")));
   let runningStock = initialStock;
-  return movements.map((row, index) => {
+  const openingRow: ItemCardMovementPdfRow = { date: "", rawDate: "", detail: "الرصيد الأولي", purpose: "رصيد بداية الفترة", movement: "رصيد أولي", openingStock: initialStock, addition: 0, returned: 0, disbursement: 0, runningStock: initialStock, unitPrice: 0, totalValue: 0, permitNumber: "—" };
+  return [openingRow, ...movements.map(row => {
     const addition = row.movement === "إضافة" ? row.quantity : 0;
     const returned = (row as any).stockNeutral ? 0 : row.movement === "مرتجع" || row.movement === "تحويل" ? row.quantity : 0;
     // يحافظ كارت الصنف على الإشارة المدخلة: الصرف الموجب يخصم، والصرف السالب يعكس الخصم.
     const disbursement = row.movement === "صرف" ? row.quantity : 0;
     runningStock = Number((runningStock + addition + returned - disbursement).toFixed(3));
-    return { date: formatItemCardPdfDate(row.date ?? ""), rawDate: row.date, detail: String(row.detail ?? "—"), purpose: String(row.purpose ?? ""), movement: row.movement, openingStock: index === 0 ? initialStock : null, addition, returned, disbursement, runningStock, unitPrice: row.unitPrice, totalValue: Number((Math.abs(row.quantity) * row.unitPrice).toFixed(2)), permitNumber: String(row.eznNum ?? "—") };
-  });
+    return { date: formatItemCardPdfDate(row.date ?? ""), rawDate: row.date, detail: String(row.detail ?? "—"), purpose: String(row.purpose ?? ""), movement: row.movement, openingStock: null, addition, returned, disbursement, runningStock, unitPrice: row.unitPrice, totalValue: Number((Math.abs(row.quantity) * row.unitPrice).toFixed(2)), permitNumber: String(row.eznNum ?? "—") };
+  })];
 }
 
 export async function buildItemCardPdf(card: ItemCardPdfData, options: { logo?: string | null; date?: Date; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean; movementFilter?: "all" | "إضافة" | "صرف" | "مرتجع" | "تحويل"; includePermitColumn?: boolean; includeUnitPrice?: boolean; includeTotalValue?: boolean } = {}) {
@@ -754,7 +755,7 @@ export async function buildItemCardPdf(card: ItemCardPdfData, options: { logo?: 
   const visualColumns = [...columns].reverse();
   const values: Record<typeof columns[number], (row: ItemCardMovementPdfRow) => string> = { date: row => row.date, detail: row => row.detail, purpose: row => row.purpose || "—", permitNumber: row => row.permitNumber, movement: row => row.movement, openingStock: row => row.openingStock === null ? "—" : row.openingStock.toFixed(3), addition: row => row.addition ? row.addition.toFixed(3) : "—", returned: row => row.returned ? row.returned.toFixed(3) : "—", disbursement: row => row.disbursement ? row.disbursement.toFixed(3) : "—", runningStock: row => row.runningStock === null ? "—" : row.runningStock.toFixed(3), unitPrice: row => row.unitPrice ? row.unitPrice.toFixed(2) : "—", totalValue: row => row.totalValue ? row.totalValue.toFixed(2) : "—" };
   const startY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 48 : 274;
-  const movementColors: Record<ItemCardMovementKind, [number, number, number]> = { "إضافة": [255, 255, 255], "صرف": [255, 255, 255], "مرتجع": [255, 255, 255], "تحويل": [255, 255, 255] };
+  const movementColors: Record<ItemCardMovementKind, [number, number, number]> = { "رصيد أولي": [232, 242, 250], "إضافة": [255, 255, 255], "صرف": [255, 255, 255], "مرتجع": [255, 255, 255], "تحويل": [255, 255, 255] };
   const legend = [{ label: "وارد", kind: "إضافة" as const }, { label: "صادر", kind: "صرف" as const }, { label: "مرتجع", kind: "مرتجع" as const }, { label: "تحويل", kind: "تحويل" as const }];
   legend.forEach((entry, index) => { const x = 748 - index * 120; doc.setFillColor(...movementColors[entry.kind]); doc.roundedRect(x - 72, startY - 25, 12, 12, 2, 2, "F"); doc.setFontSize(8); doc.text(shapeArabic(doc, entry.label), x - 54, startY - 15, { align: "right" }); });
   const dateColumnIndex = visualColumns.indexOf("date");
