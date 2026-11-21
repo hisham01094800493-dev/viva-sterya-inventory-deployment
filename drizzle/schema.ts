@@ -222,6 +222,7 @@ export const warehouses = mysqlTable("warehouses", {
   slot: int("slot").notNull(),
   codePrefix: int("code_prefix").notNull().default(1),
   name: varchar("name", { length: 128 }).notNull(),
+  status: mysqlEnum("status", ["active", "archived"]).notNull().default("active"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, table => [

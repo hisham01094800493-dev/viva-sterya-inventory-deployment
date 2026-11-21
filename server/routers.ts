@@ -57,6 +57,7 @@ import {
   listTransfersPaged,
   listWarehouses,
   listWarehousesForAccess,
+  setWarehouseStatus,
   listWarehousesByUsage,
   listWarehousesByUsageForAccess,
   listBuildings,
@@ -448,6 +449,7 @@ export const appRouter = router({
 
   warehouses: router({
     list: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => listWarehousesForAccess(permissions.allowedWarehouseIds, scope.projectId)); }),
+    archived: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => listWarehousesForAccess(permissions.allowedWarehouseIds, scope.projectId, true).then(rows => rows.filter(row => row.status === "archived"))); }),
     listByUsage: protectedProcedure.query(async ({ ctx }) => { const permissions = await safe(() => getUserPermissionSettings(ctx.user.id, ctx.user.role)); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => listWarehousesByUsageForAccess(permissions.allowedWarehouseIds, scope.projectId)); }),
     create: managementProcedure.input(warehouseCreateInput).mutation(async ({ input, ctx }) => {
       const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
@@ -463,6 +465,18 @@ export const appRouter = router({
       return result;
     }),
     update: adminProcedure.input(warehouseUpdateInput).mutation(({ input }) => safe(() => updateWarehouse(input))),
+    archive: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
+      const result = await safe(() => setWarehouseStatus({ id: input.id, status: "archived", projectId: scope.projectId }));
+      await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "archive", entity: "warehouse", entityId: input.id, details: { warehouseId: input.id, name: result.name, projectId: scope.projectId } });
+      return result;
+    }),
+    restore: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
+      const result = await safe(() => setWarehouseStatus({ id: input.id, status: "active", projectId: scope.projectId }));
+      await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "restore", entity: "warehouse", entityId: input.id, details: { warehouseId: input.id, name: result.name, projectId: scope.projectId } });
+      return result;
+    }),
     deleteEmpty: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
       const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
       const result = await safe(() => deleteEmptyWarehouse({ id: input.id, projectId: scope.projectId }));
