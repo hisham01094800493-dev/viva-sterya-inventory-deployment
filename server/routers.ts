@@ -64,6 +64,7 @@ import {
   createBuilding,
   updateBuilding,
   createWarehouse,
+  deleteEmptyWarehouse,
   updateWarehouse,
   listSuppliers,
   createSupplier,
@@ -462,6 +463,12 @@ export const appRouter = router({
       return result;
     }),
     update: adminProcedure.input(warehouseUpdateInput).mutation(({ input }) => safe(() => updateWarehouse(input))),
+    deleteEmpty: adminProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ input, ctx }) => {
+      const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
+      const result = await safe(() => deleteEmptyWarehouse({ id: input.id, projectId: scope.projectId }));
+      await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "delete", entity: "warehouse", entityId: input.id, details: { warehouseId: input.id, name: result.warehouse.name, references: result.references } });
+      return result;
+    }),
   }),
   buildings: router({
     list: protectedProcedure.query(async ({ ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => listBuildings(scope.projectId)); }),

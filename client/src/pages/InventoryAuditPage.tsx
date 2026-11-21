@@ -59,6 +59,7 @@ export default function InventoryAuditPage() {
   }, [activeProjectId]);
   const summary = audit.data?.summary;
   const warehouseTotalById = useMemo(() => new Map((audit.data?.warehouses ?? []).map(warehouse => [warehouse.id, (audit.data?.rows ?? []).reduce((total, row) => total + (row.warehouseBalances.find(balance => balance.warehouseId === warehouse.id)?.currentStock ?? 0), 0)])), [audit.data]);
+  const nonEmptyWarehouses = useMemo(() => (audit.data?.warehouses ?? []).filter(warehouse => Math.abs(Number(warehouseTotalById.get(warehouse.id) ?? 0)) > 0.000001), [audit.data?.warehouses, warehouseTotalById]);
   const warehouseDetails = useMemo(() => (audit.data?.warehouses ?? []).map(warehouse => {
     const items = (audit.data?.rows ?? []).map(row => ({
       id: row.id,
@@ -77,7 +78,8 @@ export default function InventoryAuditPage() {
     return (audit.data?.rows ?? []).filter(row => (row.warehouseBalances.find(balance => balance.warehouseId === selectedWarehouseId)?.currentStock ?? 0) !== 0);
   }, [audit.data, selectedWarehouseId]);
   const pdfReport = useMemo(() => {
-    if (!audit.data || !selectedWarehouseId || !selectedWarehouse) return audit.data;
+    if (!audit.data) return audit.data;
+    if (!selectedWarehouseId || !selectedWarehouse) return { ...audit.data, warehouses: nonEmptyWarehouses };
     return {
       ...audit.data,
       warehouses: [selectedWarehouse],
@@ -90,7 +92,7 @@ export default function InventoryAuditPage() {
         totalCompanyBalance: warehouseTotalById.get(selectedWarehouseId) ?? 0,
       },
     };
-  }, [audit.data, selectedWarehouse, selectedWarehouseId, visibleRows, warehouseTotalById]);
+  }, [audit.data, nonEmptyWarehouses, selectedWarehouse, selectedWarehouseId, visibleRows, warehouseTotalById]);
   const toggleWarehouse = (warehouseId: number) => {
     setSelectedWarehouseId(current => current === warehouseId ? null : warehouseId);
     setExpandedWarehouses(current => { const next = new Set(current); if (next.has(warehouseId)) next.delete(warehouseId); else next.add(warehouseId); return next; });

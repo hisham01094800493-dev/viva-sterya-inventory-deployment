@@ -840,14 +840,19 @@ export async function buildCompanyInventoryAuditPdf(report: CompanyInventoryAudi
   const summary = [`${scopeLabel}: ${report.summary.totalItems.toLocaleString("en-US")} ${report.summary.totalItems === 1 ? "صنف" : "أصناف"}`, ...buildInventoryUnitBalanceSummary(report.rows)];
   drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat);
   logoAndDate(doc, visualWarehouses.length === 1 ? `تقرير جرد ${visualWarehouses[0].name}` : "تقرير الجرد الشامل حسب المخازن", logo, options.date, summary);
+  const contentWidth = doc.internal.pageSize.getWidth() - 48;
+  const rawColumnWidths = columns.map(column => column.key === "name" ? 176 : column.key === "code" ? 74 : column.key === "unit" ? 46 : 72);
+  const widthScale = Math.min(1, contentWidth / rawColumnWidths.reduce((total, width) => total + width, 0));
+  const columnWidths = rawColumnWidths.map(width => width * widthScale);
   autoTable(doc, {
     startY: getReportHeaderHeight(summary),
     margin: { left: 24, right: 24, bottom: 44 },
+    tableWidth: contentWidth,
     head: [visualHeaders.map(header => shapeArabic(doc, header))],
     body: report.rows.map(row => columns.map(column => { const value = column.value(row); return typeof value === "number" ? value.toLocaleString("en-US", { maximumFractionDigits: 3 }) : value; })),
     styles: { font: getArabicPdfFont(doc), fontSize: 8.5, cellPadding: 5, halign: "right", minCellHeight: 24, overflow: "linebreak", textColor: [16, 42, 67], lineColor: [137, 162, 172], lineWidth: 0.55},
     headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.6, font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: 8.5, halign: "center" },
-    columnStyles: Object.fromEntries(visualHeaders.map((header, index) => [index, { cellWidth: header === "اسم الصنف" ? 176 : header === "الكود" ? 74 : header === "الوحدة" ? 46 : 72, halign: header === "اسم الصنف" ? "right" : "center", overflow: header === "اسم الصنف" ? "linebreak" : undefined }])),
+    columnStyles: Object.fromEntries(visualHeaders.map((header, index) => [index, { cellWidth: columnWidths[index], minCellWidth: columnWidths[index], halign: header === "اسم الصنف" ? "right" : "center", overflow: header === "اسم الصنف" ? "linebreak" : "visible" }])),
     didParseCell: data => { if (data.section === "body" && columns[data.column.index]?.key !== "name") { data.cell.styles.fontStyle = "bold"; data.cell.styles.textColor = [0, 0, 0]; } },
     willDrawPage: data => { if (data.pageNumber > 1) drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat); },
   });

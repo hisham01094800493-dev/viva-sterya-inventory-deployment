@@ -563,6 +563,67 @@ export async function listWarehouseBalanceSummaries(projectId?: number | null) {
   }));
 }
 
+export async function deleteEmptyWarehouse(input: { id: number; projectId?: number | null }) {
+  const db = await requireDb();
+  return db.transaction(async (tx: any) => {
+    const warehouseRows = await tx
+      .select()
+      .from(warehouses)
+      .where(eq(warehouses.id, input.id))
+      .limit(1)
+      .for("update");
+    const warehouse = warehouseRows[0];
+    if (!warehouse) throw new InventoryError("NOT_FOUND", "المخزن غير موجود");
+    if (input.projectId != null && warehouse.projectId != null && warehouse.projectId !== input.projectId) {
+      throw new InventoryError("BAD_REQUEST", "لا يمكن حذف مخزن تابع لمشروع آخر");
+    }
+
+    const [itemRows, balanceRows, additionRows, disbursementRows, transferFromRows, transferToRows, permissionRows, auditRows] = await Promise.all([
+      tx.select({ count: count() }).from(items).where(eq(items.warehouseId, input.id)),
+      tx.select({ count: count(), balance: sum(itemWarehouseBalances.currentStock) }).from(itemWarehouseBalances).where(eq(itemWarehouseBalances.warehouseId, input.id)),
+      tx.select({ count: count() }).from(additions).where(eq(additions.warehouseId, input.id)),
+      tx.select({ count: count() }).from(disbursements).where(eq(disbursements.warehouseId, input.id)),
+      tx.select({ count: count() }).from(transfers).where(eq(transfers.fromWarehouseId, input.id)),
+      tx.select({ count: count() }).from(transfers).where(eq(transfers.toWarehouseId, input.id)),
+      tx.select({ allowedWarehouses: userPermissions.allowedWarehouses }).from(userPermissions),
+      tx.select({ count: count() }).from(auditLogs).where(and(eq(auditLogs.entity, "warehouse"), eq(auditLogs.entityId, String(input.id)))),
+    ]);
+    const permissionCount = permissionRows.filter((row: { allowedWarehouses: string | null }) => {
+      const raw = String(row.allowedWarehouses ?? "");
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) && parsed.some(value => Number(value) === input.id);
+      } catch {
+        return raw.split(/[^0-9]+/).filter(Boolean).some(value => Number(value) === input.id);
+      }
+    }).length;
+    const references = {
+      items: Number(itemRows[0]?.count ?? 0),
+      balances: Number(balanceRows[0]?.count ?? 0),
+      balance: Number(balanceRows[0]?.balance ?? 0),
+      additions: Number(additionRows[0]?.count ?? 0),
+      disbursements: Number(disbursementRows[0]?.count ?? 0),
+      transfers: Number(transferFromRows[0]?.count ?? 0) + Number(transferToRows[0]?.count ?? 0),
+      permissions: permissionCount,
+      audit: Number(auditRows[0]?.count ?? 0),
+    };
+    const hasReferences = Object.entries(references).some(([key, value]) => key === "balance" ? Math.abs(Number(value)) > 0.000001 : Number(value) > 0);
+    if (hasReferences) {
+      const reasons = [
+        references.items ? `${references.items} صنف` : "",
+        references.balances || references.balance ? `${references.balances} رصيدًا (${references.balance})` : "",
+        references.additions ? `${references.additions} إضافة` : "",
+        references.disbursements ? `${references.disbursements} صرف` : "",
+        references.transfers ? `${references.transfers} تحويل` : "",
+        references.permissions ? `${references.permissions} صلاحية` : "",
+        references.audit ? `${references.audit} سجل تدقيق` : "",
+      ].filter(Boolean).join("، ");
+      throw new InventoryError("CONFLICT", `لا يمكن حذف المخزن «${warehouse.name}» لوجود ارتباطات: ${reasons}`);
+    }
+    await tx.delete(warehouses).where(eq(warehouses.id, input.id));
+    return { deleted: true, warehouse, references };
+  });
+}
 export async function updateWarehouse(input: { id: number; name: string }) {
   const db = await requireDb();
   const name = input.name.trim();
