@@ -43,4 +43,24 @@ describe("تقرير الجرد الشامل", () => {
 
     expect(report.summary.totalCompanyBalance).toBe(8.25);
   });
+
+  it("يعود إلى رصيد الصنف عندما تكون السجلات التفصيلية صفرية", () => {
+    const report = buildCompanyInventoryAuditReport(
+      [{ id: 10, slot: 1, name: "المخزن الرئيسي" }],
+      [{
+        itemId: 1,
+        code: "MH-0001",
+        name: "صنف تجريبي",
+        category: null,
+        unit: "قطعة",
+        reorderLevel: "0",
+        warehouseId: 10,
+        currentStock: "0",
+        itemWarehouseId: 10,
+        itemCurrentStock: "12.500",
+      }],
+    );
+
+    expect(report.summary.totalCompanyBalance).toBe(12.5);
+  });
 });

@@ -1219,7 +1219,14 @@ export function buildCompanyInventoryAuditReport(
       totalCurrentStock: number;
     }
   >();
+  const rowsByItem = new Map<number, CompanyInventoryAuditSourceRow[]>();
   for (const row of sourceRows) {
+    const itemRows = rowsByItem.get(row.itemId) ?? [];
+    itemRows.push(row);
+    rowsByItem.set(row.itemId, itemRows);
+  }
+  for (const itemRows of Array.from(rowsByItem.values())) {
+    const row = itemRows[0]!;
     const current = reportRows.get(row.itemId) ?? {
       id: row.itemId,
       code: row.code,
@@ -1235,12 +1242,22 @@ export function buildCompanyInventoryAuditReport(
       })),
       totalCurrentStock: 0,
     };
-    const effectiveWarehouseId = row.warehouseId ?? row.itemWarehouseId ?? null;
-    const effectiveCurrentStock = row.currentStock ?? row.itemCurrentStock ?? "0";
-    if (effectiveWarehouseId !== null) {
-      const balance = current.warehouseBalances.find(
-        item => item.warehouseId === effectiveWarehouseId
-      );
+    const hasNonZeroDetailedBalance = itemRows.some(
+      (source: CompanyInventoryAuditSourceRow) =>
+        source.warehouseId !== null && Number(source.currentStock ?? 0) !== 0
+    );
+    const balancesToApply = hasNonZeroDetailedBalance
+      ? itemRows.filter((source: CompanyInventoryAuditSourceRow) => source.warehouseId !== null)
+      : [row];
+    for (const source of balancesToApply) {
+      const effectiveWarehouseId = hasNonZeroDetailedBalance
+        ? source.warehouseId ?? source.itemWarehouseId ?? null
+        : source.itemWarehouseId ?? source.warehouseId ?? null;
+      const effectiveCurrentStock = hasNonZeroDetailedBalance
+        ? source.currentStock ?? source.itemCurrentStock ?? "0"
+        : source.itemCurrentStock ?? source.currentStock ?? "0";
+      if (effectiveWarehouseId === null) continue;
+      const balance = current.warehouseBalances.find(item => item.warehouseId === effectiveWarehouseId);
       if (balance) balance.currentStock = Number(effectiveCurrentStock);
     }
     current.totalCurrentStock = current.warehouseBalances.reduce(
