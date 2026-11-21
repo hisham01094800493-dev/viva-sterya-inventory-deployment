@@ -1192,6 +1192,9 @@ type CompanyInventoryAuditSourceRow = {
   currentStock: string | null;
   itemWarehouseId?: number | null;
   itemCurrentStock?: string | null;
+  itemInitialStock?: string | null;
+  itemIncomingStock?: string | null;
+  itemOutgoingStock?: string | null;
 };
 
 export function buildCompanyInventoryAuditReport(
@@ -1253,9 +1256,16 @@ export function buildCompanyInventoryAuditReport(
       const effectiveWarehouseId = hasNonZeroDetailedBalance
         ? source.warehouseId ?? source.itemWarehouseId ?? null
         : source.itemWarehouseId ?? source.warehouseId ?? null;
+      const initialOnlyStock =
+        Number(source.itemCurrentStock ?? 0) === 0 &&
+        Number(source.itemInitialStock ?? 0) > 0 &&
+        Number(source.itemIncomingStock ?? 0) === 0 &&
+        Number(source.itemOutgoingStock ?? 0) === 0
+          ? source.itemInitialStock
+          : source.itemCurrentStock;
       const effectiveCurrentStock = hasNonZeroDetailedBalance
         ? source.currentStock ?? source.itemCurrentStock ?? "0"
-        : source.itemCurrentStock ?? source.currentStock ?? "0";
+        : initialOnlyStock ?? source.currentStock ?? "0";
       if (effectiveWarehouseId === null) continue;
       const balance = current.warehouseBalances.find(item => item.warehouseId === effectiveWarehouseId);
       if (balance) balance.currentStock = Number(effectiveCurrentStock);
@@ -1309,6 +1319,9 @@ export async function getCompanyInventoryAuditReport(
       currentStock: itemWarehouseBalances.currentStock,
       itemWarehouseId: items.warehouseId,
       itemCurrentStock: items.currentStock,
+      itemInitialStock: items.initialStock,
+      itemIncomingStock: items.incomingStock,
+      itemOutgoingStock: items.outgoingStock,
     })
     .from(items)
     .leftJoin(
