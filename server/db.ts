@@ -1866,6 +1866,7 @@ export async function importItems(
 
   return db.transaction(async (tx: any) => {
     const writeProjectId = await resolveWriteProjectId(tx, projectId);
+    const defaultWarehouse = await resolveWarehouseId(tx, undefined, null, writeProjectId);
     let created = 0;
     let updated = 0;
     for (const row of normalizedRows) {
@@ -1881,8 +1882,9 @@ export async function importItems(
         .for("update");
       const existing = existingRows[0];
       if (!existing) {
-        await tx.insert(items).values({
+        const result = await tx.insert(items).values({
           code: row.code,
+          warehouseId: defaultWarehouse.id,
           name: row.name,
           initialStock: fromScaled(row.initial),
           incomingStock: "0.000",
@@ -1899,6 +1901,12 @@ export async function importItems(
           tone: row.spec.tone,
           thicknessCm: row.spec.thicknessCm,
           specGroupKey: row.spec.specGroupKey,
+        });
+        const itemId = resultInsertId(result);
+        await tx.insert(itemWarehouseBalances).values({
+          itemId,
+          warehouseId: defaultWarehouse.id,
+          currentStock: fromScaled(row.initial),
         });
         created += 1;
         continue;
