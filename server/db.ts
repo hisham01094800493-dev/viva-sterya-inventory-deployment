@@ -1190,6 +1190,8 @@ type CompanyInventoryAuditSourceRow = {
   reorderLevel: string;
   warehouseId: number | null;
   currentStock: string | null;
+  itemWarehouseId?: number | null;
+  itemCurrentStock?: string | null;
 };
 
 export function buildCompanyInventoryAuditReport(
