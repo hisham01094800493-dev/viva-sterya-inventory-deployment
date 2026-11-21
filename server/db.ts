@@ -1204,6 +1204,7 @@ export function buildCompanyInventoryAuditReport(
   const normalizedWarehouses = [...warehouseRows].sort(
     (left, right) => left.slot - right.slot
   );
+  const defaultWarehouseId = normalizedWarehouses.find(warehouse => warehouse.slot === 1)?.id ?? null;
   const reportRows = new Map<
     number,
     {
@@ -1255,7 +1256,7 @@ export function buildCompanyInventoryAuditReport(
     for (const source of balancesToApply) {
       const effectiveWarehouseId = hasNonZeroDetailedBalance
         ? source.warehouseId ?? source.itemWarehouseId ?? null
-        : source.itemWarehouseId ?? source.warehouseId ?? null;
+        : source.itemWarehouseId ?? source.warehouseId ?? defaultWarehouseId;
       const initialOnlyStock =
         Number(source.itemCurrentStock ?? 0) === 0 &&
         Number(source.itemInitialStock ?? 0) > 0 &&

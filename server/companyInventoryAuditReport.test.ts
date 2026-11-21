@@ -58,6 +58,17 @@ describe("تقرير الجرد الشامل", () => {
     expect(report.summary.totalCompanyBalance).toBe(12.5);
   });
 
+  it("يعرض رصيد الصنف القديم غير المرتبط بالمخزن في المخزن الرئيسي", () => {
+    const report = buildCompanyInventoryAuditReport(warehouse, [baseRow({
+      itemWarehouseId: null,
+      itemCurrentStock: "4.000",
+      itemInitialStock: "4.000",
+    })]);
+
+    expect(report.rows[0]?.warehouseBalances[0]?.currentStock).toBe(4);
+    expect(report.summary.totalCompanyBalance).toBe(4);
+  });
+
   it("لا يعيد الرصيد الأولي إذا وُجد صرف أو إضافة مسجلة", () => {
     const report = buildCompanyInventoryAuditReport(warehouse, [baseRow({
       itemCurrentStock: "0",
