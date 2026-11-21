@@ -337,15 +337,12 @@ export async function upsertGoogleUser(input: {
   return (await db.select().from(users).where(eq(users.id, id)).limit(1))[0]!;
 }
 
-export async function listWarehouses(projectId?: number | null, includeArchived = false) {
+export async function listWarehouses(projectId?: number | null) {
   const db = await requireDb();
   const rows = await db
     .select()
     .from(warehouses)
-    .where(and(
-      includeArchived ? undefined : eq(warehouses.status, "active"),
-      projectId == null ? undefined : eq(warehouses.projectId, projectId)
-    ))
+    .where(projectId == null ? undefined : eq(warehouses.projectId, projectId))
     .orderBy(warehouses.slot);
   return rows;
 }
@@ -362,15 +359,6 @@ export async function listBuildings(projectId?: number | null) {
       )
     )
     .orderBy(asc(buildings.id));
-}
-export function assertWarehouseBelongsToProject(
-  warehouse: { id: number; projectId?: number | null },
-  projectId?: number | null,
-) {
-  if (projectId != null && warehouse.projectId != null && warehouse.projectId !== projectId) {
-    throw new InventoryError("BAD_REQUEST", "المخزن المحدد لا يتبع المشروع النشط");
-  }
-  return warehouse;
 }
 export async function createBuilding(input: { name: string; code: string; type?: "owned_building" | "subcontractor"; budget?: number; projectId?: number | null }) {
   const db = await requireDb();
@@ -419,10 +407,9 @@ export async function getBuildingCostComparison(input: { fromDate?: string; toDa
 }
 export async function listWarehousesForAccess(
   allowedWarehouseIds: number[] | null,
-  projectId?: number | null,
-  includeArchived = false
+  projectId?: number | null
 ) {
-  const rows = await listWarehouses(projectId, includeArchived);
+  const rows = await listWarehouses(projectId);
   return allowedWarehouseIds?.length
     ? rows.filter(row => allowedWarehouseIds.includes(row.id))
     : rows;
@@ -466,10 +453,7 @@ export async function listWarehousesByUsage(projectId?: number | null) {
     db
       .select()
       .from(warehouses)
-      .where(and(
-        eq(warehouses.status, "active"),
-        projectId == null ? undefined : eq(warehouses.projectId, projectId)
-      ))
+      .where(projectId == null ? undefined : eq(warehouses.projectId, projectId))
       .orderBy(warehouses.slot),
     db
       .select({ warehouseId: additions.warehouseId, usageCount: count() })
@@ -539,10 +523,7 @@ export async function listWarehouseBalanceSummaries(projectId?: number | null) {
         name: warehouses.name,
       })
       .from(warehouses)
-      .where(and(
-        eq(warehouses.status, "active"),
-        projectId != null ? eq(warehouses.projectId, projectId) : undefined
-      ))
+      .where(projectId != null ? eq(warehouses.projectId, projectId) : undefined)
       .orderBy(warehouses.slot),
     db
       .select({
@@ -580,19 +561,6 @@ export async function listWarehouseBalanceSummaries(projectId?: number | null) {
     ...(balancesByWarehouse.get(warehouse.id) ?? { itemCount: 0, balance: 0 }),
     incoming: incomingByWarehouse.get(warehouse.id) ?? 0,
   }));
-}
-
-export async function setWarehouseStatus(input: { id: number; status: "active" | "archived"; projectId?: number | null }) {
-  const db = await requireDb();
-  const rows = await db.select().from(warehouses).where(eq(warehouses.id, input.id)).limit(1);
-  const warehouse = rows[0];
-  if (!warehouse) throw new InventoryError("NOT_FOUND", "المخزن غير موجود");
-  if (input.projectId != null && warehouse.projectId != null && warehouse.projectId !== input.projectId) {
-    throw new InventoryError("BAD_REQUEST", "لا يمكن تعديل مخزن تابع لمشروع آخر");
-  }
-  if (warehouse.status === input.status) return warehouse;
-  await db.update(warehouses).set({ status: input.status }).where(eq(warehouses.id, input.id));
-  return (await db.select().from(warehouses).where(eq(warehouses.id, input.id)).limit(1))[0]!;
 }
 
 export async function deleteEmptyWarehouse(input: { id: number; projectId?: number | null }) {
