@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { buildCompanyInventoryAuditPdf } from "@/lib/inventoryExportFiles";
 import { resolveCompanyLogoUrl } from "@/lib/brandAssets";
 import { trpc } from "@/lib/trpc";
+import { useActiveProjectState } from "@/components/ProjectSwitcher";
 import { ArrowRight, ChevronDown, Download, FileText, Loader2, PackageCheck, Printer, RefreshCcw, Share2, Warehouse, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -30,7 +31,12 @@ const warehouseToneClasses = [
 
 export default function InventoryAuditPage() {
   const [, setLocation] = useLocation();
-  const audit = trpc.reports.inventoryAudit.useQuery();
+  const activeProjectState = useActiveProjectState();
+  const activeProjectId = activeProjectState.resolved.project?.id ?? null;
+  const audit = trpc.reports.inventoryAudit.useQuery(
+    { projectId: activeProjectId },
+    { enabled: !activeProjectState.isLoading, refetchOnWindowFocus: false },
+  );
   const settings = trpc.settings.list.useQuery();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [building, setBuilding] = useState(false);
@@ -46,6 +52,11 @@ export default function InventoryAuditPage() {
   const watermarkScale = Number(settings.data?.find(item => item.key === "report_watermark_scale")?.value ?? "0.42");
   const watermarkPosition = (settings.data?.find(item => item.key === "report_watermark_position")?.value ?? "center") as "center" | "top" | "bottom";
   const watermarkRepeat = settings.data?.find(item => item.key === "report_watermark_repeat")?.value === "true";
+
+  useEffect(() => {
+    setSelectedWarehouseId(null);
+    setExpandedWarehouses(new Set());
+  }, [activeProjectId]);
   const summary = audit.data?.summary;
   const warehouseTotalById = useMemo(() => new Map((audit.data?.warehouses ?? []).map(warehouse => [warehouse.id, (audit.data?.rows ?? []).reduce((total, row) => total + (row.warehouseBalances.find(balance => balance.warehouseId === warehouse.id)?.currentStock ?? 0), 0)])), [audit.data]);
   const warehouseDetails = useMemo(() => (audit.data?.warehouses ?? []).map(warehouse => {
