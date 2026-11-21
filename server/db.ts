@@ -1037,6 +1037,8 @@ type CompanyInventoryAuditSourceRow = {
   reorderLevel: string;
   warehouseId: number | null;
   currentStock: string | null;
+  itemWarehouseId?: number | null;
+  itemCurrentStock?: string | null;
 };
 
 export function buildCompanyInventoryAuditReport(
@@ -1080,11 +1082,13 @@ export function buildCompanyInventoryAuditReport(
       })),
       totalCurrentStock: 0,
     };
-    if (row.warehouseId !== null) {
+    const effectiveWarehouseId = row.warehouseId ?? row.itemWarehouseId ?? null;
+    const effectiveCurrentStock = row.currentStock ?? row.itemCurrentStock ?? "0";
+    if (effectiveWarehouseId !== null) {
       const balance = current.warehouseBalances.find(
-        item => item.warehouseId === row.warehouseId
+        item => item.warehouseId === effectiveWarehouseId
       );
-      if (balance) balance.currentStock = Number(row.currentStock ?? 0);
+      if (balance) balance.currentStock = Number(effectiveCurrentStock);
     }
     current.totalCurrentStock = current.warehouseBalances.reduce(
       (total, item) => total + item.currentStock,
@@ -1119,7 +1123,10 @@ export async function getCompanyInventoryAuditReport(
       ? eq(warehouses.projectId, projectId)
       : undefined;
   const balanceWhere = allowedWarehouseIds.length
-    ? inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds)
+    ? or(
+        inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds),
+        inArray(items.warehouseId, allowedWarehouseIds),
+      )
     : undefined;
   const itemWhere = projectId != null ? eq(items.projectId, projectId) : undefined;
   const [warehouseRows, sourceRows] = await Promise.all([
@@ -1142,6 +1149,8 @@ export async function getCompanyInventoryAuditReport(
         reorderLevel: items.reorderLevel,
         warehouseId: itemWarehouseBalances.warehouseId,
         currentStock: itemWarehouseBalances.currentStock,
+        itemWarehouseId: items.warehouseId,
+        itemCurrentStock: items.currentStock,
       })
       .from(items)
       .leftJoin(
