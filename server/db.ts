@@ -1235,11 +1235,13 @@ export function buildCompanyInventoryAuditReport(
       })),
       totalCurrentStock: 0,
     };
-    if (row.warehouseId !== null) {
+    const effectiveWarehouseId = row.warehouseId ?? row.itemWarehouseId ?? null;
+    const effectiveCurrentStock = row.currentStock ?? row.itemCurrentStock ?? "0";
+    if (effectiveWarehouseId !== null) {
       const balance = current.warehouseBalances.find(
-        item => item.warehouseId === row.warehouseId
+        item => item.warehouseId === effectiveWarehouseId
       );
-      if (balance) balance.currentStock = Number(row.currentStock ?? 0);
+      if (balance) balance.currentStock = Number(effectiveCurrentStock);
     }
     current.totalCurrentStock = current.warehouseBalances.reduce(
       (total, item) => total + item.currentStock,
@@ -1268,11 +1270,6 @@ export async function getCompanyInventoryAuditReport(
   projectId?: number | null
 ) {
   const db = await requireDb();
-  const warehouseWhere = allowedWarehouseIds.length
-    ? inArray(warehouses.id, allowedWarehouseIds)
-    : projectId != null
-      ? eq(warehouses.projectId, projectId)
-      : undefined;
   const balanceWhere = allowedWarehouseIds.length
     ? or(
         inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds),
@@ -1283,35 +1280,51 @@ export async function getCompanyInventoryAuditReport(
       )
     : undefined;
   const itemWhere = projectId != null ? eq(items.projectId, projectId) : undefined;
-  const [warehouseRows, sourceRows] = await Promise.all([
-    db
-      .select({
-        id: warehouses.id,
-        slot: warehouses.slot,
-        name: warehouses.name,
-      })
-      .from(warehouses)
-      .where(warehouseWhere)
-      .orderBy(asc(warehouses.slot)),
-    db
-      .select({
-        itemId: items.id,
-        code: items.code,
-        name: items.name,
-        category: items.category,
-        unit: items.unit,
-        reorderLevel: items.reorderLevel,
-        warehouseId: sql<number | null>`COALESCE(${itemWarehouseBalances.warehouseId}, ${items.warehouseId})`,
-        currentStock: sql<string | null>`COALESCE(${itemWarehouseBalances.currentStock}, ${items.currentStock})`,
-      })
-      .from(items)
-      .leftJoin(
-        itemWarehouseBalances,
-        eq(itemWarehouseBalances.itemId, items.id)
+  const sourceRows = await db
+    .select({
+      itemId: items.id,
+      code: items.code,
+      name: items.name,
+      category: items.category,
+      unit: items.unit,
+      reorderLevel: items.reorderLevel,
+      warehouseId: itemWarehouseBalances.warehouseId,
+      currentStock: itemWarehouseBalances.currentStock,
+      itemWarehouseId: items.warehouseId,
+      itemCurrentStock: items.currentStock,
+    })
+    .from(items)
+    .leftJoin(
+      itemWarehouseBalances,
+      eq(itemWarehouseBalances.itemId, items.id)
+    )
+    .where(and(balanceWhere, itemWhere))
+    .orderBy(asc(items.code));
+  const itemWarehouseIds = Array.from(
+    new Set(
+      sourceRows
+        .map(row => row.warehouseId ?? row.itemWarehouseId)
+        .filter((id): id is number => id != null)
+    )
+  );
+  const warehouseScope = projectId != null
+    ? or(
+        eq(warehouses.projectId, projectId),
+        itemWarehouseIds.length ? inArray(warehouses.id, itemWarehouseIds) : undefined,
       )
-      .where(and(balanceWhere, itemWhere))
-      .orderBy(asc(items.code)),
-  ]);
+    : undefined;
+  const warehouseWhere = allowedWarehouseIds.length
+    ? inArray(warehouses.id, allowedWarehouseIds)
+    : warehouseScope;
+  const warehouseRows = await db
+    .select({
+      id: warehouses.id,
+      slot: warehouses.slot,
+      name: warehouses.name,
+    })
+    .from(warehouses)
+    .where(warehouseWhere)
+    .orderBy(asc(warehouses.slot));
   return buildCompanyInventoryAuditReport(warehouseRows, sourceRows);
 }
 
