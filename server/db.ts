@@ -1272,7 +1272,13 @@ export async function getCompanyInventoryAuditReport(
       ? eq(warehouses.projectId, projectId)
       : undefined;
   const balanceWhere = allowedWarehouseIds.length
-    ? inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds)
+    ? or(
+        inArray(itemWarehouseBalances.warehouseId, allowedWarehouseIds),
+        and(
+          isNull(itemWarehouseBalances.id),
+          inArray(items.warehouseId, allowedWarehouseIds),
+        ),
+      )
     : undefined;
   const itemWhere = projectId != null ? eq(items.projectId, projectId) : undefined;
   const [warehouseRows, sourceRows] = await Promise.all([
@@ -1293,8 +1299,8 @@ export async function getCompanyInventoryAuditReport(
         category: items.category,
         unit: items.unit,
         reorderLevel: items.reorderLevel,
-        warehouseId: itemWarehouseBalances.warehouseId,
-        currentStock: itemWarehouseBalances.currentStock,
+        warehouseId: sql<number | null>`COALESCE(${itemWarehouseBalances.warehouseId}, ${items.warehouseId})`,
+        currentStock: sql<string | null>`COALESCE(${itemWarehouseBalances.currentStock}, ${items.currentStock})`,
       })
       .from(items)
       .leftJoin(

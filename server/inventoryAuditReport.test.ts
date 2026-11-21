@@ -16,4 +16,13 @@ describe("تقرير الجرد الشامل", () => {
     expect(report.rows[0]?.warehouseBalances.map(row => row.currentStock)).toEqual([2, 3.5]);
     expect(report.rows[1]).toMatchObject({ code: "10002", totalCurrentStock: 0 });
   });
+
+  it("يعرض رصيد الأصناف القديمة المرتبط بالمخزن الأساسي عند غياب سجل الرصيد التفصيلي", () => {
+    const report = buildCompanyInventoryAuditReport(
+      [{ id: 1, slot: 1, name: "الرئيسي" }],
+      [{ itemId: 12, code: "10012", name: "صنف قديم", category: null, unit: "قطعة", reorderLevel: "0", warehouseId: 1, currentStock: "8.250" }],
+    );
+    expect(report.rows[0]).toMatchObject({ code: "10012", totalCurrentStock: 8.25 });
+    expect(report.rows[0]?.warehouseBalances[0]?.currentStock).toBe(8.25);
+  });
 });
