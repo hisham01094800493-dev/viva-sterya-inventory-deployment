@@ -3730,3 +3730,9 @@ svg {
 .receipt-draft-editor .receipt-overlay-field:nth-child(5n + 4) {
   text-align: center;
 }
+
+.receipt-draft-editor .receipt-clean-field {
+  background: #fff;
+  border-radius: 0.15rem;
+  padding-inline: 0.3rem;
+}
