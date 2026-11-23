@@ -3699,3 +3699,14 @@ svg {
 .dark .receipt-draft-editor .receipt-draft-table tbody tr:nth-child(even) {
   background: rgba(32, 61, 71, 0.45);
 }
+
+.receipt-draft-editor .receipt-overlay-field {
+  direction: rtl;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.85);
+}
+
+.receipt-draft-editor .receipt-overlay-field:nth-child(1),
+.receipt-draft-editor .receipt-overlay-field:nth-child(2) {
+  line-height: 1.2;
+}
