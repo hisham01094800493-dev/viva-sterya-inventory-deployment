@@ -830,7 +830,97 @@
 @keyframes smartSoundWave { 0%, 100% { transform: scaleY(.35); opacity: .55; } 50% { transform: scaleY(1); opacity: 1; } }
 .smart-sound-wave-bar { animation: smartSoundWave .78s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .smart-sound-wave-bar { animation: none !important; }
+  .smart-skeleton, .smart-saving::after, .smart-success-pulse, .smart-error-shake, .smart-status-dot { animation: none !important; }
+}
+
+/* تحسينات مخصصة للأجهزة اللمسية: تقليل المؤثرات التي تعطل سلاسة السحب والتمرير. */
+@media (hover: none) and (pointer: coarse) {
+  html,
+  body {
+    background-attachment: scroll;
+    scroll-behavior: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    overscroll-behavior-y: auto;
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+
+  .modern-shell,
+  .smart-sidebar-surface {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .modern-card,
+  .smart-interactive,
+  .home-stat-card,
+  .smart-sidebar-navigation [data-sidebar="menu-button"] {
+    transition-duration: 100ms;
+  }
+
+  .modern-card:hover,
+  .smart-interactive:hover,
+  .home-stat-card:hover,
+  .smart-sidebar-navigation [data-sidebar="menu-button"]:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .smart-table tbody tr:hover,
+  .smart-table-shell tbody tr:hover,
+  .overflow-x-auto > table tbody tr:hover {
+    background: inherit;
+    transform: none;
+  }
+
+  .smart-table-shell,
+  .overflow-x-auto,
+  .movement-table-scroller,
+  .account-statement-scroll-region,
+  .pdf-page-canvas-host {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scroll-behavior: auto;
+  }
+
+  [role="dialog"],
+  [data-slot="sheet-content"] {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  [data-sidebar="sidebar"][data-mobile="true"] {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  [data-slot="sheet-content"],
+  [data-slot="dialog-content"] {
+    transition-duration: 160ms !important;
+  }
+
+  [data-slot="sheet-content"][data-state="open"] {
+    animation-duration: 160ms !important;
+  }
+
+  [data-slot="sheet-content"][data-state="closed"] {
+    animation-duration: 120ms !important;
+  }
+
+  .page-transition {
+    animation: none;
+  }
 }
 
 /* لوحة الوضع الليلي المرجعية: فحمي دافئ مع تركوازي هادئ */
