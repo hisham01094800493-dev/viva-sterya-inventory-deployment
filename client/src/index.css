@@ -3627,3 +3627,75 @@ svg {
     }
   }
 }
+
+/* محرر مسودة محضر استلام البضائع */
+.receipt-draft-editor {
+  direction: rtl;
+}
+
+.receipt-draft-editor .receipt-draft-preview {
+  isolation: isolate;
+}
+
+.receipt-draft-editor .receipt-draft-preview > img {
+  user-select: none;
+}
+
+.receipt-draft-editor .receipt-draft-preview > div > span {
+  direction: rtl;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.receipt-draft-editor .receipt-draft-input {
+  direction: rtl;
+  text-align: right;
+  line-height: 1.45;
+}
+
+.receipt-draft-editor .receipt-draft-table th,
+.receipt-draft-editor .receipt-draft-table td {
+  vertical-align: middle;
+}
+
+.receipt-draft-editor .receipt-draft-table tbody tr {
+  border-top: 1px solid #e5eef1;
+}
+
+.receipt-draft-editor .receipt-draft-table tbody tr:nth-child(even) {
+  background: rgba(247, 251, 252, 0.7);
+}
+
+@media (max-width: 639px) {
+  .receipt-draft-editor .receipt-draft-preview {
+    border-radius: 0.75rem;
+  }
+
+  .receipt-draft-editor .receipt-draft-table-wrap {
+    margin-inline: -0.5rem;
+    padding-inline: 0.5rem;
+    scrollbar-width: thin;
+  }
+
+  .receipt-draft-editor .receipt-draft-table {
+    min-width: 640px;
+  }
+
+  .receipt-draft-editor .receipt-draft-table th {
+    font-size: 0.7rem;
+  }
+
+  .receipt-draft-editor .receipt-draft-table td {
+    padding-block: 0.3rem;
+  }
+}
+
+.dark .receipt-draft-editor .receipt-draft-input {
+  border-color: #4b6973;
+  background: #203d47;
+  color: #f2fbfc;
+}
+
+.dark .receipt-draft-editor .receipt-draft-table tbody tr:nth-child(even) {
+  background: rgba(32, 61, 71, 0.45);
+}
