@@ -1,7 +1,9 @@
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { migrate } from "drizzle-orm/mysql2/migrator";
 import mysql from "mysql2/promise";
 import dns from "node:dns/promises";
+import path from "node:path";
 import { ENV } from "../_core/env";
 import { InventoryError } from "./errors";
 import { repairLegacyAccountOnlyPermit18 } from "./legacyRepairs";
@@ -32,6 +34,19 @@ export async function getDb() {
         enableKeepAlive: true,
       });
       _db = drizzle(_pool as any);
+      // بعض بيئات النشر لا تنفذ `drizzle-kit migrate` كخطوة مستقلة. شغّل
+      // migrations الرسمية مرة واحدة عند الاتصال حتى لا تصل الواجهة إلى
+      // شاشة تعمل بينما يفشل الحفظ بسبب عمود مفقود. Drizzle يسجل ما نُفذ
+      // داخل __drizzle_migrations، لذلك العملية آمنة وقابلة لإعادة التشغيل.
+      try {
+        await migrate(_db as any, {
+          migrationsFolder: path.resolve(process.cwd(), "drizzle"),
+        });
+      } catch (migrationError) {
+        // لا نُسقط جلسة التطبيق بالكامل بسبب migration قديمة أو بيئة قراءة
+        // فقط؛ نحتفظ بالترقيات اليدوية المتوافقة أدناه ونوضح السبب في السجل.
+        console.warn("[Database] Drizzle migrations deferred:", migrationError);
+      }
       // Ensure this feature works even when the host skips Drizzle migrations.
       await _db.execute(
         sql.raw(`CREATE TABLE IF NOT EXISTS user_absences (
