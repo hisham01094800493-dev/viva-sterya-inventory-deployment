@@ -3180,7 +3180,7 @@ export async function createDisbursement(input: {
   itemCode: string;
   destination?: string | null;
   customerId?: number | null;
-  buildingId?: number;
+  buildingId?: number | null;
   quantity: number;
   notes?: string | null;
   store?: string | null;
@@ -3199,8 +3199,7 @@ export async function createDisbursement(input: {
     );
   const quantity = enteredQuantity;
   const clientRequestId = input.clientRequestId?.trim() || null;
-  if (!input.buildingId) throw new InventoryError("BAD_REQUEST", "يجب ربط إذن الصرف بمبنى أو جهة مستلمة");
-  const buildingId = input.buildingId;
+  const buildingId = input.buildingId ?? null;
 
   return db.transaction(async (tx: any) => {
     if (clientRequestId) {
@@ -3214,7 +3213,7 @@ export async function createDisbursement(input: {
     }
     const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
     const item = await getItemForUpdate(tx, normalizeItemCode(input.itemCode), writeProjectId);
-    const buildingRows = await tx
+    const buildingRows = buildingId == null ? [] : await tx
       .select({ id: buildings.id })
       .from(buildings)
       .where(
@@ -3230,7 +3229,7 @@ export async function createDisbursement(input: {
     }
     const unitPrice = toMoneyScaled(input.unitPrice ?? item.unitPrice);
     const totalValue = Math.sign(quantity) * calculateTotalValue(unitPrice, Math.abs(quantity));
-    const historicalRows = await tx
+    const historicalRows = buildingId == null ? [] : await tx
       .select({
         buildingId: disbursements.buildingId,
         itemCode: disbursements.itemCode,
@@ -3308,7 +3307,7 @@ export async function createDisbursementBatch(input: {
   date: string;
   eznNum: string;
   warehouseId: number;
-  buildingId: number;
+  buildingId?: number | null;
   destination?: string | null;
   customerId?: number | null;
   notes?: string | null;
@@ -3322,7 +3321,6 @@ export async function createDisbursementBatch(input: {
   const db = await requireDb();
   const batchKey = input.clientRequestId.trim();
   if (!batchKey) throw new InventoryError("BAD_REQUEST", "مفتاح الإذن مطلوب");
-  if (!input.buildingId) throw new InventoryError("BAD_REQUEST", "يجب ربط إذن الصرف بمبنى أو جهة مستلمة");
   if (input.lines.length < 1 || input.lines.length > 50)
     throw new InventoryError("BAD_REQUEST", "يجب أن يحتوي الإذن على بند واحد إلى 50 بنداً");
 
@@ -3350,7 +3348,7 @@ export async function createDisbursementBatch(input: {
         const line = normalizedLines[index];
         return row && row.date === input.date.trim() && row.eznNum === input.eznNum.trim() &&
           row.itemCode === line.itemCode && toScaled(row.quantity) === line.quantity &&
-          row.warehouseId === input.warehouseId && row.buildingId === input.buildingId &&
+          row.warehouseId === input.warehouseId && row.buildingId === (input.buildingId ?? null) &&
           (line.unitPrice === undefined || toMoneyScaled(row.unitPrice) === toMoneyScaled(line.unitPrice));
       });
       if (sameRequest) return { items: ordered, count: ordered.length, idempotent: true };
@@ -3358,7 +3356,7 @@ export async function createDisbursementBatch(input: {
     }
 
     const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
-    const buildingRows = await tx
+    const buildingRows = input.buildingId == null ? [] : await tx
       .select({ id: buildings.id })
       .from(buildings)
       .where(
@@ -3397,7 +3395,7 @@ export async function createDisbursementBatch(input: {
         itemName: item.name,
         destination: input.destination?.trim() || null,
         customerId: input.customerId ?? null,
-        buildingId: input.buildingId,
+        buildingId: input.buildingId ?? null,
         quantity: fromScaled(line.quantity),
         unitPrice: fromMoneyScaled(unitPrice),
         totalValue: fromMoneyScaled(totalValue),
@@ -3433,7 +3431,7 @@ export async function updateDisbursement(input: {
   itemCode?: string;
   destination?: string | null;
   customerId?: number | null;
-  buildingId?: number;
+  buildingId?: number | null;
   quantity?: number;
   notes?: string | null;
   store?: string | null;
@@ -3528,8 +3526,8 @@ export async function updateDisbursement(input: {
     }
 
     const nextItem = lockedItems.get(nextCode);
-    const nextBuildingId = input.buildingId ?? old.buildingId ?? null;
-    if (input.buildingId !== undefined) {
+    const nextBuildingId = input.buildingId === undefined ? (old.buildingId ?? null) : input.buildingId;
+    if (input.buildingId != null) {
       const buildingRows = await tx
         .select({ id: buildings.id })
         .from(buildings)
