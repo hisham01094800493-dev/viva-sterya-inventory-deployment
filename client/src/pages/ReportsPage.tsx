@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import type { InventoryExportItem } from "@/lib/inventoryExport";
+import { sortInventoryRowsByCategory, type InventoryExportItem } from "@/lib/inventoryExport";
 import { buildInventoryPdf, buildMovementPdf, buildInventoryUnitBalanceSummary, configureArabicPdf, drawReportHeader, drawReportFooter, getArabicPdfFont, shapeArabic, PDF_THEME, downloadInventoryExcel as downloadInventoryExcelFile, downloadInventoryPdf as downloadInventoryPdfFile, downloadMovementExcel, downloadMovementPdf, loadExcelJs, loadPdfTools, inventoryExportColumns, movementExportColumns, movementPdfExportColumns, type ExportColumnKey, type MovementExportItem } from "@/lib/inventoryExportFiles";
 import { downloadBlobFile, getExportImageExtension, savePdfFile } from "@/lib/inventoryExportRuntime";
 import { trpc } from "@/lib/trpc";
@@ -477,7 +477,7 @@ export default function ReportsPage() {
     ...filteredTransfers.filter(row => row.itemCode === selectedVarianceCode && String(row.transferType ?? "").trim().toLowerCase() !== "تحويل").map(row => ({ type: String(row.transferType || "مرتجع"), date: dateOnly(row.date), eznNum: row.eznNum, quantity: Number(row.quantity), party: `${row.fromStore || "—"} ← ${row.toStore || "—"}`, detail: row.notes || "—", itemName })),
   ].sort((a, b) => b.date.localeCompare(a.date)); }, [selectedVarianceCode, items.data, filteredAdditions, filteredDisbursements, filteredTransfers, customers.data]);
 
-  const inventoryExportData = inventoryRows.map(item => ({ code: item.code, name: item.name, category: item.category || "بدون تصنيف", unit: item.unit || "—", currentStock: Number(item.currentStock ?? 0), reorderLevel: Number(item.reorderLevel ?? 0), unitPrice: Number(item.unitPrice ?? 0), imageUrl: item.imageUrl }));
+  const inventoryExportData = useMemo(() => sortInventoryRowsByCategory(inventoryRows.map(item => ({ code: item.code, name: item.name, category: item.category || "بدون تصنيف", unit: item.unit || "—", currentStock: Number(item.currentStock ?? 0), reorderLevel: Number(item.reorderLevel ?? 0), unitPrice: Number(item.unitPrice ?? 0), imageUrl: item.imageUrl }))), [inventoryRows]);
   const outboundReturnRows: MovementExportItem[] = buildOutboundReturnRows(filteredDisbursements.map(row => ({ ...row, customerName: customers.data?.find(customer => customer.id === row.customerId)?.name ?? null })), filteredTransfers, items.data ?? [], filteredAdditions, { supplier: defaultSupplierName, customer: defaultCustomerName });
   const movementExportRows: MovementExportItem[] = outboundReturnRows;
   const reportPurposeOptions = useMemo(() => ({

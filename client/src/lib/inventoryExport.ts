@@ -10,6 +10,22 @@ export type InventoryExportItem = {
   documentImageUrl?: string | null;
 };
 
+const compareInventoryText = (left: string, right: string) => left.localeCompare(right, "ar", { numeric: true, sensitivity: "base" });
+
+/** يعيد نسخة مرتبة دون تعديل مصفوفة البيانات الأصلية أو أرصدة الأصناف. */
+export function sortInventoryRowsByCategory(items: InventoryExportItem[]) {
+  return [...items].sort((left, right) => {
+    const leftCategory = String(left.category ?? "").trim() || "بدون تصنيف";
+    const rightCategory = String(right.category ?? "").trim() || "بدون تصنيف";
+    const leftUncategorized = leftCategory === "بدون تصنيف";
+    const rightUncategorized = rightCategory === "بدون تصنيف";
+    return (leftUncategorized ? 1 : 0) - (rightUncategorized ? 1 : 0)
+      || compareInventoryText(leftCategory, rightCategory)
+      || compareInventoryText(String(left.name ?? ""), String(right.name ?? ""))
+      || compareInventoryText(String(left.code ?? ""), String(right.code ?? ""));
+  });
+}
+
 export function buildInventoryExportRows(items: InventoryExportItem[]) {
   return items.map(item => ({
     "كود الصنف": item.code,

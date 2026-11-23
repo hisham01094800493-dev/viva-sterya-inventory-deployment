@@ -7,7 +7,7 @@ let excelJsPromise: Promise<ExcelJsModule> | null = null;
 export const loadPdfTools = () => { void fetchArabicFontData(); return pdfToolsPromise ??= Promise.all([import("jspdf"), import("jspdf-autotable")]).then(([jspdf, table]) => ({ jsPDF: jspdf.jsPDF, autoTable: table.default })); };
 export const loadExcelJs = () => excelJsPromise ??= import("exceljs");
 import type { InventoryExportItem } from "./inventoryExport";
-import { buildInventoryPdfRows } from "./inventoryExport";
+import { buildInventoryPdfRows, sortInventoryRowsByCategory } from "./inventoryExport";
 import { downloadBlobFile, getExportImageExtension, savePdfFile } from "./inventoryExportRuntime";
 import { formatInventoryDate, inventoryDateKey } from "./inventoryDate";
 import { formatDisbursementPurpose, splitMixedArabicLatinForPdf } from "./movementPurpose";
@@ -199,6 +199,7 @@ export function selectExportColumns(keys: readonly ExportColumnKey[], requested?
 function selected(keys: readonly ExportColumnKey[], requested?: ExportColumnKey[]) { return selectExportColumns(keys, requested); }
 
 export async function buildInventoryExcel(rows: InventoryExportItem[], options: { columns?: ExportColumnKey[] } = {}) {
+  const sortedRows = sortInventoryRowsByCategory(rows);
   const keys = selected(inventoryExportColumns, options.columns);
   const ExcelJS = await loadExcelJs();
   const workbook = new ExcelJS.Workbook();
@@ -234,7 +235,7 @@ export async function buildInventoryExcel(rows: InventoryExportItem[], options: 
   title.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D4F62" } };
   sheet.getRow(titleRow).height = 32;
   const subtitle = sheet.getCell(subtitleRow, 1);
-  subtitle.value = `تاريخ التقرير: ${new Date().toLocaleDateString("ar-EG")}  ·  عدد الأصناف: ${rows.length}`;
+  subtitle.value = `تاريخ التقرير: ${new Date().toLocaleDateString("ar-EG")}  ·  عدد الأصناف: ${sortedRows.length}`;
   subtitle.font = { name: "Arial", size: 10, italic: true, color: { argb: "FF536B78" } };
   subtitle.alignment = { horizontal: "right", vertical: "middle" };
   subtitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F1F2" } };
@@ -257,7 +258,7 @@ export async function buildInventoryExcel(rows: InventoryExportItem[], options: 
   });
   const numberKeys = new Set(["currentStock", "reorderLevel"]);
   const moneyKeys = new Set(["unitPrice", "totalValue"]);
-  for (const row of rows) {
+  for (const row of sortedRows) {
     const excelRow = sheet.addRow(Object.fromEntries(keys.map(key => [
       key,
       key === "totalValue" ? Number((Number(row.currentStock ?? 0) * Number(row.unitPrice ?? 0)).toFixed(2))
@@ -287,7 +288,7 @@ export async function buildInventoryExcel(rows: InventoryExportItem[], options: 
       }
     }
   }
-  const totalRow = dataStartRow + rows.length;
+  const totalRow = dataStartRow + sortedRows.length;
   const total = sheet.getRow(totalRow);
   total.getCell(1).value = "الإجمالي";
   keys.forEach((key, index) => {
@@ -408,7 +409,7 @@ async function cropPdfImageToSquare(dataUrl: string, size = 96) {
 export async function buildInventoryPdf(rows: InventoryExportItem[] | null | undefined, options: { columns?: ExportColumnKey[]; logo?: string | null; date?: Date; title?: string; summary?: string | string[]; includeCategoryValueChart?: boolean; executiveForecasts?: ExecutiveForecastPdfRow[]; watermarkOpacity?: number; watermarkScale?: number; watermarkPosition?: "center" | "top" | "bottom"; watermarkRepeat?: boolean; watermarkEnabled?: boolean } = {}) {
   const { jsPDF, autoTable } = await loadPdfTools();
   const rawRows = Array.isArray(rows) ? rows : [];
-  const safeRows = rawRows.filter((row): row is InventoryExportItem => Boolean(row && typeof row === "object" && Object.values(row).some(value => value !== null && value !== undefined && String(value).trim() !== "")));
+  const safeRows = sortInventoryRowsByCategory(rawRows.filter((row): row is InventoryExportItem => Boolean(row && typeof row === "object" && Object.values(row).some(value => value !== null && value !== undefined && String(value).trim() !== ""))));
   const isExecutive = Boolean(options.executiveForecasts);
   const forecastByCode = new Map((options.executiveForecasts ?? []).map(row => [String(row.code), row]));
   const keys = selected(inventoryExportColumns, options.columns);
