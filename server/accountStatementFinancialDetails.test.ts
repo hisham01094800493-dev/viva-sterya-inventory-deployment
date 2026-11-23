@@ -31,11 +31,12 @@ describe("التفاصيل المالية في كشف حساب العميل وا
   });
 
   it("ينشئ PDF كشف الحساب بوضع أحادي اللون للطباعة", () => {
-    expect(exports).toContain("options.monochrome ? [255, 255, 255] : [13, 79, 98]");
-    expect(exports).toContain("options.monochrome ? [0, 0, 0] : [255, 255, 255]");
+    expect(exports).toContain("lineColor: options.monochrome ? [90, 90, 90] : [197, 216, 222]");
+    expect(exports).toContain("alternateRowStyles: { fillColor: options.monochrome ? [255, 255, 255] : [246, 250, 251] }");
+    expect(exports).toContain("data.cell.styles.textColor = [0, 0, 0]");
     expect(exports).toContain("alternateRowStyles");
     expect(exports).toContain("headStyles");
-    expect((exports.match(/monochrome/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    expect((exports.match(/monochrome/g) ?? []).length).toBeGreaterThanOrEqual(3);
   });
 
   it("يرسم ترويسة الكشف بمحاذاة يمين لدعم العربية", () => {

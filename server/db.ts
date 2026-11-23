@@ -624,6 +624,22 @@ export async function deleteEmptyWarehouse(input: { id: number; projectId?: numb
     return { deleted: true, warehouse, references };
   });
 }
+
+/**
+ * يتحقق من أن المخزن ينتمي إلى المشروع النشط.
+ * عند عدم وجود مشروع نشط نحافظ على توافق السجلات القديمة غير المرتبطة بمشروع.
+ */
+export function assertWarehouseBelongsToProject(
+  warehouse: { id: number; projectId?: number | null },
+  activeProjectId?: number | null,
+) {
+  if (activeProjectId == null) return warehouse;
+  if (warehouse.projectId !== activeProjectId) {
+    throw new InventoryError("BAD_REQUEST", "المخزن المحدد لا يتبع المشروع النشط");
+  }
+  return warehouse;
+}
+
 export async function updateWarehouse(input: { id: number; name: string }) {
   const db = await requireDb();
   const name = input.name.trim();
