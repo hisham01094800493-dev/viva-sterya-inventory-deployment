@@ -3511,3 +3511,119 @@ svg {
 .dark :focus-visible {
   outline-color: #7fd8e8;
 }
+
+/* نموذج الحركات: إدخالات عربية واضحة ومتباعدة على الهاتف والكمبيوتر */
+@layer components {
+  .movement-dialog-content {
+    font-family: Arial, "Noto Sans Arabic", sans-serif;
+  }
+
+  .movement-dialog-content form {
+    line-height: 1.55;
+  }
+
+  .movement-dialog-content .movement-field-label {
+    min-height: 1.65rem;
+    text-wrap: pretty;
+  }
+
+  .movement-dialog-content input:not([type="file"]),
+  .movement-dialog-content select,
+  .movement-dialog-content textarea {
+    min-width: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  .movement-dialog-content input:not([type="file"]),
+  .movement-dialog-content select {
+    min-height: 2.75rem;
+  }
+
+  .movement-dialog-content textarea {
+    min-height: 5rem;
+    resize: vertical;
+  }
+
+  .movement-dialog-content input:not([type="file"]):focus,
+  .movement-dialog-content select:focus,
+  .movement-dialog-content textarea:focus {
+    border-color: #0d7180;
+    box-shadow: 0 0 0 3px rgba(13, 113, 128, 0.13);
+    outline: none;
+  }
+
+  .movement-dialog-content input::placeholder,
+  .movement-dialog-content textarea::placeholder {
+    color: #8aa0a9;
+    font-size: 0.82rem;
+    font-weight: 500;
+  }
+
+  .movement-dialog-content .mobile-form-step {
+    margin-top: 0.35rem;
+    border: 1px solid #cfe3e7;
+    border-radius: 1rem;
+    background: linear-gradient(90deg, #f7fbfc, #eef8f7);
+    padding: 0.7rem 0.85rem;
+    color: #0d4f62;
+  }
+
+  .movement-dialog-content .mobile-form-step span {
+    display: inline-flex;
+    width: 1.65rem;
+    height: 1.65rem;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.45rem;
+    border-radius: 999px;
+    background: #0d7180;
+    color: white;
+    font-size: 0.78rem;
+    font-weight: 900;
+    vertical-align: middle;
+  }
+
+  .movement-dialog-content .mobile-form-step strong {
+    font-size: 0.9rem;
+    font-weight: 900;
+  }
+
+  .movement-dialog-content .mobile-form-step small {
+    display: block;
+    margin-top: 0.2rem;
+    padding-right: 2.1rem;
+    color: #68818a;
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  @media (max-width: 639px) {
+    .movement-dialog-content {
+      width: calc(100vw - 1rem);
+      max-height: 94dvh;
+      padding: 1rem;
+    }
+
+    .movement-dialog-content [data-slot="dialog-title"] {
+      font-size: 1.15rem;
+      line-height: 1.45;
+    }
+
+    .movement-dialog-content [data-slot="dialog-description"] {
+      font-size: 0.78rem;
+      line-height: 1.8;
+    }
+
+    .movement-dialog-content .movement-field-label {
+      font-size: 0.8rem;
+    }
+
+    .movement-dialog-content input:not([type="file"]),
+    .movement-dialog-content select {
+      min-height: 2.85rem;
+      font-size: 0.9rem;
+    }
+  }
+}
