@@ -3710,3 +3710,23 @@ svg {
 .receipt-draft-editor .receipt-overlay-field:nth-child(2) {
   line-height: 1.2;
 }
+
+.receipt-draft-editor .receipt-overlay-field {
+  box-sizing: border-box;
+  padding-inline: 0.15rem;
+  white-space: nowrap;
+}
+
+.receipt-draft-editor .receipt-overlay-field:nth-child(1),
+.receipt-draft-editor .receipt-overlay-field:nth-child(2),
+.receipt-draft-editor .receipt-overlay-field:nth-child(3),
+.receipt-draft-editor .receipt-overlay-field:nth-child(4) {
+  text-align: right;
+}
+
+.receipt-draft-editor .receipt-overlay-field:nth-child(5n + 1),
+.receipt-draft-editor .receipt-overlay-field:nth-child(5n + 2),
+.receipt-draft-editor .receipt-overlay-field:nth-child(5n + 3),
+.receipt-draft-editor .receipt-overlay-field:nth-child(5n + 4) {
+  text-align: center;
+}
