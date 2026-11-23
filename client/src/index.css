@@ -3736,3 +3736,12 @@ svg {
   border-radius: 0.15rem;
   padding-inline: 0.3rem;
 }
+
+.receipt-draft-editor .header-overlay-field,
+.receipt-draft-editor .signature-overlay-field {
+  font-size: clamp(8px, 1.5vw, 12px);
+}
+
+.receipt-draft-editor .row-overlay-field {
+  font-size: clamp(8px, 1.35vw, 11px);
+}
