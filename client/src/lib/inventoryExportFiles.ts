@@ -804,7 +804,7 @@ export async function buildMainWarehousePdf(cards: ItemCardPdfData[], options: {
     body,
     columnStyles: { 0: { cellWidth: 42, halign: "center" }, 1: { cellWidth: 66, halign: "center" }, 2: { cellWidth: 178, halign: "right", overflow: "linebreak" }, 3: { cellWidth: 92, halign: "right", overflow: "linebreak" }, 4: { cellWidth: 48, halign: "center" }, 5: { cellWidth: 76, halign: "center" }, 6: { cellWidth: 70, halign: "center" }, 7: { cellWidth: 70, halign: "center" }, 8: { cellWidth: 76, halign: "center" } },
     styles: { font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: 7.8, cellPadding: 3.5, minCellHeight: 32, halign: "right", valign: "middle", overflow: "linebreak", textColor: [16, 42, 67], lineColor: [137, 162, 172], lineWidth: 0.45 },
-    headStyles: { fillColor: [13, 79, 98], textColor: [255, 255, 255], font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: 8, halign: "center", cellPadding: 4 },
+    headStyles: { fillColor: [248, 250, 252], textColor: [16, 42, 67], lineColor: [148, 163, 184], lineWidth: 0.6, font: getArabicPdfFont(doc), fontStyle: "bold", fontSize: 8, halign: "center", cellPadding: 4 },
     alternateRowStyles: { fillColor: [246, 250, 251] },
     didParseCell: data => { if (data.section === "body" && data.column.index === 0) { data.cell.styles.minCellHeight = 32; data.cell.styles.cellPadding = 2; } },
     willDrawPage: data => { if (data.pageNumber > 1) drawPdfWatermark(doc, watermarkLogo, options.watermarkOpacity, options.watermarkScale, options.watermarkPosition, options.watermarkRepeat); },
