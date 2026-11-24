@@ -131,6 +131,36 @@ export default function DraftsPage() {
       const right = pageWidth - 18;
       const left = 18;
       const maxWidth = pageWidth - 36;
+      if (isReceipt) {
+        const templateImage = await fetchImageAsset("/assets/receipt-template.png");
+        if (!templateImage) throw new Error("Receipt template image is unavailable");
+        doc.addImage(templateImage.dataUrl, getPdfImageFormat(templateImage.dataUrl), 0, 0, pageWidth, pageHeight);
+        const pdfField = (value: string, field: { top?: number; left: number; width: number }, align: "right" | "center" = "center") => {
+          if (!value) return;
+          doc.setFont(getArabicPdfFont(doc), "normal");
+          doc.setFontSize(10);
+          doc.setTextColor(16, 42, 67);
+          const x = (field.left + field.width / 2) * pageWidth / 100;
+          const y = (field.top ?? 0) * pageHeight / 100;
+          doc.text(shapeArabic(doc, value), x, y, { align });
+        };
+        pdfField(receiptData.warehouse, RECEIPT_LAYOUT.warehouse, "right");
+        pdfField(receiptData.date, RECEIPT_LAYOUT.date, "right");
+        pdfField(receiptData.hotel, RECEIPT_LAYOUT.hotel, "right");
+        pdfField(receiptData.job, RECEIPT_LAYOUT.job, "right");
+        receiptData.rows.forEach((row, index) => {
+          const top = RECEIPT_LAYOUT.firstRowTop + index * RECEIPT_LAYOUT.rowStep;
+          pdfField(row.item, { ...RECEIPT_LAYOUT.item, top });
+          pdfField(row.unit, { ...RECEIPT_LAYOUT.unit, top });
+          pdfField(row.quantity, { ...RECEIPT_LAYOUT.quantity, top });
+          pdfField(row.notes, { ...RECEIPT_LAYOUT.notes, top });
+        });
+        pdfField(receiptData.receiver, { top: RECEIPT_LAYOUT.signaturesTop, ...RECEIPT_LAYOUT.receiver });
+        pdfField(receiptData.handover, { top: RECEIPT_LAYOUT.signaturesTop, ...RECEIPT_LAYOUT.handover });
+        savePdfFile(doc, "smart-inventory-محضر-استلام-بضائع.pdf");
+        toast.success("تم تنزيل محضر الاستلام بنفس صورة الورقة الأصلية بصيغة PDF");
+        return;
+      }
       const logo = await fetchImageAsset(DEFAULT_COMPANY_LOGO_URL);
       if (logo) doc.addImage(logo.dataUrl, getPdfImageFormat(logo.dataUrl), left, 9, 27, 20);
       doc.setFont(getArabicPdfFont(doc), "bold");
