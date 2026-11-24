@@ -2322,6 +2322,19 @@ export async function listAdditions(
     .limit(limit);
 }
 
+export async function listAdditionsByPermit(
+  permitNumber: string,
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null
+) {
+  const db = await requireDb();
+  const normalizedPermit = permitNumber.trim();
+  if (!normalizedPermit) return [];
+  const conditions: any[] = [eq(additions.eznNum, normalizedPermit)];
+  if (allowedWarehouseIds.length) conditions.push(inArray(additions.warehouseId, allowedWarehouseIds));
+  conditions.push(projectId == null ? isNull(additions.projectId) : eq(additions.projectId, projectId));
+  return db.select().from(additions).where(and(...conditions)).orderBy(asc(additions.id));
+}
 export async function getMovementWarehouseIds(
   type: "addition" | "disbursement" | "transfer",
   id: number
@@ -2992,6 +3005,54 @@ export async function updateAddition(input: {
   });
 }
 
+export async function updateAdditionPermit(input: {
+  id: number; date: string; eznNum: string; store?: string | null; warehouseId?: number | null;
+  purpose?: string | null; supplier?: string | null; supplierId?: number | null; category?: string | null;
+  intakeType?: "purchase" | "used_asset"; sourceLocation?: string | null; itemCondition?: string | null; notes?: string | null;
+  projectId?: number | null; lines: Array<{ itemCode: string; quantity: number; unitPrice?: number }>;
+}) {
+  const db = await requireDb();
+  if (!input.lines.length) throw new InventoryError("BAD_REQUEST", "يجب أن يحتوي إذن الإضافة على بند واحد على الأقل");
+  return db.transaction(async (tx: any) => {
+    const projectCondition = input.projectId == null ? isNull(additions.projectId) : eq(additions.projectId, input.projectId);
+    const primary = (await tx.select().from(additions).where(and(eq(additions.id, input.id), projectCondition)).limit(1).for("update"))[0];
+    if (!primary) throw new InventoryError("NOT_FOUND", "سجل الإضافة غير موجود في المشروع الحالي");
+    const oldRows = await tx.select().from(additions).where(and(eq(additions.eznNum, primary.eznNum), projectCondition)).orderBy(asc(additions.id)).for("update");
+    for (const row of oldRows) await assertMovementNotCanceled(tx, "addition", row.id);
+    const lines = input.lines.map(line => ({ itemCode: normalizeItemCode(line.itemCode), quantity: toScaled(line.quantity), unitPrice: line.unitPrice }));
+    if (lines.some(line => line.quantity <= 0)) throw new InventoryError("BAD_REQUEST", "كمية كل بند يجب أن تكون أكبر من صفر");
+    if (new Set(lines.map(line => line.itemCode)).size !== lines.length) throw new InventoryError("BAD_REQUEST", "لا يمكن تكرار الصنف داخل الإذن");
+    const codes = Array.from(new Set([...oldRows.map((row: any) => row.itemCode), ...lines.map(line => line.itemCode)])).sort();
+    const lockedItems = new Map<string, any>();
+    for (const code of codes) lockedItems.set(code, await getItemForUpdate(tx, code, input.projectId));
+    for (const row of oldRows) {
+      const item = lockedItems.get(row.itemCode);
+      const warehouse = await resolveWarehouseId(tx, row.warehouseId, row.store, input.projectId);
+      const quantity = toScaled(row.quantity);
+      await applyStockDelta(tx, item, { incoming: -quantity, outgoing: 0, current: -quantity });
+      await applyWarehouseBalanceDelta(tx, item.id, warehouse.id, -quantity);
+    }
+    const targetWarehouse = await resolveWarehouseId(tx, input.warehouseId ?? primary.warehouseId, input.store === undefined ? primary.store : input.store, input.projectId);
+    for (const line of lines) {
+      const item = lockedItems.get(line.itemCode);
+      await applyStockDelta(tx, item, { incoming: line.quantity, outgoing: 0, current: line.quantity });
+      await applyWarehouseBalanceDelta(tx, item.id, targetWarehouse.id, line.quantity);
+    }
+    const first = lines[0];
+    const shared = { date: input.date.trim(), eznNum: input.eznNum.trim(), store: input.store?.trim() || null, warehouseId: targetWarehouse.id, purpose: input.purpose?.trim() ?? primary.purpose ?? null, supplier: input.supplier?.trim() ?? primary.supplier ?? null, supplierId: input.supplierId ?? primary.supplierId ?? null, category: input.category?.trim() ?? primary.category ?? null, intakeType: input.intakeType ?? primary.intakeType ?? "purchase", sourceLocation: input.sourceLocation?.trim() ?? primary.sourceLocation ?? null, itemCondition: input.itemCondition?.trim() ?? primary.itemCondition ?? null, notes: input.notes?.trim() ?? primary.notes ?? null, projectId: primary.projectId };
+    const secondaryIds = oldRows.filter((row: any) => row.id !== input.id).map((row: any) => row.id);
+    if (secondaryIds.length) await tx.delete(additions).where(inArray(additions.id, secondaryIds));
+    const firstItem = lockedItems.get(first.itemCode);
+    const firstPrice = toMoneyScaled(first.unitPrice ?? primary.unitPrice);
+    await tx.update(additions).set({ ...shared, itemCode: firstItem.code, itemName: firstItem.name, quantity: fromScaled(first.quantity), unitPrice: fromMoneyScaled(firstPrice), totalValue: fromMoneyScaled(calculateTotalValue(firstPrice, first.quantity)) }).where(eq(additions.id, input.id));
+    for (const line of lines.slice(1)) {
+      const item = lockedItems.get(line.itemCode);
+      const unitPrice = toMoneyScaled(line.unitPrice ?? item.unitPrice);
+      await tx.insert(additions).values({ ...shared, itemCode: item.code, itemName: item.name, quantity: fromScaled(line.quantity), unitPrice: fromMoneyScaled(unitPrice), totalValue: fromMoneyScaled(calculateTotalValue(unitPrice, line.quantity)), clientRequestId: null });
+    }
+    return tx.select().from(additions).where(and(eq(additions.eznNum, input.eznNum.trim()), projectCondition)).orderBy(asc(additions.id));
+  });
+}
 type MovementCancellationActor = { userId: number; userName?: string | null };
 
 function validateMovementCancellationReason(reason: string) {

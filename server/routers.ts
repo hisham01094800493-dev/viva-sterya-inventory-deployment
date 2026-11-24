@@ -42,6 +42,7 @@ import {
   setUserOnboardingCompleted,
   InventoryError,
   listAdditions,
+  listAdditionsByPermit,
   listAdditionsPaged,
   listSupplierAccount,
   listCustomerAccount,
@@ -73,6 +74,7 @@ import {
   createCustomer,
   updateCustomer,
   updateAddition,
+  updateAdditionPermit,
   updateDisbursement,
   updateItem,
   renameWarehouseItemCategory,
@@ -354,6 +356,13 @@ const additionBatchInput = additionInput.omit({ itemCode: true, quantity: true, 
   lines: z.array(z.object({ itemCode: z.string().trim().min(1, "كود الصنف مطلوب").max(64), quantity: z.coerce.number().positive(), unitPrice: z.coerce.number().min(0).optional() })).min(2).max(50),
 });
 
+const additionPermitUpdateInput = z.object({
+  id: z.number().int().positive(), date: z.string().trim().min(1).max(32), eznNum: z.string().trim().min(1).max(64),
+  store: z.string().trim().max(128).nullable().optional(), warehouseId: z.number().int().positive().nullable().optional(),
+  purpose: z.string().trim().max(500).nullable().optional(), supplier: z.string().trim().max(128).nullable().optional(), supplierId: z.number().int().positive().nullable().optional(), category: z.string().trim().max(128).nullable().optional(),
+  intakeType: z.enum(["purchase", "used_asset"]).optional(), sourceLocation: z.string().trim().max(500).nullable().optional(), itemCondition: z.string().trim().max(128).nullable().optional(), notes: z.string().trim().max(2000).nullable().optional(),
+  lines: z.array(z.object({ itemCode: z.string().trim().min(1).max(64), quantity: z.coerce.number().positive(), unitPrice: z.coerce.number().min(0).optional() })).min(1).max(50),
+});
 const disbursementInput = z.object({
   date: z.string().trim().min(1, "التاريخ مطلوب").max(32),
   eznNum: z.string().trim().min(1, "رقم الإذن مطلوب").max(64),
@@ -597,6 +606,19 @@ export const appRouter = router({
     update: writePermissionProcedure("additions")
       .input(additionInput.partial().extend({ id: z.number().int().positive() }))
       .mutation(async ({ input, ctx }) => { const existing = await assertExistingMovementAccess("addition", input.id, ctx.permissions); assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("addition", input.id, scope.projectId); await assertWarehousesInProject(scope.projectId, [input.warehouseId ?? existing[0]]); const previousSnapshot = await safe(() => getMovementSnapshot("addition", input.id)); const result = await safe(() => updateAddition(input)); const undoAuditLogId = await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "addition", entityId: input.id, details: { previousSnapshot, changes: input } }); return { ...result, undoAuditLogId }; }),
+    byPermit: permissionProcedure("additions").input(z.object({ permitNumber: z.string().trim().min(1).max(64) })).query(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); return safe(() => listAdditionsByPermit(input.permitNumber, ctx.permissions.allowedWarehouseIds, scope.projectId)); }),
+    updatePermit: writePermissionProcedure("additions").input(additionPermitUpdateInput).mutation(async ({ input, ctx }) => {
+      const existing = await assertExistingMovementAccess("addition", input.id, ctx.permissions);
+      assertWarehouseAccess(ctx.permissions, [input.warehouseId ?? existing[0]]);
+      const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
+      await assertMovementInProject("addition", input.id, scope.projectId);
+      await assertWarehousesInProject(scope.projectId, [input.warehouseId ?? existing[0]]);
+      const previousSnapshot = await safe(() => getMovementSnapshot("addition", input.id));
+      const result = await safe(() => updateAdditionPermit({ ...input, projectId: scope.projectId }));
+      await createAuditLog({ userId: ctx.user.id, userName: ctx.user.name, action: "update", entity: "addition_permit", entityId: input.id, details: { previousSnapshot, changes: input, lineCount: input.lines.length } });
+      invalidateForecastCache();
+      return result;
+    }),
     uploadDocumentImage: writePermissionProcedure("additions")
       .input(z.object({ movementId: z.number().int().positive(), fileName: z.string().trim().min(1).max(128), contentType: z.enum(["image/jpeg", "image/png", "image/webp"]), dataBase64: z.string().min(20).max(7_000_000) }))
       .mutation(async ({ input, ctx }) => { await assertExistingMovementAccess("addition", input.movementId, ctx.permissions); const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertMovementInProject("addition", input.movementId, scope.projectId); return safe(() => uploadDocumentImage({ ...input, movementType: "addition" })); }),
