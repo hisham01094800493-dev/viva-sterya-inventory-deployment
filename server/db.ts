@@ -2606,15 +2606,6 @@ async function additionPermitExists(tx: any, eznNum: string, projectId: number |
   return Boolean(rows[0]);
 }
 
-async function assertAdditionPermitAvailable(tx: any, eznNum: string, projectId: number | null, excludeId?: number) {
-  if (projectId != null) {
-    const projectRows = await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).limit(1).for("update");
-    if (!projectRows[0]) throw new InventoryError("BAD_REQUEST", "المشروع المحدد غير موجود");
-  }
-  if (await additionPermitExists(tx, eznNum, projectId, excludeId))
-    throw new InventoryError("CONFLICT", "رقم إذن الإضافة مستخدم بالفعل في هذا المشروع. استخدم رقم إذن مختلفًا.");
-}
-
 export async function hasAdditionPermitNumber(eznNum: string, projectId?: number | null, excludeId?: number) {
   const db = await requireDb();
   const writeProjectId = await resolveWriteProjectId(db, projectId);
@@ -2662,7 +2653,6 @@ export async function createAddition(input: {
       if (existing[0]) return existing[0];
     }
     const writeProjectId = await resolveWriteProjectId(tx, input.projectId);
-    await assertAdditionPermitAvailable(tx, input.eznNum, writeProjectId);
     const warehouse = await resolveWarehouseId(
       tx,
       input.warehouseId,
@@ -2802,7 +2792,6 @@ export async function createAdditionBatch(input: {
       throw new InventoryError("CONFLICT", "مفتاح إذن الإضافة مستخدم لطلب آخر أو حُفظ جزء غير متوقع منه");
     }
 
-    await assertAdditionPermitAvailable(tx, input.eznNum, writeProjectId);
     const warehouse = await resolveWarehouseId(tx, input.warehouseId, input.store, writeProjectId);
     const lockedItems = new Map<string, any>();
     for (const code of Array.from(new Set(normalizedLines.map(line => line.itemCode))).sort())
@@ -2882,10 +2871,6 @@ export async function updateAddition(input: {
     const old = oldRows[0];
     if (!old) throw new InventoryError("NOT_FOUND", "سجل الإضافة غير موجود");
     await assertMovementNotCanceled(tx, "addition", input.id);
-    const nextPermitNumber = input.eznNum?.trim() ?? String(old.eznNum ?? "").trim();
-    if (nextPermitNumber !== String(old.eznNum ?? "").trim())
-      await assertAdditionPermitAvailable(tx, nextPermitNumber, old.projectId ?? null, input.id);
-
     const oldCode = old.itemCode;
     const nextCode = normalizeItemCode(input.itemCode ?? oldCode);
     const oldQuantity = toScaled(old.quantity);
