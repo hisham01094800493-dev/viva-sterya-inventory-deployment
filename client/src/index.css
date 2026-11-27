@@ -166,7 +166,7 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .page-transition { animation: pageTransition 220ms cubic-bezier(0.23, 1, 0.32, 1) both; }
+  .page-transition { animation: pageTransition 100ms ease-out both; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -247,13 +247,13 @@
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(237, 246, 248, 0.68));
     border: 1px solid rgba(255, 255, 255, 0.72);
     box-shadow: 0 24px 70px rgba(24, 67, 88, 0.08);
-    backdrop-filter: blur(18px);
+    backdrop-filter: blur(8px);
   }
   .smart-sidebar-surface {
     background: linear-gradient(180deg, rgba(245, 253, 255, 0.66), rgba(224, 247, 245, 0.52) 55%, rgba(255, 241, 217, 0.56)) !important;
     border-color: rgba(255, 255, 255, 0.68) !important;
     box-shadow: -18px 0 48px rgba(13, 79, 98, 0.11), inset 1px 0 rgba(255, 255, 255, 0.56);
-    backdrop-filter: blur(26px) saturate(145%);
+    backdrop-filter: blur(8px) saturate(110%);
     color: #173f4c;
   }
   .smart-sidebar-header, .smart-sidebar-footer { border-color: rgba(111, 165, 176, 0.24) !important; }

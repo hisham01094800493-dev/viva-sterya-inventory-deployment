@@ -768,7 +768,7 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
           </div>
             <div className="smart-topbar-actions flex min-w-0 items-center gap-1.5 sm:gap-3">
               <div className="smart-topbar-project"><ProjectSwitcher state={activeProjectState} /></div>
-              <CommandPalette canCreateItems={canCreateItems} onNavigate={path => { window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} /><div className="flex shrink-0 items-center rounded-xl border border-red-200 bg-red-50/80 p-0.5 shadow-sm sm:rounded-2xl sm:p-1" aria-label="البحث الصوتي"><div className="rounded-lg bg-red-50 [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg [&_button]:border-red-200 [&_button]:bg-red-50 [&_button]:text-red-600 [&_button]:hover:bg-red-100 sm:rounded-xl sm:[&_button]:h-9 sm:[&_button]:w-9"><GlobalVoiceSearch /></div></div>
+              <CommandPalette canCreateItems={canCreateItems} onNavigate={path => { window.scrollTo({ top: 0, behavior: "auto" }); setLocation(path); }} /><div className="flex shrink-0 items-center rounded-xl border border-red-200 bg-red-50/80 p-0.5 shadow-sm sm:rounded-2xl sm:p-1" aria-label="البحث الصوتي"><div className="rounded-lg bg-red-50 [&_button]:h-8 [&_button]:w-8 [&_button]:rounded-lg [&_button]:border-red-200 [&_button]:bg-red-50 [&_button]:text-red-600 [&_button]:hover:bg-red-100 sm:rounded-xl sm:[&_button]:h-9 sm:[&_button]:w-9"><GlobalVoiceSearch /></div></div>
               <NotificationBell chatEnabled={chatEnabled} projects={activeProjectState.projects} />
               {isMovementPage && canViewMovementFinancialDetails ? <Button type="button" variant="outline" size="sm" onClick={() => void toggleMovementFinancialDetails()} disabled={updatePreferences.isPending || onboardingPreferences.isLoading} aria-pressed={showMovementFinancialDetails} className="movement-financial-toggle inline-flex rounded-xl px-2 text-[10px] font-black sm:px-3 sm:text-xs">{showMovementFinancialDetails ? "إخفاء التفاصيل المالية" : "إظهار التفاصيل المالية"}</Button> : null}
               <div className="smart-topbar-status hidden rounded-full border border-[#dce7ee] bg-white px-4 py-2 text-xs font-bold text-slate-500 sm:block">نظام Smart Inventory • البيانات محفوظة</div>
@@ -788,8 +788,8 @@ function DashboardLayoutContent({ children, user }: { children: React.ReactNode;
       {showBackToTop && <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="العودة إلى أعلى الصفحة" title="العودة للأعلى" className="back-to-top fixed bottom-24 left-4 z-50 flex h-11 w-11 items-center justify-center rounded-2xl border border-[#8fd7ef] bg-[#e8f8ff] text-[#197da7] shadow-lg transition hover:-translate-y-0.5 md:bottom-8 md:left-8"><ArrowUpFromLine className="h-5 w-5" /></button>}
       {!previewPermissions && chatEnabled && <ChatFloatingBubble />}
       {!previewPermissions && effectivePermissions?.allowedScreens.includes("inventory") && <VoiceStockQuery />}
-      {!previewPermissions && !readOnlyRole && <FloatingQuickActions canCreateItems={canCreateItems} onNavigate={(path) => { window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} />}
-      <MobileBottomNavigation items={mobileNavigationItems} activePath={activeMenuItem.path} onNavigate={(path) => { window.scrollTo({ top: 0, behavior: "smooth" }); setLocation(path); }} darkMode={darkMode} />
+      {!previewPermissions && !readOnlyRole && <FloatingQuickActions canCreateItems={canCreateItems} onNavigate={(path) => { window.scrollTo({ top: 0, behavior: "auto" }); setLocation(path); }} />}
+      <MobileBottomNavigation items={mobileNavigationItems} activePath={activeMenuItem.path} onNavigate={(path) => { window.scrollTo({ top: 0, behavior: "auto" }); setLocation(path); }} darkMode={darkMode} />
       <OnboardingTour show={showOnboarding} onComplete={completeOnboarding} />
     </div>
   );
