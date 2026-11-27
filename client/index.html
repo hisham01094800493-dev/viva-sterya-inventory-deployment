@@ -63,7 +63,7 @@
         let loaded = false;
         const hide = () => {
           if (!loaded) return;
-          const wait = Math.max(0, 820 - (performance.now() - startedAt));
+          const wait = Math.max(0, 280 - (performance.now() - startedAt));
           window.setTimeout(() => splash.classList.add("is-hidden"), wait);
         };
         window.addEventListener("load", () => { loaded = true; hide(); }, { once: true });

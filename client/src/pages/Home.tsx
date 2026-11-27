@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { dashboardQueryOptions, inventoryQueryOptions } from "@/lib/queryOptions";
-import { ItemCardPreviewDialog } from "@/pages/InventoryPages";
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -34,13 +33,15 @@ import {
   Search,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useActiveProjectState } from "@/components/ProjectSwitcher";
 import { projectLabel } from "@/lib/projectSelection";
+
+const ItemCardPreviewDialog = lazy(() => import("@/pages/InventoryPages").then(module => ({ default: module.ItemCardPreviewDialog })));
 
 const numberFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 });
 const formatNumber = (value: number | string | null | undefined) => numberFormatter.format(Number(value ?? 0));
@@ -309,7 +310,7 @@ export default function Home() {
   useEffect(() => { const syncPreview = () => { try { const raw = window.localStorage.getItem("smart-inventory-preview-permissions"); setPreviewReadOnly(raw ? Boolean(JSON.parse(raw)?.readOnly) : null); } catch { setPreviewReadOnly(null); } }; window.addEventListener("smart-inventory-preview", syncPreview); return () => window.removeEventListener("smart-inventory-preview", syncPreview); }, []);
   const isReadOnly = previewReadOnly ?? ["viewer", "reviewer", "reports"].includes(user?.role ?? "");
   const summary = trpc.dashboard.summary.useQuery(undefined, { ...dashboardQueryOptions, enabled: projectDataEnabled });
-  const absences = trpc.governance.absenceList.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 5000, refetchOnWindowFocus: true });
+  const absences = trpc.governance.absenceList.useQuery(undefined, { enabled: Boolean(user), refetchInterval: 30_000, refetchOnWindowFocus: true });
   const [absenceDetailsOpen, setAbsenceDetailsOpen] = useState(false);
   const absenceDays = (absences.data ?? []).reduce((total, row) => total + Number(row.days ?? 0), 0);
   const warehouses = trpc.warehouses.list.useQuery(undefined, { ...inventoryQueryOptions, enabled: projectDataEnabled });
@@ -430,7 +431,9 @@ export default function Home() {
                 <QuickCalculator />
                 <div className="flex items-center gap-2 rounded-xl border border-[#7dd3fc]/45 bg-[#0369a1]/25 px-2 py-1.5 text-white"><GoogleSearchButton /><span className="hidden text-xs font-black sm:inline">بحث Google</span></div>
               </div>}
-              <ItemCardPreviewDialog itemId={selectedItemCardId} open={itemCardOpen} onOpenChange={setItemCardOpen} />
+              <Suspense fallback={null}>
+                <ItemCardPreviewDialog itemId={selectedItemCardId} open={itemCardOpen} onOpenChange={setItemCardOpen} />
+              </Suspense>
             </div>
           </div>
         </section>

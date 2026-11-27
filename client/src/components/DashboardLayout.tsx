@@ -359,7 +359,7 @@ function NotificationBell({ chatEnabled = true, projects = [] }: { chatEnabled?:
   const [incomingChatNotice, setIncomingChatNotice] = useState<string | null>(null);
   const lastChatMessageId = useRef<number | null>(null);
   const { user } = useAuth();
-  const notifications = trpc.notifications.list.useQuery(undefined, { refetchInterval: 5000, refetchOnWindowFocus: true });
+  const notifications = trpc.notifications.list.useQuery(undefined, { refetchInterval: 30_000, refetchOnWindowFocus: true });
   const chatConversations = trpc.chat.conversations.useQuery(undefined, { enabled: chatEnabled, refetchInterval: 15000 });
   const markRead = trpc.notifications.markRead.useMutation({ onSuccess: () => void notifications.refetch() });
   const markAllRead = trpc.notifications.markAllRead.useMutation({ onSuccess: () => void notifications.refetch() });
