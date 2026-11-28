@@ -889,6 +889,45 @@ export async function listCustomers() {
   return db.select().from(customers).orderBy(desc(customers.updatedAt));
 }
 
+export async function listCustomersWithProjectActivity(
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null,
+) {
+  const db = await requireDb();
+  const [rows, disbursementActivity, transferSourceActivity, transferDestinationActivity] = await Promise.all([
+    db.select().from(customers).orderBy(desc(customers.updatedAt)),
+    db.select({ customerId: disbursements.customerId, count: count() })
+      .from(disbursements)
+      .where(and(
+        projectId != null ? eq(disbursements.projectId, projectId) : undefined,
+        allowedWarehouseIds.length ? inArray(disbursements.warehouseId, allowedWarehouseIds) : undefined,
+        sql`${disbursements.customerId} is not null`,
+      ))
+      .groupBy(disbursements.customerId),
+    db.select({ customerId: transfers.fromCustomerId, count: count() })
+      .from(transfers)
+      .where(and(
+        projectId != null ? eq(transfers.projectId, projectId) : undefined,
+        allowedWarehouseIds.length ? or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)) : undefined,
+        sql`${transfers.fromCustomerId} is not null`,
+      ))
+      .groupBy(transfers.fromCustomerId),
+    db.select({ customerId: transfers.toCustomerId, count: count() })
+      .from(transfers)
+      .where(and(
+        projectId != null ? eq(transfers.projectId, projectId) : undefined,
+        allowedWarehouseIds.length ? or(inArray(transfers.fromWarehouseId, allowedWarehouseIds), inArray(transfers.toWarehouseId, allowedWarehouseIds)) : undefined,
+        sql`${transfers.toCustomerId} is not null`,
+      ))
+      .groupBy(transfers.toCustomerId),
+  ]);
+  const activity = new Map<number, number>();
+  for (const row of disbursementActivity) if (row.customerId != null) activity.set(row.customerId, Number(row.count));
+  for (const row of transferSourceActivity) if (row.customerId != null) activity.set(row.customerId, (activity.get(row.customerId) ?? 0) + Number(row.count));
+  for (const row of transferDestinationActivity) if (row.customerId != null) activity.set(row.customerId, (activity.get(row.customerId) ?? 0) + Number(row.count));
+  return rows.map(row => ({ ...row, activeProjectMovementCount: activity.get(row.id) ?? 0, hasActivityInActiveProject: (activity.get(row.id) ?? 0) > 0 }));
+}
+
 export async function createCustomer(input: {
   name: string;
   phone?: string | null;
@@ -965,6 +1004,27 @@ export async function updateCustomer(input: {
 export async function listSuppliers() {
   const db = await requireDb();
   return db.select().from(suppliers).orderBy(desc(suppliers.updatedAt));
+}
+
+export async function listSuppliersWithProjectActivity(
+  allowedWarehouseIds: number[] = [],
+  projectId?: number | null,
+) {
+  const db = await requireDb();
+  const [rows, activityRows] = await Promise.all([
+    db.select().from(suppliers).orderBy(desc(suppliers.updatedAt)),
+    db.select({ supplierId: additions.supplierId, count: count() })
+      .from(additions)
+      .where(and(
+        projectId != null ? eq(additions.projectId, projectId) : undefined,
+        allowedWarehouseIds.length ? inArray(additions.warehouseId, allowedWarehouseIds) : undefined,
+        sql`${additions.supplierId} is not null`,
+      ))
+      .groupBy(additions.supplierId),
+  ]);
+  const activity = new Map<number, number>();
+  for (const row of activityRows) if (row.supplierId != null) activity.set(row.supplierId, Number(row.count));
+  return rows.map(row => ({ ...row, activeProjectMovementCount: activity.get(row.id) ?? 0, hasActivityInActiveProject: (activity.get(row.id) ?? 0) > 0 }));
 }
 
 export async function createSupplier(input: {

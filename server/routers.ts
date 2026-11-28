@@ -67,10 +67,10 @@ import {
   createWarehouse,
   deleteEmptyWarehouse,
   updateWarehouse,
-  listSuppliers,
+  listSuppliersWithProjectActivity,
   createSupplier,
   updateSupplier,
-  listCustomers,
+  listCustomersWithProjectActivity,
   createCustomer,
   updateCustomer,
   updateAddition,
@@ -485,12 +485,18 @@ export const appRouter = router({
     update: protectedProcedure.input(buildingUpdateInput).mutation(async ({ input, ctx }) => { const scope = await resolveProjectScope(ctx.user.id, ctx.user.role); await assertBuildingInProject(input.id, scope.projectId); return safe(() => updateBuilding(input)); }),
   }),
   suppliers: router({
-    list: protectedProcedure.query(() => safe(() => listSuppliers())),
+    list: permissionProcedure("suppliers").query(async ({ ctx }) => {
+      const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
+      return safe(() => listSuppliersWithProjectActivity(ctx.permissions.allowedWarehouseIds, scope.projectId));
+    }),
     create: protectedProcedure.input(supplierInput).mutation(({ input }) => safe(() => createSupplier(input))),
     update: protectedProcedure.input(supplierUpdateInput).mutation(({ input }) => safe(() => updateSupplier(input))),
   }),
   customers: router({
-    list: protectedProcedure.query(() => safe(() => listCustomers())),
+    list: permissionProcedure("customers").query(async ({ ctx }) => {
+      const scope = await resolveProjectScope(ctx.user.id, ctx.user.role);
+      return safe(() => listCustomersWithProjectActivity(ctx.permissions.allowedWarehouseIds, scope.projectId));
+    }),
     create: protectedProcedure.input(customerInput).mutation(({ input }) => safe(() => createCustomer(input))),
     update: protectedProcedure.input(customerUpdateInput).mutation(({ input }) => safe(() => updateCustomer(input))),
   }),
