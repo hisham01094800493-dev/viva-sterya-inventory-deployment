@@ -351,12 +351,13 @@ export default function ReportsPage() {
   const [savedReportFilters, setSavedReportFilters] = useState<ReportFilterSnapshot | null>(null);
   const [filtersRestored, setFiltersRestored] = useState(false);
   const reportFilterUserId = user?.id ?? null;
+  const reportFilterProjectId = activeProjectState.resolved.project?.id ?? null;
   const buildReportFilterSnapshot = (): Omit<ReportFilterSnapshot, "savedAt"> => ({ reportType, from, to, movement: movementFilter, variance: varianceFilter, unlinked: unlinkedSearch, permit: permitSearch, itemCode: itemCodeSearch, itemName: itemNameSearch, warehouse: warehouseSearch, incomingFrom: incomingFromSearch, outgoingTo: outgoingToSearch, additionPurpose: additionPurposeSearch, disbursementPurpose: disbursementPurposeSearch, returnPurpose: returnPurposeSearch });
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setSavedReportFilters(readReportFilterSnapshot(window.localStorage, reportFilterUserId));
+    setSavedReportFilters(readReportFilterSnapshot(window.localStorage, reportFilterUserId, reportFilterProjectId));
     setFiltersRestored(false);
-  }, [reportFilterUserId]);
+  }, [reportFilterUserId, reportFilterProjectId]);
   const restoreReportFilters = () => {
     if (!savedReportFilters) return;
     const snapshot = savedReportFilters;
@@ -555,9 +556,9 @@ export default function ReportsPage() {
   const exportReport = () => reportType === "inventory"
     ? void downloadInventoryExcelFile(inventoryExportData)
     : downloadCsv(withReportProjectFile(reportType === "returns" ? "smart-inventory-returns-report.csv" : "smart-inventory-movements-report.csv", activeProjectName), ["نوع الحركة", "التاريخ", "رقم الإذن", "كود الصنف", "الكمية", "البيان"], (reportType === "returns" ? filteredReturnsRows : movementSearchRows).map(row => [row.type, row.date, row.eznNum, row.itemCode, formatQuantity(row.quantity), row.detail]));
-  const applyReportFilters = () => { setAppliedReportFilters({ from, to, movement: movementFilter, variance: varianceFilter, unlinked: unlinkedSearch, permit: permitSearch, itemCode: itemCodeSearch, itemName: itemNameSearch, warehouse: warehouseSearch, incomingFrom: incomingFromSearch, outgoingTo: outgoingToSearch, additionPurpose: additionPurposeSearch, disbursementPurpose: disbursementPurposeSearch, returnPurpose: returnPurposeSearch }); setReportTypeBeforeSearch(reportType); setSearchResultView(true); setReportType("movements"); if (typeof window !== "undefined") { writeReportFilterSnapshot(window.localStorage, reportFilterUserId, buildReportFilterSnapshot()); setSavedReportFilters(readReportFilterSnapshot(window.localStorage, reportFilterUserId)); setFiltersRestored(false); } };
+  const applyReportFilters = () => { setAppliedReportFilters({ from, to, movement: movementFilter, variance: varianceFilter, unlinked: unlinkedSearch, permit: permitSearch, itemCode: itemCodeSearch, itemName: itemNameSearch, warehouse: warehouseSearch, incomingFrom: incomingFromSearch, outgoingTo: outgoingToSearch, additionPurpose: additionPurposeSearch, disbursementPurpose: disbursementPurposeSearch, returnPurpose: returnPurposeSearch }); setReportTypeBeforeSearch(reportType); setSearchResultView(true); setReportType("movements"); if (typeof window !== "undefined") { writeReportFilterSnapshot(window.localStorage, reportFilterUserId, buildReportFilterSnapshot(), reportFilterProjectId); setSavedReportFilters(readReportFilterSnapshot(window.localStorage, reportFilterUserId, reportFilterProjectId)); setFiltersRestored(false); } };
   const clearReportFilters = () => { setSearchResultView(false); setFrom(""); setTo(today()); setMovementFilter("all"); setVarianceFilter("all"); setUnlinkedSearch(""); setPermitSearch(""); setIncomingFromSearch(""); setOutgoingToSearch(""); setAdditionPurposeSearch(""); setDisbursementPurposeSearch(""); setReturnPurposeSearch(""); setItemCodeSearch(""); setItemNameSearch(""); setWarehouseSearch(""); setAppliedReportFilters({ from: "", to: today(), movement: "all", variance: "all", unlinked: "", permit: "", itemCode: "", itemName: "", warehouse: "", incomingFrom: "", outgoingTo: "", additionPurpose: "", disbursementPurpose: "", returnPurpose: "" }); };
-  const clearSavedReportFilters = () => { if (typeof window !== "undefined") clearReportFilterSnapshot(window.localStorage, reportFilterUserId); setSavedReportFilters(null); setFiltersRestored(false); };
+  const clearSavedReportFilters = () => { if (typeof window !== "undefined") clearReportFilterSnapshot(window.localStorage, reportFilterUserId, reportFilterProjectId); setSavedReportFilters(null); setFiltersRestored(false); };
   const hasActiveFilters = Boolean(from || movementFilter !== "all" || varianceFilter !== "all" || unlinkedSearch || permitSearch || itemCodeSearch || itemNameSearch || warehouseSearch || incomingFromSearch || outgoingToSearch || additionPurposeSearch || disbursementPurposeSearch || returnPurposeSearch || to !== today());
   const reportColumnOptions = reportType === "inventory" ? inventoryExportColumns : exportFormat === "pdf" ? movementPdfExportColumns : movementExportColumns;
   const saveReportColumnOrder = (order: ExportColumnKey[]) => { const currentOrders = preferences.data?.reportColumnOrder ?? {}; updatePreferences.mutate({ quickActions: preferences.data?.quickActions ?? ["/additions", "/disbursements", "/transfers"], hapticEnabled: preferences.data?.hapticEnabled ?? true, reportColumnOrder: { ...currentOrders, [reportColumnPreferenceKey]: order } }); };

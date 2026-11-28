@@ -19,13 +19,12 @@ export type ReportFilterSnapshot = {
 
 const STORAGE_PREFIX = "smart-inventory-report-filters-v1";
 
-function keyForUser(userId?: number | null) {
-  return `${STORAGE_PREFIX}:${userId ?? "anonymous"}`;
+function keyForUser(userId?: number | null, projectId?: number | null) {
+  return `${STORAGE_PREFIX}:${userId ?? "anonymous"}:${projectId ?? "unscoped"}`;
 }
-
-export function readReportFilterSnapshot(storage: Pick<Storage, "getItem">, userId?: number | null): ReportFilterSnapshot | null {
+export function readReportFilterSnapshot(storage: Pick<Storage, "getItem">, userId?: number | null, projectId?: number | null): ReportFilterSnapshot | null {
   try {
-    const raw = storage.getItem(keyForUser(userId));
+    const raw = storage.getItem(keyForUser(userId, projectId));
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<ReportFilterSnapshot>;
     if (!value || typeof value !== "object" || typeof value.savedAt !== "string") return null;
@@ -37,17 +36,17 @@ export function readReportFilterSnapshot(storage: Pick<Storage, "getItem">, user
   }
 }
 
-export function writeReportFilterSnapshot(storage: Pick<Storage, "setItem">, userId: number | null | undefined, snapshot: Omit<ReportFilterSnapshot, "savedAt">) {
+export function writeReportFilterSnapshot(storage: Pick<Storage, "setItem">, userId: number | null | undefined, snapshot: Omit<ReportFilterSnapshot, "savedAt">, projectId?: number | null) {
   try {
-    storage.setItem(keyForUser(userId), JSON.stringify({ ...snapshot, savedAt: new Date().toISOString() }));
+    storage.setItem(keyForUser(userId, projectId), JSON.stringify({ ...snapshot, savedAt: new Date().toISOString() }));
   } catch {
     // Private browsing or a full storage quota should not block report filtering.
   }
 }
 
-export function clearReportFilterSnapshot(storage: Pick<Storage, "removeItem">, userId?: number | null) {
+export function clearReportFilterSnapshot(storage: Pick<Storage, "removeItem">, userId?: number | null, projectId?: number | null) {
   try {
-    storage.removeItem(keyForUser(userId));
+    storage.removeItem(keyForUser(userId, projectId));
   } catch {
     // Ignore unavailable local storage.
   }

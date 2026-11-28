@@ -39,7 +39,17 @@ type Snapshot = {
   queryKey: QueryKey;
   data: unknown;
   updatedAt: number;
+  projectScope: string;
 };
+
+function currentProjectScope() {
+  if (typeof window === "undefined") return "unscoped";
+  try {
+    return window.localStorage.getItem("smart-inventory-active-project") || "unscoped";
+  } catch {
+    return "unscoped";
+  }
+}
 
 function openDatabase(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === "undefined") return Promise.resolve(null);
@@ -122,7 +132,8 @@ export async function restoreOfflineQueryCache(queryClient: QueryClient) {
   await cleanupOfflineQueryCache();
   const refreshedDb = await openDatabase();
   if (!refreshedDb) return 0;
-  const snapshots = await readAll(refreshedDb);
+  const projectScope = currentProjectScope();
+  const snapshots = (await readAll(refreshedDb)).filter(snapshot => snapshot.projectScope === projectScope);
   let restored = 0;
   for (const snapshot of snapshots) {
     try {
@@ -142,7 +153,8 @@ export async function persistOfflineQuery(queryKey: QueryKey, data: unknown, upd
     const serializable = JSON.parse(JSON.stringify(data));
     const db = await openDatabase();
     if (!db) return;
-    await putSnapshot(db, { key: keyFor(queryKey), queryKey, data: serializable, updatedAt });
+    const projectScope = currentProjectScope();
+    await putSnapshot(db, { key: `${projectScope}:${keyFor(queryKey)}`, queryKey, data: serializable, updatedAt, projectScope });
     db.close();
     await cleanupOfflineQueryCache(updatedAt);
     if (typeof window !== "undefined") {

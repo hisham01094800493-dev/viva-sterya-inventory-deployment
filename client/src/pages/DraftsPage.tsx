@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useActiveProjectState } from "@/components/ProjectSwitcher";
 import { trpc } from "@/lib/trpc";
 import { configureArabicPdf, fetchImageAsset, getArabicPdfFont, getPdfImageFormat, loadPdfTools, shapeArabic } from "@/lib/inventoryExportFiles";
 import { savePdfFile } from "@/lib/inventoryExportRuntime";
@@ -64,7 +65,10 @@ function MemoTemplateEditor({ title, body, onBodyChange }: { title: string; body
 }
 export default function DraftsPage() {
   const { user } = useAuth();
-  const storageKey = `${storagePrefix}:${user?.id ?? "guest"}`;
+  const activeProjectState = useActiveProjectState();
+  const activeProjectId = activeProjectState.resolved.project?.id ?? null;
+  // المسودة محلية، لذلك ترتبط بالمستخدم والمشروع معًا حتى لا تظهر عند التبديل.
+  const storageKey = `${storagePrefix}:${user?.id ?? "guest"}:${activeProjectId ?? "unscoped"}`;
   const [drafts, setDrafts] = useState<LocalDraft[]>(() => readLocalDrafts(storageKey));
   const [form, setForm] = useState<DraftForm>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
